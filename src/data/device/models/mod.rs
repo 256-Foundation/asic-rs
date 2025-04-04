@@ -84,6 +84,12 @@ impl MinerModel {
                     }
                     None
                 }
+                Some(MinerFirmware::LuxOS) => {
+                    if let Ok(model) = AntMinerModel::from_str(model_str) {
+                        return Some(MinerModel::AntMiner(model));
+                    }
+                    None
+                }
                 None => None,
                 _ => None,
             },
