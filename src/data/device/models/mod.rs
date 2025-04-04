@@ -53,13 +53,30 @@ pub enum MinerModel {
     Braiins(BraiinsModel),
 }
 
-impl MinerModel {
-    pub fn from_string(
-        make: Option<MinerMake>,
-        firmware: Option<MinerFirmware>,
-        model_str: &str,
-    ) -> Option<Self> {
-        match make {
+pub(crate) struct MinerModelFactory {
+    make: Option<MinerMake>,
+    firmware: Option<MinerFirmware>,
+}
+
+impl MinerModelFactory {
+    pub fn new() -> Self {
+        MinerModelFactory {
+            make: None,
+            firmware: None,
+        }
+    }
+
+    pub(crate) fn with_make(&mut self, make: MinerMake) -> &Self {
+        self.make = Some(make);
+        self
+    }
+    pub(crate) fn with_firmware(&mut self, firmware: MinerFirmware) -> &Self {
+        self.firmware = Some(firmware);
+        self
+    }
+
+    pub(crate) fn parse_model(&self, model_str: &str) -> Option<MinerModel> {
+        match self.make {
             Some(MinerMake::AntMiner) => {
                 let model = AntMinerModel::from_str(model_str).ok();
                 match model {
@@ -74,7 +91,7 @@ impl MinerModel {
                     None => None,
                 }
             }
-            None => match firmware {
+            None => match self.firmware {
                 Some(MinerFirmware::BraiinsOS) => {
                     if let Ok(model) = AntMinerModel::from_str(model_str) {
                         return Some(MinerModel::AntMiner(model));
@@ -94,13 +111,6 @@ impl MinerModel {
                 _ => None,
             },
             _ => None,
-        }
-    }
-    pub fn get_make(&self) -> MinerMake {
-        match self {
-            MinerModel::AntMiner(_) => MinerMake::AntMiner,
-            MinerModel::WhatsMiner(_) => MinerMake::WhatsMiner,
-            MinerModel::Braiins(_) => MinerMake::Braiins,
         }
     }
 }

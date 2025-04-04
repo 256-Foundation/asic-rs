@@ -1,3 +1,4 @@
+use crate::data::device::models::MinerModelFactory;
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
 use crate::miners::util;
 use diqwest::WithDigestAuth;
@@ -13,11 +14,11 @@ pub(crate) async fn get_model_antminer(ip: IpAddr) -> Option<MinerModel> {
     match response {
         Some(data) => {
             let json_data = data.json::<serde_json::Value>().await.ok()?;
-            MinerModel::from_string(
-                Some(MinerMake::AntMiner),
-                None,
-                &json_data["minertype"].as_str().unwrap_or("").to_uppercase(),
-            )
+            let model = json_data["minertype"].as_str().unwrap_or("").to_uppercase();
+
+            MinerModelFactory::new()
+                .with_make(MinerMake::AntMiner)
+                .parse_model(&model)
         }
         None => None,
     }
@@ -34,7 +35,9 @@ pub(crate) async fn get_model_whatsminer(ip: IpAddr) -> Option<MinerModel> {
             model.pop();
             model.push('0');
 
-            MinerModel::from_string(Some(MinerMake::WhatsMiner), None, &model)
+            MinerModelFactory::new()
+                .with_make(MinerMake::WhatsMiner)
+                .parse_model(&model)
         }
         None => None,
     }
@@ -49,7 +52,31 @@ pub(crate) async fn get_model_luxos(ip: IpAddr) -> Option<MinerModel> {
             }
             let model = model.unwrap().to_uppercase();
 
-            MinerModel::from_string(None, Some(MinerFirmware::LuxOS), &model)
+            MinerModelFactory::new()
+                .with_firmware(MinerFirmware::LuxOS)
+                .parse_model(&model)
+        }
+        None => None,
+    }
+}
+
+pub(crate) async fn get_model_braiins_os(ip: IpAddr) -> Option<MinerModel> {
+    let response = util::send_rpc_command(&ip, "devdetails").await;
+    match response {
+        Some(json_data) => {
+            let model = json_data["DEVDETAILS"][0]["Model"].as_str();
+            if model.is_none() {
+                return None;
+            }
+            let model = model
+                .unwrap()
+                .to_uppercase()
+                .replace("BITMAIN ", "")
+                .replace("S19XP", "S19 XP");
+
+            MinerModelFactory::new()
+                .with_firmware(MinerFirmware::BraiinsOS)
+                .parse_model(&model)
         }
         None => None,
     }
