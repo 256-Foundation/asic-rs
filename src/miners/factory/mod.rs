@@ -12,10 +12,9 @@ use std::{collections::HashSet, error::Error};
 use tokio::task::JoinSet;
 
 use super::commands::MinerCommand;
+use super::util::{send_rpc_command, send_web_command};
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
 use traits::{DiscoveryCommands, ModelSelection};
-
-use super::util::{send_rpc_command, send_web_command};
 
 const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
@@ -168,20 +167,16 @@ impl MinerFactory {
         );
 
         match miner_info {
-            Some((make, firmware)) => match (make, firmware) {
-                (Some(make), Some(MinerFirmware::Stock)) => {
-                    let model = make.get_model(ip).await;
-                    Ok(Some((model, firmware)))
-                }
-                (_, Some(firmware)) => {
-                    let model = firmware.get_model(ip).await;
-                    match model {
-                        Some(model) => Ok(Some((Some(model), Some(firmware)))),
-                        None => Ok(Some((None, Some(firmware)))),
-                    }
-                }
-                _ => Ok(None),
-            },
+            Some((make, firmware)) => {
+                let model = if let Some(miner_make) = make {
+                    miner_make.get_model(ip).await
+                } else if let Some(miner_firmware) = firmware {
+                    miner_firmware.get_model(ip).await
+                } else {
+                    return Ok(None);
+                };
+                Ok(Some((model, firmware)))
+            }
             None => Ok(None),
         }
     }
