@@ -1,4 +1,4 @@
-use crate::data::device::{MinerMake, MinerModel};
+use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
 use crate::miners::util;
 use diqwest::WithDigestAuth;
 use reqwest::{Client, Response};
@@ -14,7 +14,8 @@ pub(crate) async fn get_model_antminer(ip: IpAddr) -> Option<MinerModel> {
         Some(data) => {
             let json_data = data.json::<serde_json::Value>().await.ok()?;
             MinerModel::from_string(
-                MinerMake::AntMiner,
+                Some(MinerMake::AntMiner),
+                None,
                 &json_data["minertype"].as_str().unwrap_or("").to_uppercase(),
             )
         }
@@ -33,7 +34,7 @@ pub(crate) async fn get_model_whatsminer(ip: IpAddr) -> Option<MinerModel> {
             model.pop();
             model.push('0');
 
-            MinerModel::from_string(MinerMake::WhatsMiner, &model)
+            MinerModel::from_string(Some(MinerMake::WhatsMiner), None, &model)
         }
         None => None,
     }
@@ -48,7 +49,7 @@ pub(crate) async fn get_model_luxos(ip: IpAddr) -> Option<MinerModel> {
             }
             let model = model.unwrap().to_uppercase();
 
-            MinerModel::from_string(MinerMake::AntMiner, &model)
+            MinerModel::from_string(None, Some(MinerFirmware::LuxOS), &model)
         }
         None => None,
     }

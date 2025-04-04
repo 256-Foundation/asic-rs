@@ -1,11 +1,12 @@
 use std::{fmt::Display, str::FromStr};
 
+use super::{MinerFirmware, MinerMake};
 use antminer::AntMinerModel;
+use braiins::BraiinsModel;
 use whatsminer::WhatsMinerModel;
 
-use super::MinerMake;
-
 pub mod antminer;
+pub mod braiins;
 pub mod whatsminer;
 
 #[derive(Debug, Clone)]
@@ -36,29 +37,56 @@ impl FromStr for AntMinerModel {
     }
 }
 
+impl FromStr for BraiinsModel {
+    type Err = ModelParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_value(serde_json::Value::String(s.to_string()))
+            .map_err(|_| ModelParseError)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MinerModel {
     AntMiner(AntMinerModel),
     WhatsMiner(WhatsMinerModel),
+    Braiins(BraiinsModel),
 }
 
 impl MinerModel {
-    pub fn from_string(make: MinerMake, model_str: &str) -> Option<Self> {
+    pub fn from_string(
+        make: Option<MinerMake>,
+        firmware: Option<MinerFirmware>,
+        model_str: &str,
+    ) -> Option<Self> {
         match make {
-            MinerMake::AntMiner => {
+            Some(MinerMake::AntMiner) => {
                 let model = AntMinerModel::from_str(model_str).ok();
                 match model {
                     Some(model) => Some(MinerModel::AntMiner(model)),
                     None => None,
                 }
             }
-            MinerMake::WhatsMiner => {
+            Some(MinerMake::WhatsMiner) => {
                 let model = WhatsMinerModel::from_str(model_str).ok();
                 match model {
                     Some(model) => Some(MinerModel::WhatsMiner(model)),
                     None => None,
                 }
             }
+            None => match firmware {
+                Some(MinerFirmware::BraiinsOS) => {
+                    if let Ok(model) = AntMinerModel::from_str(model_str) {
+                        return Some(MinerModel::AntMiner(model));
+                    }
+                    if let Ok(model) = BraiinsModel::from_str(model_str) {
+                        return Some(MinerModel::Braiins(model));
+                    }
+                    None
+                }
+                None => None,
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -66,6 +94,7 @@ impl MinerModel {
         match self {
             MinerModel::AntMiner(_) => MinerMake::AntMiner,
             MinerModel::WhatsMiner(_) => MinerMake::WhatsMiner,
+            MinerModel::Braiins(_) => MinerMake::Braiins,
         }
     }
 }
