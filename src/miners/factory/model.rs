@@ -23,6 +23,7 @@ pub(crate) async fn get_model_antminer(ip: IpAddr) -> Option<MinerModel> {
         None => None,
     }
 }
+
 pub(crate) async fn get_model_whatsminer(ip: IpAddr) -> Option<MinerModel> {
     let response = util::send_rpc_command(&ip, "devdetails").await;
     match response {
@@ -42,6 +43,7 @@ pub(crate) async fn get_model_whatsminer(ip: IpAddr) -> Option<MinerModel> {
         None => None,
     }
 }
+
 pub(crate) async fn get_model_luxos(ip: IpAddr) -> Option<MinerModel> {
     let response = util::send_rpc_command(&ip, "version").await;
     match response {

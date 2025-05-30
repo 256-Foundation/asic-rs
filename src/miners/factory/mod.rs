@@ -7,7 +7,6 @@ use futures::future::FutureExt;
 use futures::pin_mut;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
-use serde::Serialize;
 use std::net::IpAddr;
 use std::time::Duration;
 use std::{collections::HashSet, error::Error};

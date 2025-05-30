@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
+use async_trait::async_trait;
 use super::traits::GetMinerData;
 use crate::data::board::BoardData;
 use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerMake, MinerModel};
@@ -37,26 +37,27 @@ impl BTMinerV3Backend {
     }
     pub async fn get_device_info(&self) -> Result<GetDeviceInfo, RPCError> {
         self.rpc
-            .send_command::<GetDeviceInfo>("get.device.info", None)
+            .send_command::<GetDeviceInfo, ()>("get.device.info", None)
             .await
     }
     pub async fn get_miner_status_summary(&self) -> Result<GetMinerStatusSummary, RPCError> {
         self.rpc
-            .send_command::<GetMinerStatusSummary>("get.miner.status", Some(Box::new("summary")))
+            .send_command::<GetMinerStatusSummary, &str>("get.miner.status", Some("summary"))
             .await
     }
     pub async fn get_miner_status_pools(&self) -> Result<GetMinerStatusPools, RPCError> {
         self.rpc
-            .send_command::<GetMinerStatusPools>("get.miner.status", Some(Box::new("pools")))
+            .send_command::<GetMinerStatusPools, &str>("get.miner.status", Some("pools"))
             .await
     }
     pub async fn get_miner_status_edevs(&self) -> Result<GetMinerStatusEDevs, RPCError> {
         self.rpc
-            .send_command::<GetMinerStatusEDevs>("get.miner.status", Some(Box::new("edevs")))
+            .send_command::<GetMinerStatusEDevs, &str>("get.miner.status", Some("edevs"))
             .await
     }
 }
 
+#[async_trait]
 impl GetMinerData for BTMinerV3Backend {
     async fn get_data(&self) -> MinerData {
         let (device_info, miner_status_summary, miner_status_pools, miner_status_edevs) = tokio::join!(
