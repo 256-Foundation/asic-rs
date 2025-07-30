@@ -3,6 +3,7 @@ use crate::data::device::{DeviceInfo, MinerFirmware, MinerModel};
 use crate::data::miner::MinerData;
 use crate::miners::api::rpc::cgminer::CGMinerRPC;
 use crate::miners::backends::traits::GetMinerData;
+use crate::miners::commands::MinerCommand;
 use crate::miners::data::{DataCollector, DataExtractor, DataField, DataLocation, get_by_pointer, DataExtensions};
 use async_trait::async_trait;
 use std::net::IpAddr;
@@ -14,6 +15,7 @@ use serde_json::{json, Value, Map};
 use regex::Regex;
 use crate::data::device::HashAlgorithm::SHA256;
 
+#[derive(Debug)]
 pub struct AvalonMiner {
     model: MinerModel,
     rpc: CGMinerRPC,
@@ -109,7 +111,7 @@ impl GetMinerData for AvalonMiner {
         let mac = data.extract::<String>(DataField::Mac).and_then(|s| MacAddr::from_str(&s).ok());
         let wattage = data.extract_map::<f64, _>(DataField::Wattage, Power::from_watts);
 
-        let device_info = DeviceInfo::new(crate::data::device::MinerMake::AvalonMiner, self.model.clone(), self.miner_firmware.clone(), SHA256 );
+        let device_info = DeviceInfo::new(crate::data::device::MinerMake::AvalonMiner, self.model.clone(), self.miner_firmware, SHA256 );
 
         MinerData {
             schema_version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -125,6 +127,7 @@ impl GetMinerData for AvalonMiner {
             expected_hashboards: None,
             hashboards: vec![],
             hashrate: None,
+            expected_hashrate: None,
             expected_chips: None,
             total_chips: None,
             expected_fans: None,
@@ -143,81 +146,97 @@ impl GetMinerData for AvalonMiner {
         }
     }
 
-    fn get_locations(&self, data_field: DataField) -> &'static [DataLocation] {
+    fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
+        let version_cmd: MinerCommand = MinerCommand::RPC {
+            command: "version",
+            parameters: None,
+        };
+        let stats_cmd: MinerCommand = MinerCommand::RPC {
+            command: "stats",
+            parameters: None,
+        };
+        let devs_cmd: MinerCommand = MinerCommand::RPC {
+            command: "devs",
+            parameters: None,
+        };
+        let pools_cmd: MinerCommand = MinerCommand::RPC {
+            command: "pools",
+            parameters: None,
+        };
+
         match data_field {
-            DataField::Mac => &[(
-                "version",
+            DataField::Mac => vec![(
+                version_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/VERSION/0/MAC"),
                 },
             )],
-            DataField::ApiVersion => &[(
-                "version",
+            DataField::ApiVersion => vec![(
+                version_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/VERSION/0/API"),
                 },
             )],
-            DataField::FirmwareVersion => &[(
-                "version",
+            DataField::FirmwareVersion => vec![(
+                version_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/VERSION/0/CGMiner"),
                 },
             )],
-            DataField::Hashboards => &[(
-                "stats",
+            DataField::Hashboards => vec![(
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/0/MM ID0"),
                 },
             )],
-            DataField::Hashrate => &[(
-                "devs",
+            DataField::Hashrate => vec![(
+                devs_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/DEVS/0/MHS 1m"),
                 },
             )],
-            DataField::Fans | DataField::PsuFans => &[(
-                "stats",
+            DataField::Fans | DataField::PsuFans => vec![(
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/0/MM IDO"),
                 },
             )],
-            DataField::AverageTemperature => &[(
-                "stats",
+            DataField::AverageTemperature => vec![(
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/0/MM ID0"),
                 },
             )],
-
-            DataField::Wattage | DataField::WattageLimit | DataField::LightFlashing => &[(
-                "stats",
+            DataField::Wattage | DataField::WattageLimit | DataField::LightFlashing => vec![(
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/0/MM IDO"),
                 },
             )],
-            DataField::Messages => &[],
-            DataField::Uptime => &[(
-                "stats",
+            DataField::Messages => vec![],
+            DataField::Uptime => vec![(
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/1/Elapsed"),
                 },
             )],
-            DataField::Pools => &[(
-                "pools",
+            DataField::Pools => vec![(
+                pools_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some(""),
                 },
             )],
-            _ => &[]
+            _ => vec![]
         }
     }
 }
