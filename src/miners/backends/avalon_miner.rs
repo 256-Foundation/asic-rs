@@ -1,19 +1,21 @@
-use std::collections::HashMap;
+use crate::data::device::HashAlgorithm::SHA256;
 use crate::data::device::{DeviceInfo, MinerFirmware, MinerModel};
 use crate::data::miner::MinerData;
 use crate::miners::api::rpc::cgminer::CGMinerRPC;
 use crate::miners::backends::traits::GetMinerData;
 use crate::miners::commands::MinerCommand;
-use crate::miners::data::{DataCollector, DataExtractor, DataField, DataLocation, get_by_pointer, DataExtensions};
+use crate::miners::data::{
+    DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_pointer,
+};
 use async_trait::async_trait;
+use macaddr::MacAddr;
+use measurements::Power;
+use regex::Regex;
+use serde_json::{Map, Value, json};
+use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::SystemTime;
-use macaddr::MacAddr;
-use measurements::Power;
-use serde_json::{json, Value, Map};
-use regex::Regex;
-use crate::data::device::HashAlgorithm::SHA256;
 
 #[derive(Debug)]
 pub struct AvalonMiner {
@@ -34,10 +36,9 @@ impl AvalonMiner {
     }
 }
 
-
-pub fn parse_stats(response: &str) -> HashMap<& str, Value> {
+pub fn parse_stats(response: &str) -> HashMap<&str, Value> {
     let re = Regex::new(r".+?\[.*?]").expect("Failed to compile regex");
-    let mut stats_dict: HashMap< &str, Value> = HashMap::new();
+    let mut stats_dict: HashMap<&str, Value> = HashMap::new();
 
     for item_match in re.find_iter(response) {
         let item = item_match.as_str();
@@ -107,11 +108,21 @@ impl GetMinerData for AvalonMiner {
         let mut collector = DataCollector::new(self, &self.rpc);
         let data = collector.collect_all().await;
 
-        let timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-        let mac = data.extract::<String>(DataField::Mac).and_then(|s| MacAddr::from_str(&s).ok());
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mac = data
+            .extract::<String>(DataField::Mac)
+            .and_then(|s| MacAddr::from_str(&s).ok());
         let wattage = data.extract_map::<f64, _>(DataField::Wattage, Power::from_watts);
 
-        let device_info = DeviceInfo::new(crate::data::device::MinerMake::AvalonMiner, self.model.clone(), self.miner_firmware, SHA256 );
+        let device_info = DeviceInfo::new(
+            crate::data::device::MinerMake::AvalonMiner,
+            self.model.clone(),
+            self.miner_firmware,
+            SHA256,
+        );
 
         MinerData {
             schema_version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -236,7 +247,7 @@ impl GetMinerData for AvalonMiner {
                     key: Some(""),
                 },
             )],
-            _ => vec![]
+            _ => vec![],
         }
     }
 }

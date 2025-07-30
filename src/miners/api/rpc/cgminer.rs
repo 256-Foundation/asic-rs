@@ -4,7 +4,7 @@ use crate::miners::api::rpc::status::RPCCommandStatus;
 use crate::miners::api::rpc::traits::SendRPCCommand;
 use crate::miners::commands::MinerCommand;
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::net::IpAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -39,11 +39,7 @@ impl SendRPCCommand for CGMinerRPC {
                 params
             );
         } else {
-            dbg!(
-                "{} - (Send Privileged Command) - {}",
-                self.ip,
-                command
-            );
+            dbg!("{} - (Send Privileged Command) - {}", self.ip, command);
         }
 
         let cmd = match parameters {
@@ -68,10 +64,14 @@ impl SendRPCCommand for CGMinerRPC {
         stream.read_to_end(&mut buffer).await?;
 
         if buffer.is_empty() {
-            return Err(RPCError::StatusCheckFailed("No data returned from the API.".to_string()));
+            return Err(RPCError::StatusCheckFailed(
+                "No data returned from the API.".to_string(),
+            ));
         }
 
-        let response = String::from_utf8_lossy(&buffer).into_owned().replace('\0', "");
+        let response = String::from_utf8_lossy(&buffer)
+            .into_owned()
+            .replace('\0', "");
 
         if response == "Socket connect failed: Connection refused\n" {
             return Err(RPCError::ConnectionFailed);
@@ -101,7 +101,9 @@ impl SendRPCCommand for CGMinerRPC {
             }
         }
 
-        Err(RPCError::StatusCheckFailed("Invalid response format".to_string()))
+        Err(RPCError::StatusCheckFailed(
+            "Invalid response format".to_string(),
+        ))
     }
 }
 
