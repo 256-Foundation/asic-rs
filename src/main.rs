@@ -3,7 +3,7 @@ use std::net::IpAddr;
 
 #[tokio::main]
 async fn main() {
-    let miner_ip = IpAddr::from([10, 0, 14, 208]);
+    let miner_ip = IpAddr::from([192, 168, 1, 199]);
 
     let miner = get_miner(miner_ip).await.unwrap();
     if miner.is_some() {

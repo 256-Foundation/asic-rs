@@ -102,6 +102,9 @@ fn parse_type_from_web(
         {
             Some((Some(MinerMake::WhatsMiner), Some(MinerFirmware::Stock)))
         }
+        _ if resp_text.contains("Avalon") => {
+            Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
+        }
         _ => None,
     }
 }
