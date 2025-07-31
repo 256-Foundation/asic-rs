@@ -17,5 +17,5 @@ pub enum AvalonMinerModel {
     A1246,
     A1566,
     Nano3,
-    Nano3S
+    Nano3S,
 }

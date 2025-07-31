@@ -6,13 +6,12 @@ use braiins::BraiinsModel;
 use serde::Serialize;
 use std::{fmt::Display, str::FromStr};
 use whatsminer::WhatsMinerModel;
-use crate::data::device::MinerMake::AvalonMiner;
 
 pub mod antminer;
+pub mod avalonminer;
 pub mod bitaxe;
 pub mod braiins;
 pub mod whatsminer;
-pub mod avalonminer;
 
 #[derive(Debug, Clone)]
 pub struct ModelParseError;
