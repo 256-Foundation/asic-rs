@@ -1,4 +1,5 @@
 use crate::data::board::BoardData;
+use crate::data::device::MinerMake;
 use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerModel};
 use crate::data::fan::FanData;
 use crate::data::hashrate::{HashRate, HashRateUnit};
@@ -19,14 +20,13 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
-use crate::data::device::MinerMake;
 
 #[derive(Debug)]
 pub struct AvalonMiner {
     model: MinerModel,
     rpc: CGMinerRPC,
     ip: IpAddr,
-    miner_firmware: MinerFirmware
+    miner_firmware: MinerFirmware,
 }
 
 impl AvalonMiner {
@@ -35,7 +35,7 @@ impl AvalonMiner {
             model,
             rpc: CGMinerRPC::new(ip),
             ip,
-            miner_firmware
+            miner_firmware,
         }
     }
 }
@@ -213,7 +213,8 @@ impl GetMinerData for AvalonMiner {
                         parsed_stats = parse_stats(stats_str);
                         stats_parsed = true;
 
-                        let elapsed = parsed_stats.get("Elapsed")
+                        let elapsed = parsed_stats
+                            .get("Elapsed")
                             .and_then(|v| v.get(0))
                             .and_then(|v| v.as_str())
                             .and_then(|s| s.parse::<f64>().ok())
@@ -222,14 +223,16 @@ impl GetMinerData for AvalonMiner {
                         let mut mw_vec: Vec<f64> = vec![];
                         if let Some(mw_array) = parsed_stats.get("MW") {
                             if let Some(array) = mw_array.as_array() {
-                                mw_vec = array.iter()
+                                mw_vec = array
+                                    .iter()
                                     .filter_map(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()))
                                     .collect();
                             }
                         }
                         let hbs = mw_vec.len() as u8;
 
-                        let total_chips = parsed_stats.get("TA")
+                        let total_chips = parsed_stats
+                            .get("TA")
                             .and_then(|v| v.get(0))
                             .and_then(|v| v.as_str())
                             .and_then(|s| s.parse::<u16>().ok())
@@ -239,7 +242,8 @@ impl GetMinerData for AvalonMiner {
                         let mut board_temps: Vec<f64> = vec![0.0; hbs as usize];
                         if let Some(mm_temp) = parsed_stats.get("MM Temp") {
                             if let Some(temp_str) = mm_temp.get(0).and_then(|v| v.as_str()) {
-                                let temps: Vec<f64> = temp_str.split('-').filter_map(|s| s.parse().ok()).collect();
+                                let temps: Vec<f64> =
+                                    temp_str.split('-').filter_map(|s| s.parse().ok()).collect();
                                 if temps.len() == hbs as usize {
                                     board_temps = temps;
                                 }
@@ -262,7 +266,9 @@ impl GetMinerData for AvalonMiner {
                                     algo: "SHA256".to_string(),
                                 }),
                                 expected_hashrate: None,
-                                board_temperature: Some(Temperature::from_celsius(board_temps[i as usize])),
+                                board_temperature: Some(Temperature::from_celsius(
+                                    board_temps[i as usize],
+                                )),
                                 intake_temperature: None,
                                 outlet_temperature: None,
                                 expected_chips: Some(chips_per_board),
@@ -295,32 +301,39 @@ impl GetMinerData for AvalonMiner {
         }
 
         let average_temperature = if !hashboards.is_empty() {
-            let total_temp: f64 = hashboards.iter()
+            let total_temp: f64 = hashboards
+                .iter()
                 .map(|b| b.board_temperature.map_or(0.0, |t| t.as_celsius()))
                 .sum();
-            Some(Temperature::from_celsius(total_temp / hashboards.len() as f64))
+            Some(Temperature::from_celsius(
+                total_temp / hashboards.len() as f64,
+            ))
         } else {
             None
         };
 
         let pools_value = data.get(&DataField::Pools);
         let mut pools = vec![];
-        if let Some(pools_array) = pools_value.and_then(|v| v.get("POOLS")).and_then(|v| v.as_array()) {
+        if let Some(pools_array) = pools_value
+            .and_then(|v| v.get("POOLS"))
+            .and_then(|v| v.as_array())
+        {
             for (i, pool) in pools_array.iter().enumerate() {
                 if let Some(pool_obj) = pool.as_object() {
-                    let url = pool_obj.get("URL")
+                    let url = pool_obj
+                        .get("URL")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
-                    let user = pool_obj.get("User")
+                    let user = pool_obj
+                        .get("User")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
-                    let status = pool_obj.get("Status")
+                    let status = pool_obj
+                        .get("Status")
                         .and_then(|v| v.as_str())
                         .map(|s| s == "Alive");
-                    let accepted = pool_obj.get("Accepted")
-                        .and_then(|v| v.as_u64());
-                    let rejected = pool_obj.get("Rejected")
-                        .and_then(|v| v.as_u64());
+                    let accepted = pool_obj.get("Accepted").and_then(|v| v.as_u64());
+                    let rejected = pool_obj.get("Rejected").and_then(|v| v.as_u64());
 
                     pools.push(PoolData {
                         position: Some(i as u16),
@@ -335,20 +348,28 @@ impl GetMinerData for AvalonMiner {
             }
         }
 
-        let device_info = DeviceInfo::new(MinerMake::AvalonMiner, self.model.clone(), self.miner_firmware, HashAlgorithm::SHA256);
+        let device_info = DeviceInfo::new(
+            MinerMake::AvalonMiner,
+            self.model.clone(),
+            self.miner_firmware,
+            HashAlgorithm::SHA256,
+        );
         let expected_hashboards = device_info.hardware.boards;
         let expected_fans = device_info.hardware.fans;
         let expected_chips = device_info.hardware.chips;
 
-        let expected_hashrate = Some(match self.model {
-            _ => HashRate {
-                value: 90.0,
-                unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
-            },
+        let expected_hashrate = Some(HashRate {
+            value: 90.0,
+            unit: HashRateUnit::TeraHash,
+            algo: "SHA256".to_string(),
         });
 
-        let total_chips = Some(hashboards.iter().map(|b| b.working_chips.unwrap_or(0)).sum::<u16>());
+        let total_chips = Some(
+            hashboards
+                .iter()
+                .map(|b| b.working_chips.unwrap_or(0))
+                .sum::<u16>(),
+        );
 
         MinerData {
             schema_version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -466,15 +487,15 @@ impl GetMinerData for AvalonMiner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::device::models::avalonminer::AvalonMinerModel;
+    use crate::data::device::{MinerFirmware, MinerModel};
     use crate::miners::api::ApiClient;
     use crate::miners::commands::MinerCommand;
-    use crate::data::device::{MinerFirmware, MinerModel};
     use async_trait::async_trait;
     use serde_json::json;
     use std::collections::HashMap;
     use std::net::IpAddr;
     use std::str::FromStr;
-    use crate::data::device::models::avalonminer::AvalonMinerModel;
 
     // Mock API client that returns the test data you provided
     struct MockCGMinerAPI {
@@ -486,181 +507,196 @@ mod tests {
             let mut responses = HashMap::new();
 
             // VERSION response
-            responses.insert("version".to_string(), json!({
-                "STATUS": [
-                    {
-                        "STATUS": "S",
-                        "When": 1662562633,
-                        "Code": 11,
-                        "Msg": "CGMiner versions",
-                        "Description": "cgminer 4.9.0",
-                    }
-                ],
-                "VERSION": [
-                    {
-                        "CGMiner": "4.9.0",
-                        "API": "3.1",
-                    }
-                ],
-                "id": 1,
-            }));
+            responses.insert(
+                "version".to_string(),
+                json!({
+                    "STATUS": [
+                        {
+                            "STATUS": "S",
+                            "When": 1662562633,
+                            "Code": 11,
+                            "Msg": "CGMiner versions",
+                            "Description": "cgminer 4.9.0",
+                        }
+                    ],
+                    "VERSION": [
+                        {
+                            "CGMiner": "4.9.0",
+                            "API": "3.1",
+                        }
+                    ],
+                    "id": 1,
+                }),
+            );
 
             // DEVS response
-            responses.insert("devs".to_string(), json!({
-                "STATUS": [
-                    {
-                        "STATUS": "S",
-                        "When": 1662562633,
-                        "Code": 70,
-                        "Msg": "Summary",
-                        "Description": "cgminer 4.9.0",
-                    }
-                ],
-                "DEVS": [
-                    {
-                        "ASC": 0,
-                        "Name": "SM",
-                        "ID": 0,
-                        "Enabled": "Y",
-                        "Status": "Alive",
-                        "Temperature": 60.5,
-                        "MHS av": 110000000.00,
-                        "MHS 5s": 110000000.00,
-                        "MHS 1m": 110000000.00,
-                        "MHS 5m": 110000000.00,
-                        "MHS 15m": 110000000.00,
-                        "Accepted": 10,
-                        "Rejected": 1,
-                        "Hardware Errors": 2,
-                        "Utility": 1.0,
-                        "Last Share Pool": 0,
-                        "Last Share Time": 10,
-                        "Total MH": 11000000000.0,
-                        "Diff1 Work": 100,
-                        "Difficulty Accepted": 100.0,
-                        "Difficulty Rejected": 10.0,
-                        "Last Share Difficulty": 10.0,
-                        "No Device": false,
-                        "Device Elapsed": 100,
-                        "Device Hardware%": 0.0002,
-                        "Device Rejected%": 10.0,
-                    }
-                ],
-                "id": 1,
-            }));
+            responses.insert(
+                "devs".to_string(),
+                json!({
+                    "STATUS": [
+                        {
+                            "STATUS": "S",
+                            "When": 1662562633,
+                            "Code": 70,
+                            "Msg": "Summary",
+                            "Description": "cgminer 4.9.0",
+                        }
+                    ],
+                    "DEVS": [
+                        {
+                            "ASC": 0,
+                            "Name": "SM",
+                            "ID": 0,
+                            "Enabled": "Y",
+                            "Status": "Alive",
+                            "Temperature": 60.5,
+                            "MHS av": 110000000.00,
+                            "MHS 5s": 110000000.00,
+                            "MHS 1m": 110000000.00,
+                            "MHS 5m": 110000000.00,
+                            "MHS 15m": 110000000.00,
+                            "Accepted": 10,
+                            "Rejected": 1,
+                            "Hardware Errors": 2,
+                            "Utility": 1.0,
+                            "Last Share Pool": 0,
+                            "Last Share Time": 10,
+                            "Total MH": 11000000000.0,
+                            "Diff1 Work": 100,
+                            "Difficulty Accepted": 100.0,
+                            "Difficulty Rejected": 10.0,
+                            "Last Share Difficulty": 10.0,
+                            "No Device": false,
+                            "Device Elapsed": 100,
+                            "Device Hardware%": 0.0002,
+                            "Device Rejected%": 10.0,
+                        }
+                    ],
+                    "id": 1,
+                }),
+            );
 
             // POOLS response
-            responses.insert("pools".to_string(), json!({
-                "STATUS": [
-                    {
-                        "STATUS": "S",
-                        "When": 1662562633,
-                        "Code": 70,
-                        "Msg": "Summary",
-                        "Description": "cgminer 4.9.0",
-                    }
-                ],
-                "POOLS": [
-                    {
-                        "POOL": 0,
-                        "URL": "stratum+tcp://test.pool:3333",
-                        "Status": "Alive",
-                        "Priority": 0,
-                        "Quota": 1,
-                        "Long Poll": "N",
-                        "Getworks": 10,
-                        "Accepted": 10,
-                        "Rejected": 1,
-                        "Works": 100,
-                        "Discarded": 100,
-                        "Stale": 0,
-                        "Get Failures": 0,
-                        "Remote Failures": 0,
-                        "User": "test.user",
-                        "Last Share Time": "0:00:10",
-                        "Diff": "1",
-                        "Diff1 Shares": 10,
-                        "Proxy Type": "",
-                        "Proxy": "",
-                        "Difficulty Accepted": 100.0,
-                        "Difficulty Rejected": 10.0,
-                        "Difficulty Stale": 0.0,
-                        "Last Share Difficulty": 10.0,
-                        "Has Stratum": true,
-                        "Stratum Active": true,
-                        "Stratum URL": "test.pool",
-                        "Has GBT": false,
-                        "Best Share": 100,
-                        "Pool Rejected%": 10.0,
-                        "Pool Stale%": 0.0,
-                    }
-                ],
-                "id": 1,
-            }));
+            responses.insert(
+                "pools".to_string(),
+                json!({
+                    "STATUS": [
+                        {
+                            "STATUS": "S",
+                            "When": 1662562633,
+                            "Code": 70,
+                            "Msg": "Summary",
+                            "Description": "cgminer 4.9.0",
+                        }
+                    ],
+                    "POOLS": [
+                        {
+                            "POOL": 0,
+                            "URL": "stratum+tcp://test.pool:3333",
+                            "Status": "Alive",
+                            "Priority": 0,
+                            "Quota": 1,
+                            "Long Poll": "N",
+                            "Getworks": 10,
+                            "Accepted": 10,
+                            "Rejected": 1,
+                            "Works": 100,
+                            "Discarded": 100,
+                            "Stale": 0,
+                            "Get Failures": 0,
+                            "Remote Failures": 0,
+                            "User": "test.user",
+                            "Last Share Time": "0:00:10",
+                            "Diff": "1",
+                            "Diff1 Shares": 10,
+                            "Proxy Type": "",
+                            "Proxy": "",
+                            "Difficulty Accepted": 100.0,
+                            "Difficulty Rejected": 10.0,
+                            "Difficulty Stale": 0.0,
+                            "Last Share Difficulty": 10.0,
+                            "Has Stratum": true,
+                            "Stratum Active": true,
+                            "Stratum URL": "test.pool",
+                            "Has GBT": false,
+                            "Best Share": 100,
+                            "Pool Rejected%": 10.0,
+                            "Pool Stale%": 0.0,
+                        }
+                    ],
+                    "id": 1,
+                }),
+            );
 
             // SUMMARY response
-            responses.insert("summary".to_string(), json!({
-                "STATUS": [
-                    {
-                        "STATUS": "S",
-                        "When": 1662562633,
-                        "Code": 70,
-                        "Msg": "Summary",
-                        "Description": "cgminer 4.9.0",
-                    }
-                ],
-                "SUMMARY": [
-                    {
-                        "Elapsed": 100.0,
-                        "MHS av": 110000000.00,
-                        "Found Blocks": 0,
-                        "Getworks": 1,
-                        "Accepted": 10,
-                        "Rejected": 1,
-                        "Hardware Errors": 2,
-                        "Utility": 1.0,
-                        "Discarded": 100,
-                        "Stale": 0,
-                        "Get Failures": 0,
-                        "Local Work": 100,
-                        "Remote Failures": 0,
-                        "Network Blocks": 1,
-                        "Total MH": 11000000000.0,
-                        "Work Utility": 100.0,
-                        "Difficulty Accepted": 100.0,
-                        "Difficulty Rejected": 10.0,
-                        "Difficulty Stale": 0.0,
-                        "Best Share": 100,
-                        "Device Hardware%": 0.0002,
-                        "Device Rejected%": 10.0,
-                        "Pool Rejected%": 10.0,
-                        "Pool Stale%": 0.0,
-                    }
-                ],
-                "id": 1,
-            }));
+            responses.insert(
+                "summary".to_string(),
+                json!({
+                    "STATUS": [
+                        {
+                            "STATUS": "S",
+                            "When": 1662562633,
+                            "Code": 70,
+                            "Msg": "Summary",
+                            "Description": "cgminer 4.9.0",
+                        }
+                    ],
+                    "SUMMARY": [
+                        {
+                            "Elapsed": 100.0,
+                            "MHS av": 110000000.00,
+                            "Found Blocks": 0,
+                            "Getworks": 1,
+                            "Accepted": 10,
+                            "Rejected": 1,
+                            "Hardware Errors": 2,
+                            "Utility": 1.0,
+                            "Discarded": 100,
+                            "Stale": 0,
+                            "Get Failures": 0,
+                            "Local Work": 100,
+                            "Remote Failures": 0,
+                            "Network Blocks": 1,
+                            "Total MH": 11000000000.0,
+                            "Work Utility": 100.0,
+                            "Difficulty Accepted": 100.0,
+                            "Difficulty Rejected": 10.0,
+                            "Difficulty Stale": 0.0,
+                            "Best Share": 100,
+                            "Device Hardware%": 0.0002,
+                            "Device Rejected%": 10.0,
+                            "Pool Rejected%": 10.0,
+                            "Pool Stale%": 0.0,
+                        }
+                    ],
+                    "id": 1,
+                }),
+            );
 
             // STATS response (basic CGMiner response without Avalon-specific MM ID1)
-            responses.insert("stats".to_string(), json!({
-                "STATUS": [
-                    {
-                        "STATUS": "S",
-                        "When": 1662562633,
-                        "Code": 70,
-                        "Msg": "Summary",
-                        "Description": "cgminer 4.9.0",
-                    }
-                ],
-                "STATS": [
-                    {
-                        "CGMiner": "4.9.0",
-                        "Miner": "1.0.0",
-                        "CompileTime": "Tue Nov 29 13:36:09 UTC 2016",
-                        "Type": "Avalon6"
-                    }
-                ],
-                "id": 1,
-            }));
+            responses.insert(
+                "stats".to_string(),
+                json!({
+                    "STATUS": [
+                        {
+                            "STATUS": "S",
+                            "When": 1662562633,
+                            "Code": 70,
+                            "Msg": "Summary",
+                            "Description": "cgminer 4.9.0",
+                        }
+                    ],
+                    "STATS": [
+                        {
+                            "CGMiner": "4.9.0",
+                            "Miner": "1.0.0",
+                            "CompileTime": "Tue Nov 29 13:36:09 UTC 2016",
+                            "Type": "Avalon6"
+                        }
+                    ],
+                    "id": 1,
+                }),
+            );
 
             Self { responses }
         }
@@ -692,23 +728,27 @@ mod tests {
         }
     }
 
-
     #[async_trait]
     impl ApiClient for MockCGMinerAPI {
-        async fn get_api_result(&self, command: &MinerCommand) -> Result<serde_json::Value, String> {
+        async fn get_api_result(
+            &self,
+            command: &MinerCommand,
+        ) -> Result<serde_json::Value, String> {
             match command {
-                MinerCommand::RPC { command, parameters: _ } => {
+                MinerCommand::RPC {
+                    command,
+                    parameters: _,
+                } => {
                     if let Some(response) = self.responses.get(*command) {
                         Ok(response.clone())
                     } else {
                         Err(format!("Command {} not found in mock responses", command))
                     }
                 }
-                _ => Err("Unsupported command type".to_string())
+                _ => Err("Unsupported command type".to_string()),
             }
         }
     }
-
 
     #[tokio::test]
     async fn test_avalon_miner_with_avalon_specific_stats() {
@@ -732,7 +772,6 @@ mod tests {
         assert!(fan.rpm.is_some());
         assert!((fan.rpm.unwrap().as_rpm() - 5000.0).abs() < 0.01);
     }
-
 
     #[tokio::test]
     async fn test_stats_parsing() {
@@ -773,8 +812,10 @@ mod tests {
         let miner = AvalonMiner::new(ip, model.clone(), firmware);
 
         // Create empty mock API that returns no responses
-        let mock_api = MockCGMinerAPI { responses: HashMap::new() };
-        let mut collector = DataCollector::new(&miner, &mock_api);
+        let mock_api = MockCGMinerAPI {
+            responses: HashMap::new(),
+        };
+        let collector = DataCollector::new(&miner, &mock_api);
 
         let miner_data = miner.get_data().await;
 

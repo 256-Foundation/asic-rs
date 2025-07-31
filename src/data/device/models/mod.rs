@@ -1,18 +1,17 @@
 use super::{MinerFirmware, MinerMake};
+use crate::data::device::models::avalonminer::AvalonMinerModel;
 use antminer::AntMinerModel;
 use bitaxe::BitaxeModel;
 use braiins::BraiinsModel;
 use serde::Serialize;
 use std::{fmt::Display, str::FromStr};
 use whatsminer::WhatsMinerModel;
-use crate::data::device::MinerMake::AvalonMiner;
-use crate::data::device::models::avalonminer::AvalonMinerModel;
 
 pub mod antminer;
+pub mod avalonminer;
 pub mod bitaxe;
 pub mod braiins;
 pub mod whatsminer;
-pub mod avalonminer;
 
 #[derive(Debug, Clone)]
 pub struct ModelParseError;

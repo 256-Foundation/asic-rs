@@ -1,7 +1,7 @@
-use std::net::IpAddr;
 use crate::data::device::MinerModel;
 use crate::data::device::models::avalonminer::AvalonMinerModel;
 use crate::miners::util;
+use std::net::IpAddr;
 
 pub(crate) async fn get_model_avalonminer(ip: IpAddr) -> Option<MinerModel> {
     let response = util::send_rpc_command(&ip, "version").await;
@@ -10,19 +10,19 @@ pub(crate) async fn get_model_avalonminer(ip: IpAddr) -> Option<MinerModel> {
         Some(data) => {
             // Extract the model from the VERSION/0/PROD field
             let mut miner_model = data.pointer("/VERSION/0/PROD")?.as_str()?.to_uppercase();
-            
+
             // If model contains a hyphen, split it and take the first part
             if miner_model.contains('-') {
                 miner_model = miner_model.split('-').next()?.to_string();
             }
-            
+
             // Handle special cases
             if ["AVALONNANO", "AVALON0O", "AVALONMINER 15"].contains(&miner_model.as_str()) {
                 if let Some(subtype) = data.pointer("/VERSION/0/MODEL").and_then(|v| v.as_str()) {
                     miner_model = format!("AVALONMINER {}", subtype.to_uppercase());
                 }
             }
-            
+
             // Map the model string to the appropriate AvalonMinerModel variant
             let model = match miner_model.as_str() {
                 "AVALONMINER 721" => Some(AvalonMinerModel::A721),
@@ -43,7 +43,7 @@ pub(crate) async fn get_model_avalonminer(ip: IpAddr) -> Option<MinerModel> {
                 "AVALONMINER NANO3S" => Some(AvalonMinerModel::Nano3S),
                 _ => None,
             };
-            
+
             model.map(MinerModel::AvalonMiner)
         }
         None => None,
