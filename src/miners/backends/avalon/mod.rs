@@ -1,10 +1,9 @@
-use std::net::IpAddr;
 use crate::data::device::{MinerFirmware, MinerModel};
 use crate::miners::backends::traits::GetMinerData;
 use avalon_miner::AvalonMiner as AMiner;
+use std::net::IpAddr;
 
 mod avalon_miner;
-
 
 struct AvalonMiner;
 
