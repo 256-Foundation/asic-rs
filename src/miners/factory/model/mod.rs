@@ -9,6 +9,7 @@ use semver;
 use std::net::IpAddr;
 
 pub mod whatsminer;
+pub mod avalonminer;
 
 pub(crate) async fn get_model_antminer(ip: IpAddr) -> Option<MinerModel> {
     let response: Option<Response> = Client::new()

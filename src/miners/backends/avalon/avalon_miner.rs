@@ -1,5 +1,5 @@
-use crate::data::device::HashAlgorithm::SHA256;
-use crate::data::device::{DeviceInfo, MinerFirmware, MinerModel};
+
+use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerModel};
 use crate::data::miner::MinerData;
 use crate::miners::api::rpc::cgminer::CGMinerRPC;
 use crate::miners::backends::traits::GetMinerData;
@@ -16,13 +16,14 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::SystemTime;
+use crate::data::device::MinerMake;
 
 #[derive(Debug)]
 pub struct AvalonMiner {
     model: MinerModel,
     rpc: CGMinerRPC,
     ip: IpAddr,
-    miner_firmware: MinerFirmware,
+    miner_firmware: MinerFirmware
 }
 
 impl AvalonMiner {
@@ -31,7 +32,7 @@ impl AvalonMiner {
             model,
             rpc: CGMinerRPC::new(ip),
             ip,
-            miner_firmware,
+            miner_firmware
         }
     }
 }
@@ -117,12 +118,7 @@ impl GetMinerData for AvalonMiner {
             .and_then(|s| MacAddr::from_str(&s).ok());
         let wattage = data.extract_map::<f64, _>(DataField::Wattage, Power::from_watts);
 
-        let device_info = DeviceInfo::new(
-            crate::data::device::MinerMake::AvalonMiner,
-            self.model.clone(),
-            self.miner_firmware,
-            SHA256,
-        );
+        let device_info = DeviceInfo::new(MinerMake::AvalonMiner, self.model.clone(), self.miner_firmware, HashAlgorithm::SHA256);
 
         MinerData {
             schema_version: env!("CARGO_PKG_VERSION").to_owned(),

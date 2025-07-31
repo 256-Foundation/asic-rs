@@ -3,6 +3,95 @@ use crate::data::device::models::antminer::AntMinerModel;
 use crate::data::device::models::bitaxe::BitaxeModel;
 use crate::data::device::models::braiins::BraiinsModel;
 use crate::data::device::models::whatsminer::WhatsMinerModel;
+use crate::data::device::models::avalonminer::AvalonMinerModel;
+
+
+impl From<&AvalonMinerModel> for MinerHardware {
+    fn from(value: &AvalonMinerModel) -> Self {
+        match value {
+            AvalonMinerModel::A721 => Self {
+                boards: Some(4),
+                chips: Some(18),
+                fans: Some(1),
+            },
+            AvalonMinerModel::A741 => Self {
+                boards: Some(4),
+                chips: Some(22),
+                fans: Some(1),
+            },
+            AvalonMinerModel::A761 => Self {
+                boards: Some(4),
+                chips: Some(18),
+                fans: Some(1),
+            },
+            AvalonMinerModel::A821 => Self {
+                boards: Some(4),
+                chips: Some(26),
+                fans: Some(1),
+            },
+            AvalonMinerModel::A841 => Self {
+                boards: Some(4),
+                chips: Some(26),
+                fans: Some(1),
+            },
+            AvalonMinerModel::A851 => Self {
+                boards: Some(4),
+                chips: Some(26),
+                fans: Some(1),
+            },
+            AvalonMinerModel::A921 => Self {
+                boards: Some(4),
+                chips: Some(26),
+                fans: Some(1),
+            },
+            AvalonMinerModel::A1026 => Self {
+                boards: Some(3),
+                chips: Some(80),
+                fans: Some(2),
+            },
+            AvalonMinerModel::A1047 => Self {
+                boards: Some(3),
+                chips: Some(80),
+                fans: Some(2),
+            },
+            AvalonMinerModel::A1066 => Self {
+                boards: Some(3),
+                chips: Some(114),
+                fans: Some(4),
+            },
+            AvalonMinerModel::A1126 => Self {
+                boards: Some(3),
+                chips: Some(120),
+                fans: Some(4),
+            },
+            AvalonMinerModel::A1166 => Self {
+                boards: Some(3),
+                chips: Some(120),
+                fans: Some(4),
+            },
+            AvalonMinerModel::A1246 => Self {
+                boards: Some(3),
+                chips: Some(120),
+                fans: Some(4),
+            },
+            AvalonMinerModel::A1566 => Self {
+                boards: Some(3),
+                chips: Some(160),
+                fans: Some(2),
+            },
+            AvalonMinerModel::Nano3 => Self {
+                boards: Some(1),
+                chips: Some(10),
+                fans: Some(1),
+            },
+            AvalonMinerModel::Nano3S => Self {
+                boards: Some(1),
+                chips: Some(12),
+                fans: Some(1),
+            },
+        }
+    }
+}
 
 impl From<&WhatsMinerModel> for MinerHardware {
     fn from(value: &WhatsMinerModel) -> Self {

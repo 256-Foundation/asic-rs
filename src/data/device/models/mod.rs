@@ -1,15 +1,18 @@
 use super::{MinerFirmware, MinerMake};
 use antminer::AntMinerModel;
+use avalonminer::AvalonMinerModel;
 use bitaxe::BitaxeModel;
 use braiins::BraiinsModel;
 use serde::Serialize;
 use std::{fmt::Display, str::FromStr};
 use whatsminer::WhatsMinerModel;
+use crate::data::device::MinerMake::AvalonMiner;
 
 pub mod antminer;
 pub mod bitaxe;
 pub mod braiins;
 pub mod whatsminer;
+pub mod avalonminer;
 
 #[derive(Debug, Clone)]
 pub struct ModelParseError;
@@ -48,11 +51,20 @@ impl FromStr for BraiinsModel {
     }
 }
 
+impl FromStr for AvalonMinerModel {
+    type Err = ModelParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_value(serde_json::Value::String(s.to_owned())).map_err(|_| ModelParseError)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum MinerModel {
     AntMiner(AntMinerModel),
     WhatsMiner(WhatsMinerModel),
+    AvalonMiner(AvalonMinerModel),
     Braiins(BraiinsModel),
     Bitaxe(BitaxeModel),
 }
@@ -84,6 +96,10 @@ impl MinerModelFactory {
             Some(MinerMake::AntMiner) => {
                 let model = AntMinerModel::from_str(model_str).ok();
                 model.map(MinerModel::AntMiner)
+            }
+            Some(MinerMake::AvalonMiner) => {
+                let model = AvalonMinerModel::from_str(model_str).ok();
+                model.map(MinerModel::AvalonMiner)
             }
             Some(MinerMake::WhatsMiner) => {
                 let model = WhatsMinerModel::from_str(model_str).ok();
