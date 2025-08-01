@@ -35,7 +35,6 @@ async fn main() {
         },
         Err(e) => println!("Error getting miners: {}", e),
     }
-    // Commented out code for reference
     // let miner = BTMinerV3Backend::new(miner_ip);
     // dbg!(miner.get_device_info().await.unwrap());
     // dbg!(miner.get_miner_status_summary().await.unwrap());
