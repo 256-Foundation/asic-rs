@@ -5,7 +5,7 @@ mod traits;
 
 use anyhow::Result;
 use futures::future::FutureExt;
-use futures::{pin_mut, stream, StreamExt};
+use futures::{StreamExt, pin_mut, stream};
 use ipnet::IpNet;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
@@ -18,12 +18,12 @@ use tokio::task::JoinSet;
 use super::commands::MinerCommand;
 use super::util::{send_rpc_command, send_web_command};
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
+use crate::get_miner;
 use crate::miners::backends::btminer::BTMiner;
 use crate::miners::backends::espminer::ESPMiner;
 use crate::miners::backends::traits::GetMinerData;
 use crate::miners::factory::traits::VersionSelection;
 use traits::{DiscoveryCommands, ModelSelection};
-use crate::get_miner;
 
 const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
@@ -230,7 +230,7 @@ impl MinerFactory {
         MinerFactory {
             search_makes: None,
             search_firmwares: None,
-            subnet: None
+            subnet: None,
         }
     }
 
@@ -292,13 +292,14 @@ impl MinerFactory {
 
     pub async fn scan(&self) -> Result<Vec<Box<dyn GetMinerData>>> {
         const MAX_CONCURRENT_TASKS: usize = 50;
-        let subnet = self.subnet.as_ref().ok_or_else(|| anyhow::anyhow!("No subnet specified"))?;
+        let subnet = self
+            .subnet
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No subnet specified"))?;
         let network = IpNet::from_str(subnet)?;
 
         let miners: Vec<Box<dyn GetMinerData>> = stream::iter(network.hosts())
-            .map(|ip| {
-                async move { get_miner(ip).await.ok().flatten() }
-            })
+            .map(|ip| async move { get_miner(ip).await.ok().flatten() })
             .buffer_unordered(MAX_CONCURRENT_TASKS)
             .filter_map(|miner_opt| async move { miner_opt })
             .collect()

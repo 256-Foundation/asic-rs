@@ -71,5 +71,3 @@ pub async fn get_miners_with_options(
 pub async fn get_miners(ip_range: &str) -> Result<Vec<Box<dyn GetMinerData>>> {
     get_miners_with_options(ip_range, None, None).await
 }
-
-
