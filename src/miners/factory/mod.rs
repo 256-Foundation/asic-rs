@@ -3,15 +3,15 @@ mod hardware;
 mod model;
 mod traits;
 
+use anyhow::Result;
 use futures::future::FutureExt;
 use futures::pin_mut;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
+use std::collections::HashSet;
 use std::net::IpAddr;
 use std::time::Duration;
-use std::{collections::HashSet, error::Error};
 use tokio::task::JoinSet;
-use anyhow::Result;
 
 use super::commands::MinerCommand;
 use super::util::{send_rpc_command, send_web_command};
@@ -136,10 +136,7 @@ impl Default for MinerFactory {
 }
 
 impl MinerFactory {
-    pub async fn get_miner(
-        &self,
-        ip: IpAddr,
-    ) -> Result<Option<Box<dyn GetMinerData>>> {
+    pub async fn get_miner(&self, ip: IpAddr) -> Result<Option<Box<dyn GetMinerData>>> {
         let search_makes = self.search_makes.clone().unwrap_or(vec![
             MinerMake::AntMiner,
             MinerMake::WhatsMiner,

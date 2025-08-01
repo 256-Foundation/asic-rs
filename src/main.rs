@@ -3,18 +3,17 @@ use std::net::IpAddr;
 
 #[tokio::main]
 async fn main() {
-
     let miner_ip = IpAddr::from([192, 168, 1, 199]);
     match get_miner(miner_ip).await {
         Ok(Some(miner)) => {
             println!(
-                "{}", serde_json::to_string(&miner.get_data().await).unwrap()
+                "{}",
+                serde_json::to_string(&miner.get_data().await).unwrap()
             );
-        },
+        }
         Ok(None) => println!("No miner found at {}", miner_ip),
         Err(e) => println!("Error getting miner: {}", e),
     }
-
 
     let subnet = "192.168.1.0/24";
     println!("\nSearching for miners in subnet {}", subnet);
@@ -32,7 +31,7 @@ async fn main() {
             if miners.is_empty() {
                 println!("No miners found in subnet");
             }
-        },
+        }
         Err(e) => println!("Error getting miners: {}", e),
     }
     // Commented out code for reference
