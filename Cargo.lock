@@ -32,6 +32,7 @@ dependencies = [
  "diqwest",
  "dyn_serde",
  "futures",
+ "ipnet",
  "macaddr",
  "measurements",
  "reqwest",

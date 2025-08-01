@@ -11,6 +11,7 @@ use std::net::IpAddr;
 use std::time::Duration;
 use std::{collections::HashSet, error::Error};
 use tokio::task::JoinSet;
+use anyhow::Result;
 
 use super::commands::MinerCommand;
 use super::util::{send_rpc_command, send_web_command};
@@ -127,6 +128,7 @@ pub struct MinerFactory {
     search_makes: Option<Vec<MinerMake>>,
     search_firmwares: Option<Vec<MinerFirmware>>,
 }
+
 impl Default for MinerFactory {
     fn default() -> Self {
         Self::new()
@@ -135,9 +137,9 @@ impl Default for MinerFactory {
 
 impl MinerFactory {
     pub async fn get_miner(
-        self,
+        &self,
         ip: IpAddr,
-    ) -> Result<Option<Box<dyn GetMinerData>>, Box<dyn Error>> {
+    ) -> Result<Option<Box<dyn GetMinerData>>> {
         let search_makes = self.search_makes.clone().unwrap_or(vec![
             MinerMake::AntMiner,
             MinerMake::WhatsMiner,
