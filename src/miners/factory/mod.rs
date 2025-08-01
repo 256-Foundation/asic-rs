@@ -3,18 +3,22 @@ mod hardware;
 mod model;
 mod traits;
 
+use anyhow::Result;
 use futures::future::FutureExt;
-use futures::pin_mut;
+use futures::{StreamExt, pin_mut, stream};
+use ipnet::IpNet;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
+use std::collections::HashSet;
 use std::net::IpAddr;
+use std::str::FromStr;
 use std::time::Duration;
-use std::{collections::HashSet, error::Error};
 use tokio::task::JoinSet;
 
 use super::commands::MinerCommand;
 use super::util::{send_rpc_command, send_web_command};
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
+use crate::get_miner;
 use crate::miners::backends::btminer::BTMiner;
 use crate::miners::backends::espminer::ESPMiner;
 use crate::miners::backends::traits::GetMinerData;
@@ -126,7 +130,9 @@ fn select_backend(
 pub struct MinerFactory {
     search_makes: Option<Vec<MinerMake>>,
     search_firmwares: Option<Vec<MinerFirmware>>,
+    subnet: Option<String>,
 }
+
 impl Default for MinerFactory {
     fn default() -> Self {
         Self::new()
@@ -134,10 +140,7 @@ impl Default for MinerFactory {
 }
 
 impl MinerFactory {
-    pub async fn get_miner(
-        self,
-        ip: IpAddr,
-    ) -> Result<Option<Box<dyn GetMinerData>>, Box<dyn Error>> {
+    pub async fn get_miner(&self, ip: IpAddr) -> Result<Option<Box<dyn GetMinerData>>> {
         let search_makes = self.search_makes.clone().unwrap_or(vec![
             MinerMake::AntMiner,
             MinerMake::WhatsMiner,
@@ -227,11 +230,22 @@ impl MinerFactory {
         MinerFactory {
             search_makes: None,
             search_firmwares: None,
+            subnet: None,
         }
     }
 
     pub fn with_search_makes(&mut self, search_makes: Vec<MinerMake>) -> &Self {
         self.search_makes = Some(search_makes);
+        self
+    }
+
+    pub fn with_makes(&mut self, makes: Vec<MinerMake>) -> &Self {
+        self.search_makes = Some(makes);
+        self
+    }
+
+    pub fn with_subnet(&mut self, subnet: &str) -> &Self {
+        self.subnet = Some(subnet.to_string());
         self
     }
     pub fn with_search_firmwares(&mut self, search_firmwares: Vec<MinerFirmware>) -> &Self {
@@ -274,6 +288,24 @@ impl MinerFactory {
             .unwrap()
             .retain(|val| *val != search_firmware);
         self
+    }
+
+    pub async fn scan(&self) -> Result<Vec<Box<dyn GetMinerData>>> {
+        const MAX_CONCURRENT_TASKS: usize = 50;
+        let subnet = self
+            .subnet
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No subnet specified"))?;
+        let network = IpNet::from_str(subnet)?;
+
+        let miners: Vec<Box<dyn GetMinerData>> = stream::iter(network.hosts())
+            .map(|ip| async move { get_miner(ip).await.ok().flatten() })
+            .buffer_unordered(MAX_CONCURRENT_TASKS)
+            .filter_map(|miner_opt| async move { miner_opt })
+            .collect()
+            .await;
+
+        Ok(miners)
     }
 }
 
