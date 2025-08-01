@@ -1,9 +1,16 @@
-use asic_rs::{get_miner, get_miners};
+use asic_rs::{get_miner, get_miners, MinerFactory};
 use std::net::IpAddr;
 
 #[tokio::main]
 async fn main() {
     let miner_ip = IpAddr::from([192, 168, 1, 199]);
+
+    let miners = MinerFactory::new().with_subnet("192.168.1.0/24").scan().await.unwrap();
+    for miner in miners {
+        let data = miner.get_data().await;
+        println!("{}", serde_json::to_string_pretty(&data).unwrap());
+    }
+/*
     match get_miner(miner_ip).await {
         Ok(Some(miner)) => {
             println!(
@@ -39,4 +46,6 @@ async fn main() {
     // dbg!(miner.get_miner_status_summary().await.unwrap());
     // dbg!(miner.get_miner_status_pools().await.unwrap());
     // dbg!(miner.get_miner_status_edevs().await.unwrap());
+
+ */
 }

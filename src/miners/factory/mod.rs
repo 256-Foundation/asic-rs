@@ -5,11 +5,13 @@ mod traits;
 
 use anyhow::Result;
 use futures::future::FutureExt;
-use futures::pin_mut;
+use futures::{pin_mut, stream, StreamExt};
+use ipnet::IpNet;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
 use std::collections::HashSet;
 use std::net::IpAddr;
+use std::str::FromStr;
 use std::time::Duration;
 use tokio::task::JoinSet;
 
@@ -21,6 +23,7 @@ use crate::miners::backends::espminer::ESPMiner;
 use crate::miners::backends::traits::GetMinerData;
 use crate::miners::factory::traits::VersionSelection;
 use traits::{DiscoveryCommands, ModelSelection};
+use crate::get_miner;
 
 const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
@@ -127,6 +130,7 @@ fn select_backend(
 pub struct MinerFactory {
     search_makes: Option<Vec<MinerMake>>,
     search_firmwares: Option<Vec<MinerFirmware>>,
+    subnet: Option<String>,
 }
 
 impl Default for MinerFactory {
@@ -226,11 +230,22 @@ impl MinerFactory {
         MinerFactory {
             search_makes: None,
             search_firmwares: None,
+            subnet: None
         }
     }
 
     pub fn with_search_makes(&mut self, search_makes: Vec<MinerMake>) -> &Self {
         self.search_makes = Some(search_makes);
+        self
+    }
+
+    pub fn with_makes(&mut self, makes: Vec<MinerMake>) -> &Self {
+        self.search_makes = Some(makes);
+        self
+    }
+
+    pub fn with_subnet(&mut self, subnet: &str) -> &Self {
+        self.subnet = Some(subnet.to_string());
         self
     }
     pub fn with_search_firmwares(&mut self, search_firmwares: Vec<MinerFirmware>) -> &Self {
@@ -273,6 +288,23 @@ impl MinerFactory {
             .unwrap()
             .retain(|val| *val != search_firmware);
         self
+    }
+
+    pub async fn scan(&self) -> Result<Vec<Box<dyn GetMinerData>>> {
+        const MAX_CONCURRENT_TASKS: usize = 50;
+        let subnet = self.subnet.as_ref().ok_or_else(|| anyhow::anyhow!("No subnet specified"))?;
+        let network = IpNet::from_str(subnet)?;
+
+        let miners: Vec<Box<dyn GetMinerData>> = stream::iter(network.hosts())
+            .map(|ip| {
+                async move { get_miner(ip).await.ok().flatten() }
+            })
+            .buffer_unordered(MAX_CONCURRENT_TASKS)
+            .filter_map(|miner_opt| async move { miner_opt })
+            .collect()
+            .await;
+
+        Ok(miners)
     }
 }
 

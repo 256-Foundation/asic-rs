@@ -1,6 +1,6 @@
 use crate::data::device::{MinerFirmware, MinerMake};
 use crate::miners::backends::traits::GetMinerData;
-use crate::miners::factory::MinerFactory;
+pub use crate::miners::factory::MinerFactory;
 use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use std::net::IpAddr;
@@ -71,3 +71,5 @@ pub async fn get_miners_with_options(
 pub async fn get_miners(ip_range: &str) -> Result<Vec<Box<dyn GetMinerData>>> {
     get_miners_with_options(ip_range, None, None).await
 }
+
+
