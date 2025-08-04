@@ -5,7 +5,7 @@ mod traits;
 
 use anyhow::Result;
 use futures::future::FutureExt;
-use futures::{pin_mut, stream, StreamExt};
+use futures::{StreamExt, pin_mut, stream};
 use ipnet::IpNet;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
@@ -127,7 +127,6 @@ fn select_backend(
     }
 }
 
-
 pub struct MinerFactory {
     search_makes: Option<Vec<MinerMake>>,
     search_firmwares: Option<Vec<MinerFirmware>>,
@@ -231,7 +230,7 @@ impl MinerFactory {
         MinerFactory {
             search_makes: None,
             search_firmwares: None,
-            ips: Vec::new()
+            ips: Vec::new(),
         }
     }
 
@@ -261,31 +260,50 @@ impl MinerFactory {
         self.search_firmwares = Some(search_firmwares);
         self
     }
-    
+
     /// Calculate IPs from octet ranges
-    fn generate_ips_from_octets(&self, octet1: &str, octet2: &str, octet3: &str, octet4: &str) -> Result<Vec<IpAddr>> {
+    fn generate_ips_from_octets(
+        &self,
+        octet1: &str,
+        octet2: &str,
+        octet3: &str,
+        octet4: &str,
+    ) -> Result<Vec<IpAddr>> {
         let octet1_range = parse_octet_range(octet1)?;
         let octet2_range = parse_octet_range(octet2)?;
         let octet3_range = parse_octet_range(octet3)?;
         let octet4_range = parse_octet_range(octet4)?;
-        
-        Ok(generate_ips_from_ranges(&octet1_range, &octet2_range, &octet3_range, &octet4_range))
+
+        Ok(generate_ips_from_ranges(
+            &octet1_range,
+            &octet2_range,
+            &octet3_range,
+            &octet4_range,
+        ))
     }
 
     /// Set IPs from octet ranges
-    pub fn with_octets(mut self, octet1: &str, octet2: &str, octet3: &str, octet4: &str) -> Result<Self> {
+    pub fn with_octets(
+        mut self,
+        octet1: &str,
+        octet2: &str,
+        octet3: &str,
+        octet4: &str,
+    ) -> Result<Self> {
         let ips = self.generate_ips_from_octets(octet1, octet2, octet3, octet4)?;
         self.ips = ips;
         Ok(self)
     }
-    
+
     /// Set IPs from a range string in the format "10.1-199.0.1-199"
     pub fn with_range(self, range_str: &str) -> Result<Self> {
         let parts: Vec<&str> = range_str.split('.').collect();
         if parts.len() != 4 {
-            return Err(anyhow::anyhow!("Invalid IP range format. Expected format: 10.1-199.0.1-199"));
+            return Err(anyhow::anyhow!(
+                "Invalid IP range format. Expected format: 10.1-199.0.1-199"
+            ));
         }
-        
+
         self.with_octets(parts[0], parts[1], parts[2], parts[3])
     }
     pub fn add_search_make(mut self, search_make: MinerMake) -> Self {
@@ -296,7 +314,7 @@ impl MinerFactory {
         }
         self
     }
-    
+
     pub fn add_search_firmware(mut self, search_firmware: MinerFirmware) -> Self {
         if self.search_firmwares.is_none() {
             self.search_firmwares = Some(vec![search_firmware]);
@@ -308,14 +326,14 @@ impl MinerFactory {
         }
         self
     }
-    
+
     pub fn remove_search_make(mut self, search_make: MinerMake) -> Self {
         if let Some(makes) = self.search_makes.as_mut() {
             makes.retain(|val| *val != search_make);
         }
         self
     }
-    
+
     pub fn remove_search_firmware(mut self, search_firmware: MinerFirmware) -> Self {
         if let Some(firmwares) = self.search_firmwares.as_mut() {
             firmwares.retain(|val| *val != search_firmware);
@@ -325,15 +343,15 @@ impl MinerFactory {
 
     pub async fn scan(&self) -> Result<Vec<Box<dyn GetMinerData>>> {
         const MAX_CONCURRENT_TASKS: usize = 250;
-        
+
         if self.ips.is_empty() {
-            return Err(anyhow::anyhow!("No IPs to scan. Use with_subnet, with_octets, or with_range to set IPs."));
+            return Err(anyhow::anyhow!(
+                "No IPs to scan. Use with_subnet, with_octets, or with_range to set IPs."
+            ));
         }
 
         let miners: Vec<Box<dyn GetMinerData>> = stream::iter(self.ips.iter().copied())
-            .map(|ip| {
-                async move { self.get_miner(ip).await.ok().flatten() }
-            })
+            .map(|ip| async move { self.get_miner(ip).await.ok().flatten() })
             .buffer_unordered(MAX_CONCURRENT_TASKS)
             .filter_map(|miner_opt| async move { miner_opt })
             .collect()
@@ -350,9 +368,11 @@ impl MinerFactory {
         octet3: &str,
         octet4: &str,
     ) -> Result<Vec<Box<dyn GetMinerData>>> {
-        self.with_octets(octet1, octet2, octet3, octet4)?.scan().await
+        self.with_octets(octet1, octet2, octet3, octet4)?
+            .scan()
+            .await
     }
-    
+
     /// Scan for miners by IP range in the format "10.1-199.0.1-199"
     pub async fn scan_by_range(self, range_str: &str) -> Result<Vec<Box<dyn GetMinerData>>> {
         self.with_range(range_str)?.scan().await
@@ -371,7 +391,10 @@ fn parse_octet_range(range_str: &str) -> Result<Vec<u8>> {
         let end: u8 = parts[1].parse()?;
 
         if start > end {
-            return Err(anyhow::anyhow!("Invalid range: start > end in {}", range_str));
+            return Err(anyhow::anyhow!(
+                "Invalid range: start > end in {}",
+                range_str
+            ));
         }
 
         Ok((start..=end).collect())
@@ -404,7 +427,6 @@ fn generate_ips_from_ranges(
     ips
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -419,7 +441,7 @@ mod tests {
             Some((Some(MinerMake::WhatsMiner), Some(MinerFirmware::Stock)))
         )
     }
-    
+
     #[test]
     fn test_parse_type_from_web_whatsminer_2024_09_30() {
         let mut headers = HeaderMap::new();
@@ -433,43 +455,43 @@ mod tests {
             Some((Some(MinerMake::WhatsMiner), Some(MinerFirmware::Stock)))
         )
     }
-    
+
     #[test]
     fn test_parse_octet_range() {
         // Test single value
         let result = parse_octet_range("10").unwrap();
         assert_eq!(result, vec![10]);
-        
+
         // Test range
         let result = parse_octet_range("1-5").unwrap();
         assert_eq!(result, vec![1, 2, 3, 4, 5]);
-        
+
         // Test larger range
         let result = parse_octet_range("200-255").unwrap();
         assert_eq!(result, (200..=255).collect::<Vec<u8>>());
-        
+
         // Test invalid range (start > end)
         let result = parse_octet_range("200-100");
         assert!(result.is_err());
-        
+
         // Test invalid format
         let result = parse_octet_range("1-5-10");
         assert!(result.is_err());
-        
+
         // Test invalid value
         let result = parse_octet_range("300");
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_generate_ips_from_ranges() {
         let octet1 = vec![192];
         let octet2 = vec![168];
         let octet3 = vec![1];
         let octet4 = vec![1, 2];
-        
+
         let ips = generate_ips_from_ranges(&octet1, &octet2, &octet3, &octet4);
-        
+
         assert_eq!(ips.len(), 2);
         assert!(ips.contains(&IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))));
         assert!(ips.contains(&IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2))));
