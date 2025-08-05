@@ -67,7 +67,6 @@ impl FromStr for AvalonMinerModel {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum MinerModel {
