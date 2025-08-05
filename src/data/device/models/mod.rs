@@ -112,7 +112,7 @@ impl MinerModelFactory {
             Some(MinerMake::AvalonMiner) => {
                 let model = AvalonMinerModel::from_str(model_str).ok();
                 model.map(MinerModel::Avalon)
-          }
+            }
             Some(MinerMake::BitAxe) => {
                 let model = BitaxeModel::from_str(model_str).ok();
                 model.map(MinerModel::Bitaxe)
