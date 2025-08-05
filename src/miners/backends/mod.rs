@@ -1,4 +1,4 @@
 pub mod btminer;
-mod cgminer;
+pub mod avalonminer;
 pub mod espminer;
 pub mod traits;
