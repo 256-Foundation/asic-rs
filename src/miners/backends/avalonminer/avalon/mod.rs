@@ -57,7 +57,7 @@ impl AvalonMiner {
         if let Some(status) = data.get("STATUS").and_then(|s| s.as_array()) {
             if !status.is_empty() {
                 if let Some(msg) = status[0].get("Msg").and_then(|m| m.as_str()) {
-                        return Ok(msg == "ASC 0 set OK");
+                    return Ok(msg == "ASC 0 set OK");
                 }
             }
         }
@@ -75,7 +75,7 @@ impl AvalonMiner {
         if let Some(status) = data.get("STATUS").and_then(|s| s.as_array()) {
             if !status.is_empty() {
                 if let Some(msg) = status[0].get("Msg").and_then(|m| m.as_str()) {
-                        return Ok(msg == "ASC 0 set OK");
+                    return Ok(msg == "ASC 0 set OK");
                 }
             }
         }
@@ -218,7 +218,7 @@ impl SetPowerLimit for AvalonMiner {
         if let Some(status) = data.get("STATUS").and_then(|s| s.as_array()) {
             if !status.is_empty() {
                 if let Some(msg) = status[0].get("Msg").and_then(|m| m.as_str()) {
-                        return Ok(msg == "ASC 0 set OK");
+                    return Ok(msg == "ASC 0 set OK");
                 }
             }
         }
