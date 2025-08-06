@@ -1,19 +1,27 @@
 use asic_rs::MinerFactory;
-use futures::StreamExt;
-use std::net::IpAddr;
 
 #[tokio::main]
 async fn main() {
-    let _miner_ip = IpAddr::from([192, 168, 1, 199]);
+    let factory = MinerFactory::new()
+        // .with_timeout_secs(10)
+        // .with_concurrent_limit(5096)
+        .with_range("192.3.1-8.1-50")
+        .unwrap();
 
-    let factory = MinerFactory::new().with_subnet("10.0.0.0/20").unwrap();
-    factory
-        .scan_stream()
-        .unwrap()
-        .for_each_concurrent(1024, async |miner| {
-            let data = miner.get_data().await;
-            dbg!(data);
-        })
-        .await;
-    println!("Scan completed");
+    println!("Starting 2-phase scan...");
+
+    match factory.scan_two_phase().await {
+        Ok(alive_hosts) => {
+            println!("2-phase scan completed");
+            println!("Total IPs scanned: {}", factory.len());
+            println!("Found {} active miners", alive_hosts.len());
+
+            for (ip, _miner) in &alive_hosts {
+                println!("  Active miner at: {}", ip);
+            }
+        }
+        Err(e) => {
+            eprintln!("2-phase scan failed: {}", e);
+        }
+    }
 }

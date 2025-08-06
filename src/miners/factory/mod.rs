@@ -489,6 +489,70 @@ impl MinerFactory {
     pub async fn scan_by_range(self, range_str: &str) -> Result<Vec<Box<dyn GetMinerData>>> {
         self.with_range(range_str)?.scan().await
     }
+
+    /// Two-phase scan that retries failed IPs and returns alive hosts
+    pub async fn scan_two_phase(&self) -> Result<Vec<(IpAddr, Box<dyn GetMinerData>)>> {
+        let ips = self.hosts();
+
+        let stage1_results = self.scan_stage(&ips).await?;
+
+        let failed_ips: Vec<IpAddr> = stage1_results
+            .iter()
+            .filter_map(
+                |(ip, miner_opt)| {
+                    if miner_opt.is_none() { Some(*ip) } else { None }
+                },
+            )
+            .collect();
+
+        if failed_ips.is_empty() {
+            return Ok(stage1_results
+                .into_iter()
+                .filter_map(|(ip, miner_opt)| miner_opt.map(|miner| (ip, miner)))
+                .collect());
+        }
+
+        let stage2_results = self.scan_stage(&failed_ips).await?;
+
+        let mut combined_results = stage1_results;
+
+        for (ip, stage2_miner) in stage2_results {
+            if let Some(stage2_miner) = stage2_miner {
+                if let Some(entry) = combined_results
+                    .iter_mut()
+                    .find(|(existing_ip, _)| *existing_ip == ip)
+                {
+                    entry.1 = Some(stage2_miner);
+                }
+            }
+        }
+
+        Ok(combined_results
+            .into_iter()
+            .filter_map(|(ip, miner_opt)| miner_opt.map(|miner| (ip, miner)))
+            .collect())
+    }
+
+    async fn scan_stage(
+        &self,
+        ips: &[IpAddr],
+    ) -> Result<Vec<(IpAddr, Option<Box<dyn GetMinerData>>)>> {
+        let concurrency_limit = self
+            .concurrent
+            .unwrap_or_else(|| calculate_optimal_concurrency(ips.len()));
+
+        let futures = ips.iter().map(|&ip| async move {
+            let miner = self.get_miner(ip).await.ok().flatten();
+            (ip, miner)
+        });
+
+        let results = futures::stream::iter(futures)
+            .buffer_unordered(concurrency_limit)
+            .collect::<Vec<_>>()
+            .await;
+
+        Ok(results)
+    }
 }
 
 /// Helper function to parse an octet range string like "1-199" into a vector of u8 values
