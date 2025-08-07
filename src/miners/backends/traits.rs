@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use crate::data::board::BoardData;
 use crate::data::device::DeviceInfo;
 use crate::data::fan::FanData;
-use crate::data::hashrate::HashRate;
+use crate::data::hashrate::{HashRate, HashRateUnit};
 use crate::data::message::MinerMessage;
 use crate::data::pool::PoolData;
 use crate::miners::commands::MinerCommand;
@@ -34,7 +34,7 @@ pub trait CollectData: GetDataLocations {
     ///
     /// This method is responsible for creating and returning a `DataCollector`
     /// instance that can be used to collect data from the miner.
-    fn get_collector(&self) -> DataCollector;
+    fn get_collector(&self) -> DataCollector<'_>;
 }
 
 pub trait GetDataLocations: Send + Sync + Debug {
@@ -126,7 +126,7 @@ impl<
         };
         let efficiency = match (hashrate.as_ref(), wattage.as_ref()) {
             (Some(hr), Some(w)) => {
-                let hashrate_th = hr.value / 1000.0;
+                let hashrate_th = hr.clone().as_unit(HashRateUnit::TeraHash).value;
                 Some(w.as_watts() / hashrate_th)
             }
             _ => None,

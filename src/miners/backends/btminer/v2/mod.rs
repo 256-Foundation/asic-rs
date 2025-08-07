@@ -1,3 +1,5 @@
+pub use rpc::BTMinerRPCAPI;
+
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -5,7 +7,7 @@ use std::time::Duration;
 
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::data::board::BoardData;
 use crate::data::device::MinerMake;
@@ -16,23 +18,21 @@ use crate::data::pool::{PoolData, PoolURL};
 use crate::miners::backends::traits::*;
 use crate::miners::commands::MinerCommand;
 use crate::miners::data::{
-    DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_key,
-    get_by_pointer,
+    DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_pointer,
 };
-pub use rpc::BTMinerRPCAPI;
 
 mod rpc;
 
 #[derive(Debug)]
-pub struct BTMiner3 {
+pub struct BTMiner2 {
     pub ip: IpAddr,
     pub rpc: BTMinerRPCAPI,
     pub device_info: DeviceInfo,
 }
 
-impl BTMiner3 {
+impl BTMiner2 {
     pub fn new(ip: IpAddr, model: MinerModel, firmware: MinerFirmware) -> Self {
-        BTMiner3 {
+        BTMiner2 {
             ip,
             rpc: BTMinerRPCAPI::new(ip, None),
             device_info: DeviceInfo::new(
@@ -45,152 +45,155 @@ impl BTMiner3 {
     }
 }
 
-impl GetDataLocations for BTMiner3 {
+impl GetDataLocations for BTMiner2 {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
-        let get_device_info_cmd: MinerCommand = MinerCommand::RPC {
-            command: "get.device.info",
+        let get_miner_info_cmd: MinerCommand = MinerCommand::RPC {
+            command: "get_miner_info",
             parameters: None,
         };
-        let get_miner_status_summary_cmd: MinerCommand = MinerCommand::RPC {
-            command: "get.miner.status",
-            parameters: Some(json!("summary")),
+        let summary_cmd: MinerCommand = MinerCommand::RPC {
+            command: "summary",
+            parameters: None,
         };
-        let get_miner_status_pools_cmd: MinerCommand = MinerCommand::RPC {
-            command: "get.miner.status",
-            parameters: Some(json!("pools")),
+        let devs_cmd: MinerCommand = MinerCommand::RPC {
+            command: "devs",
+            parameters: None,
         };
-        let get_miner_status_edevs_cmd: MinerCommand = MinerCommand::RPC {
-            command: "get.miner.status",
-            parameters: Some(json!("edevs")),
+        let pools_cmd: MinerCommand = MinerCommand::RPC {
+            command: "pools",
+            parameters: None,
+        };
+        let status_cmd: MinerCommand = MinerCommand::RPC {
+            command: "status",
+            parameters: None,
+        };
+        let get_version_cmd: MinerCommand = MinerCommand::RPC {
+            command: "get_version",
+            parameters: None,
+        };
+        let get_psu_cmd: MinerCommand = MinerCommand::RPC {
+            command: "get_psu",
+            parameters: None,
         };
 
         match data_field {
             DataField::Mac => vec![(
-                get_device_info_cmd,
+                get_miner_info_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/network/mac"),
+                    key: Some("/Msg/mac"),
                 },
             )],
             DataField::ApiVersion => vec![(
-                get_device_info_cmd,
+                get_version_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/system/api"),
+                    key: Some("/Msg/api_ver"),
                 },
             )],
             DataField::FirmwareVersion => vec![(
-                get_device_info_cmd,
+                get_version_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/system/fwversion"),
+                    key: Some("/Msg/fw_ver"),
                 },
             )],
             DataField::ControlBoardVersion => vec![(
-                get_device_info_cmd,
+                get_version_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/system/platform"),
-                },
-            )],
-            DataField::SerialNumber => vec![(
-                get_device_info_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/msg/miner/miner-sn"),
+                    key: Some("/Msg/platform"),
                 },
             )],
             DataField::Hostname => vec![(
-                get_device_info_cmd,
+                get_miner_info_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/network/hostname"),
+                    key: Some("/Msg/hostname"),
                 },
             )],
             DataField::LightFlashing => vec![(
-                get_device_info_cmd,
+                get_miner_info_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/system/ledstatus"),
+                    key: Some("/Msg/ledstat"),
                 },
             )],
             DataField::WattageLimit => vec![(
-                get_device_info_cmd,
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/miner/power-limit-set"),
+                    key: Some("/SUMMARY/0/Power Limit"),
                 },
             )],
             DataField::Fans => vec![(
-                get_miner_status_summary_cmd,
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/summary"),
+                    key: Some("/SUMMARY/0"),
                 },
             )],
             DataField::PsuFans => vec![(
-                get_device_info_cmd,
+                get_psu_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/power/fanspeed"),
+                    key: Some("/Msg/fan_speed"),
                 },
             )],
-            DataField::Hashboards => vec![
-                (
-                    get_device_info_cmd,
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/msg/miner"),
-                    },
-                ),
-                (
-                    get_miner_status_edevs_cmd,
-                    DataExtractor {
-                        func: get_by_key,
-                        key: Some("msg"),
-                    },
-                ),
-            ],
-            DataField::Pools => vec![(
-                get_miner_status_pools_cmd,
+            DataField::Hashboards => vec![(
+                devs_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/pools"),
+                    key: Some(""),
+                },
+            )],
+            DataField::Pools => vec![(
+                pools_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/POOLS"),
                 },
             )],
             DataField::Uptime => vec![(
-                get_miner_status_summary_cmd,
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/summary/elapsed"),
+                    key: Some("/SUMMARY/0/Elapsed"),
                 },
             )],
             DataField::Wattage => vec![(
-                get_miner_status_summary_cmd,
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/summary/power-realtime"),
+                    key: Some("/SUMMARY/0/Power"),
                 },
             )],
             DataField::Hashrate => vec![(
-                get_miner_status_summary_cmd,
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/summary/hash-realtime"),
+                    key: Some("/SUMMARY/0/HS RT"),
                 },
             )],
             DataField::ExpectedHashrate => vec![(
-                get_miner_status_summary_cmd,
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/summary/factory-hash"),
+                    key: Some("/SUMMARY/0/Factory GHS"),
                 },
             )],
             DataField::FluidTemperature => vec![(
-                get_miner_status_summary_cmd,
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/msg/summary/environment-temperature"),
+                    key: Some("/SUMMARY/0/Env Temp"),
+                },
+            )],
+            DataField::IsMining => vec![(
+                status_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/SUMMARY/0/btmineroff"),
                 },
             )],
             _ => vec![],
@@ -198,100 +201,108 @@ impl GetDataLocations for BTMiner3 {
     }
 }
 
-impl GetIP for BTMiner3 {
+impl GetIP for BTMiner2 {
     fn get_ip(&self) -> IpAddr {
         self.ip
     }
 }
-impl GetDeviceInfo for BTMiner3 {
+impl GetDeviceInfo for BTMiner2 {
     fn get_device_info(&self) -> DeviceInfo {
         self.device_info.clone()
     }
 }
 
-impl CollectData for BTMiner3 {
+impl CollectData for BTMiner2 {
     fn get_collector(&self) -> DataCollector<'_> {
         DataCollector::new(self, &self.rpc)
     }
 }
 
-impl GetMAC for BTMiner3 {
+impl GetMAC for BTMiner2 {
     fn parse_mac(&self, data: &HashMap<DataField, Value>) -> Option<MacAddr> {
         data.extract::<String>(DataField::Mac)
             .and_then(|s| MacAddr::from_str(&s).ok())
     }
 }
 
-impl GetSerialNumber for BTMiner3 {}
-impl GetHostname for BTMiner3 {
+impl GetSerialNumber for BTMiner2 {}
+impl GetHostname for BTMiner2 {
     fn parse_hostname(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::Hostname)
     }
 }
-impl GetApiVersion for BTMiner3 {
+impl GetApiVersion for BTMiner2 {
     fn parse_api_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ApiVersion)
     }
 }
-impl GetFirmwareVersion for BTMiner3 {
+impl GetFirmwareVersion for BTMiner2 {
     fn parse_firmware_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::FirmwareVersion)
     }
 }
-impl GetControlBoardVersion for BTMiner3 {
+impl GetControlBoardVersion for BTMiner2 {
     fn parse_control_board_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ControlBoardVersion)
     }
 }
-impl GetHashboards for BTMiner3 {
+impl GetHashboards for BTMiner2 {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
         let board_count = self.device_info.hardware.boards.unwrap_or(3);
         for idx in 0..board_count {
             let hashrate = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/edevs/{}/hash-average", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{}/MHS av", idx)))
                 .and_then(|val| val.as_f64())
-                .map(|f| HashRate {
-                    value: f,
-                    unit: HashRateUnit::TeraHash,
-                    algo: String::from("SHA256"),
+                .map(|f| {
+                    HashRate {
+                        value: f,
+                        unit: HashRateUnit::MegaHash,
+                        algo: String::from("SHA256"),
+                    }
+                    .as_unit(HashRateUnit::TeraHash)
                 });
             let expected_hashrate = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/edevs/{}/factory-hash", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{}/Factory GHS", idx)))
                 .and_then(|val| val.as_f64())
-                .map(|f| HashRate {
-                    value: f,
-                    unit: HashRateUnit::TeraHash,
-                    algo: String::from("SHA256"),
+                .map(|f| {
+                    HashRate {
+                        value: f,
+                        unit: HashRateUnit::GigaHash,
+                        algo: String::from("SHA256"),
+                    }
+                    .as_unit(HashRateUnit::TeraHash)
                 });
             let board_temperature = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/edevs/{}/chip-temp-min", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{}/Temperature", idx)))
                 .and_then(|val| val.as_f64())
                 .map(Temperature::from_celsius);
             let intake_temperature = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/edevs/{}/chip-temp-min", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{}/Chip Temp Min", idx)))
                 .and_then(|val| val.as_f64())
                 .map(Temperature::from_celsius);
             let outlet_temperature = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/edevs/{}/chip-temp-max", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{}/Chip Temp Max", idx)))
                 .and_then(|val| val.as_f64())
                 .map(Temperature::from_celsius);
-            let serial_number =
-                data.extract_nested::<String>(DataField::Hashboards, &format!("pcbsn{}", idx));
-
+            let serial_number = data
+                .get(&DataField::Hashboards)
+                .and_then(|val| val.pointer(&format!("/DEVS/{}/PCB SN", idx)))
+                .and_then(|val| val.as_str())
+                .map(String::from);
             let working_chips = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/edevs/{}/effective-chips", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{}/Effective Chips", idx)))
                 .and_then(|val| val.as_u64())
                 .map(|u| u as u16);
             let frequency = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/edevs/{}/freq", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{}/Frequency", idx)))
                 .and_then(|val| val.as_f64())
                 .map(Frequency::from_megahertz);
 
@@ -316,31 +327,37 @@ impl GetHashboards for BTMiner3 {
         hashboards
     }
 }
-impl GetHashrate for BTMiner3 {
+impl GetHashrate for BTMiner2 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::Hashrate, |f| HashRate {
-            value: f,
-            unit: HashRateUnit::TeraHash,
-            algo: String::from("SHA256"),
+        data.extract_map::<f64, _>(DataField::Hashrate, |f| {
+            HashRate {
+                value: f,
+                unit: HashRateUnit::MegaHash,
+                algo: String::from("SHA256"),
+            }
+            .as_unit(HashRateUnit::TeraHash)
         })
     }
 }
-impl GetExpectedHashrate for BTMiner3 {
+impl GetExpectedHashrate for BTMiner2 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| HashRate {
-            value: f,
-            unit: HashRateUnit::TeraHash,
-            algo: String::from("SHA256"),
+        data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| {
+            HashRate {
+                value: f,
+                unit: HashRateUnit::GigaHash,
+                algo: String::from("SHA256"),
+            }
+            .as_unit(HashRateUnit::TeraHash)
         })
     }
 }
-impl GetFans for BTMiner3 {
+impl GetFans for BTMiner2 {
     fn parse_fans(&self, data: &HashMap<DataField, Value>) -> Vec<FanData> {
         let mut fans: Vec<FanData> = Vec::new();
-        for (idx, direction) in ["in", "out"].iter().enumerate() {
+        for (idx, direction) in ["In", "Out"].iter().enumerate() {
             let fan = data.extract_nested_map::<f64, _>(
                 DataField::Fans,
-                &format!("fan-speed-{}", direction),
+                &format!("Fan Speed {}", direction),
                 |rpm| FanData {
                     position: idx as i16,
                     rpm: Some(AngularVelocity::from_rpm(rpm)),
@@ -353,13 +370,13 @@ impl GetFans for BTMiner3 {
         fans
     }
 }
-impl GetPsuFans for BTMiner3 {
+impl GetPsuFans for BTMiner2 {
     fn parse_psu_fans(&self, data: &HashMap<DataField, Value>) -> Vec<FanData> {
         let mut psu_fans: Vec<FanData> = Vec::new();
 
-        let psu_fan = data.extract_map::<f64, _>(DataField::PsuFans, |rpm| FanData {
+        let psu_fan = data.extract_map::<String, _>(DataField::PsuFans, |rpm| FanData {
             position: 0i16,
-            rpm: Some(AngularVelocity::from_rpm(rpm)),
+            rpm: Some(AngularVelocity::from_rpm(rpm.parse().unwrap())),
         });
         if psu_fan.is_some() {
             psu_fans.push(psu_fan.unwrap());
@@ -367,35 +384,39 @@ impl GetPsuFans for BTMiner3 {
         psu_fans
     }
 }
-impl GetFluidTemperature for BTMiner3 {
+impl GetFluidTemperature for BTMiner2 {
     fn parse_fluid_temperature(&self, data: &HashMap<DataField, Value>) -> Option<Temperature> {
         data.extract_map::<f64, _>(DataField::FluidTemperature, Temperature::from_celsius)
     }
 }
-impl GetWattage for BTMiner3 {
+impl GetWattage for BTMiner2 {
     fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
         data.extract_map::<f64, _>(DataField::Wattage, Power::from_watts)
     }
 }
-impl GetWattageLimit for BTMiner3 {
+impl GetWattageLimit for BTMiner2 {
     fn parse_wattage_limit(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
-        data.extract_map::<String, _>(DataField::WattageLimit, |p| p.parse::<f64>().ok())?
-            .map(Power::from_watts)
+        data.extract_map::<f64, _>(DataField::WattageLimit, Power::from_watts)
     }
 }
-impl GetLightFlashing for BTMiner3 {
+impl GetLightFlashing for BTMiner2 {
     fn parse_light_flashing(&self, data: &HashMap<DataField, Value>) -> Option<bool> {
         data.extract_map::<String, _>(DataField::LightFlashing, |l| l != "auto")
     }
 }
-impl GetMessages for BTMiner3 {}
-impl GetUptime for BTMiner3 {
+impl GetMessages for BTMiner2 {} // TODO
+impl GetUptime for BTMiner2 {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract_map::<u64, _>(DataField::Uptime, Duration::from_secs)
     }
 }
-impl GetIsMining for BTMiner3 {}
-impl GetPools for BTMiner3 {
+impl GetIsMining for BTMiner2 {
+    fn parse_is_mining(&self, data: &HashMap<DataField, Value>) -> bool {
+        data.extract_map::<String, _>(DataField::IsMining, |l| l != "false")
+            .unwrap_or(true)
+    }
+}
+impl GetPools for BTMiner2 {
     fn parse_pools(&self, data: &HashMap<DataField, Value>) -> Vec<PoolData> {
         let mut pools: Vec<PoolData> = Vec::new();
         let pools_raw = data.get(&DataField::Pools);
@@ -409,30 +430,40 @@ impl GetPools for BTMiner3 {
             {
                 let user = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/account", idx)))
+                    .and_then(|val| val.pointer(&format!("/{}/User", idx)))
                     .map(|val| String::from(val.as_str().unwrap_or("")));
 
                 let alive = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/status", idx)))
+                    .and_then(|val| val.pointer(&format!("/{}/Status", idx)))
                     .map(|val| val.as_str())
-                    .map(|val| val == Some("alive"));
+                    .map(|val| val == Some("Alive"));
 
                 let active = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/stratum-active", idx)))
+                    .and_then(|val| val.pointer(&format!("/{}/Stratum Active", idx)))
                     .and_then(|val| val.as_bool());
 
                 let url = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/url", idx)))
+                    .and_then(|val| val.pointer(&format!("/{}/URL", idx)))
                     .map(|val| PoolURL::from(String::from(val.as_str().unwrap_or(""))));
+
+                let accepted_shares = data
+                    .get(&DataField::Pools)
+                    .and_then(|val| val.pointer(&format!("/{}/Accepted", idx)))
+                    .and_then(|val| val.as_u64());
+
+                let rejected_shares = data
+                    .get(&DataField::Pools)
+                    .and_then(|val| val.pointer(&format!("/{}/Rejected", idx)))
+                    .and_then(|val| val.as_u64());
 
                 pools.push(PoolData {
                     position: Some(idx as u16),
                     url,
-                    accepted_shares: None,
-                    rejected_shares: None,
+                    accepted_shares,
+                    rejected_shares,
                     active,
                     alive,
                     user,

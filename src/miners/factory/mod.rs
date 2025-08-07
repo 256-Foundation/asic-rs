@@ -14,7 +14,9 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::time::Duration;
+use tokio::net::TcpStream;
 use tokio::task::JoinSet;
+use tokio::time::timeout;
 
 use super::commands::MinerCommand;
 use super::util::{send_rpc_command, send_web_command};
@@ -25,7 +27,26 @@ use crate::miners::backends::traits::GetMinerData;
 use crate::miners::factory::traits::VersionSelection;
 use traits::{DiscoveryCommands, ModelSelection};
 
-const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
+const IDENTIFICATION_TIMEOUT: Duration = Duration::from_secs(5);
+const CONNECTIVITY_TIMEOUT: Duration = Duration::from_secs(1);
+
+fn calculate_optimal_concurrency(ip_count: usize) -> usize {
+    // Adaptive concurrency based on scale
+    match ip_count {
+        0..=100 => 25,       // Small networks - conservative
+        101..=1000 => 50,    // Medium networks - moderate
+        1001..=5000 => 100,  // Large networks - aggressive
+        5001..=10000 => 150, // Very large networks - high throughput
+        _ => 200,            // Massive mining operations - maximum throughput
+    }
+}
+
+async fn check_port_open(ip: IpAddr, port: u16, connectivity_timeout: Duration) -> bool {
+    let addr = format!("{}:{}", ip, port);
+    timeout(connectivity_timeout, TcpStream::connect(&addr))
+        .await
+        .is_ok()
+}
 
 async fn get_miner_type_from_command(
     ip: IpAddr,
@@ -131,6 +152,10 @@ pub struct MinerFactory {
     search_makes: Option<Vec<MinerMake>>,
     search_firmwares: Option<Vec<MinerFirmware>>,
     ips: Vec<IpAddr>,
+    identification_timeout: Duration,
+    connectivity_timeout: Duration,
+    concurrent: Option<usize>,
+    check_port: bool,
 }
 
 impl Default for MinerFactory {
@@ -141,6 +166,11 @@ impl Default for MinerFactory {
 
 impl MinerFactory {
     pub async fn get_miner(&self, ip: IpAddr) -> Result<Option<Box<dyn GetMinerData>>> {
+        // Quick port check first to avoid wasting time on dead IPs
+        if self.check_port && !check_port_open(ip, 80, self.connectivity_timeout).await {
+            return Ok(None);
+        }
+
         let search_makes = self.search_makes.clone().unwrap_or(vec![
             MinerMake::AntMiner,
             MinerMake::WhatsMiner,
@@ -177,7 +207,7 @@ impl MinerFactory {
             let _ = discovery_tasks.spawn(get_miner_type_from_command(ip, command));
         }
 
-        let timeout = tokio::time::sleep(MAX_WAIT_TIME).fuse();
+        let timeout = tokio::time::sleep(self.identification_timeout).fuse();
         let tasks = tokio::spawn(async move {
             loop {
                 if discovery_tasks.is_empty() {
@@ -231,9 +261,58 @@ impl MinerFactory {
             search_makes: None,
             search_firmwares: None,
             ips: Vec::new(),
+            identification_timeout: IDENTIFICATION_TIMEOUT,
+            connectivity_timeout: CONNECTIVITY_TIMEOUT,
+            concurrent: None,
+            check_port: true, // Enable port checking by default
         }
     }
 
+    // Port checking
+    pub fn with_port_check(mut self, enabled: bool) -> Self {
+        self.check_port = enabled;
+        self
+    }
+
+    // Concurrency limiting
+    pub fn with_concurrent_limit(mut self, limit: usize) -> Self {
+        self.concurrent = Some(limit);
+        self
+    }
+
+    pub fn with_adaptive_concurrency(mut self) -> Self {
+        self.concurrent = Some(calculate_optimal_concurrency(self.ips.len()));
+        self
+    }
+
+    fn update_adaptive_concurrency(&mut self) {
+        if self.concurrent.is_none() {
+            self.concurrent = Some(calculate_optimal_concurrency(self.ips.len()));
+        }
+    }
+
+    // Timeout
+    pub fn with_identification_timeout(mut self, timeout: Duration) -> Self {
+        self.identification_timeout = timeout;
+        self
+    }
+
+    pub fn with_identification_timeout_secs(mut self, timeout_secs: u64) -> Self {
+        self.identification_timeout = Duration::from_secs(timeout_secs);
+        self
+    }
+
+    pub fn with_connectivity_timeout(mut self, timeout: Duration) -> Self {
+        self.connectivity_timeout = timeout;
+        self
+    }
+
+    pub fn with_connectivity_timeout_secs(mut self, timeout_secs: u64) -> Self {
+        self.connectivity_timeout = Duration::from_secs(timeout_secs);
+        self
+    }
+
+    // Makes
     pub fn with_search_makes(mut self, search_makes: Vec<MinerMake>) -> Self {
         self.search_makes = Some(search_makes);
         self
@@ -244,25 +323,79 @@ impl MinerFactory {
         self
     }
 
-    /// Calculate IPs from a subnet string
-    fn calculate_ips_from_subnet(&self, subnet: &str) -> Result<Vec<IpAddr>> {
-        let network = IpNet::from_str(subnet)?;
-        Ok(network.hosts().collect())
+    pub fn add_search_make(mut self, search_make: MinerMake) -> Self {
+        if self.search_makes.is_none() {
+            self.search_makes = Some(vec![search_make]);
+        } else {
+            self.search_makes.as_mut().unwrap().push(search_make);
+        }
+        self
     }
 
-    /// Set the subnet and calculate all IPs in that subnet
-    pub fn with_subnet(mut self, subnet: &str) -> Result<Self> {
-        let ips = self.calculate_ips_from_subnet(subnet)?;
-        self.ips = ips;
-        Ok(self)
+    pub fn remove_search_make(mut self, search_make: MinerMake) -> Self {
+        if let Some(makes) = self.search_makes.as_mut() {
+            makes.retain(|val| *val != search_make);
+        }
+        self
     }
+
+    // Firmwares
     pub fn with_search_firmwares(mut self, search_firmwares: Vec<MinerFirmware>) -> Self {
         self.search_firmwares = Some(search_firmwares);
         self
     }
 
-    /// Calculate IPs from octet ranges
-    fn generate_ips_from_octets(
+    pub fn with_firmwares(mut self, firmwares: Vec<MinerFirmware>) -> Self {
+        self.search_firmwares = Some(firmwares);
+        self
+    }
+
+    pub fn add_search_firmware(mut self, search_firmware: MinerFirmware) -> Self {
+        if self.search_firmwares.is_none() {
+            self.search_firmwares = Some(vec![search_firmware]);
+        } else {
+            self.search_firmwares
+                .as_mut()
+                .unwrap()
+                .push(search_firmware);
+        }
+        self
+    }
+
+    pub fn remove_search_firmware(mut self, search_firmware: MinerFirmware) -> Self {
+        if let Some(firmwares) = self.search_firmwares.as_mut() {
+            firmwares.retain(|val| *val != search_firmware);
+        }
+        self
+    }
+
+    // Subnet handlers
+    /// Set IPs from a subnet
+    pub fn with_subnet(mut self, subnet: &str) -> Result<Self> {
+        let ips = self.hosts_from_subnet(subnet)?;
+        self.ips = ips;
+        Ok(self)
+    }
+    fn hosts_from_subnet(&self, subnet: &str) -> Result<Vec<IpAddr>> {
+        let network = IpNet::from_str(subnet)?;
+        Ok(network.hosts().collect())
+    }
+
+    // Octet handlers
+    /// Set IPs from octet ranges
+    pub fn with_octets(
+        mut self,
+        octet1: &str,
+        octet2: &str,
+        octet3: &str,
+        octet4: &str,
+    ) -> Result<Self> {
+        let ips = self.hosts_from_octets(octet1, octet2, octet3, octet4)?;
+        self.ips = ips;
+        self.update_adaptive_concurrency();
+        Ok(self)
+    }
+    fn hosts_from_octets(
         &self,
         octet1: &str,
         octet2: &str,
@@ -282,19 +415,7 @@ impl MinerFactory {
         ))
     }
 
-    /// Set IPs from octet ranges
-    pub fn with_octets(
-        mut self,
-        octet1: &str,
-        octet2: &str,
-        octet3: &str,
-        octet4: &str,
-    ) -> Result<Self> {
-        let ips = self.generate_ips_from_octets(octet1, octet2, octet3, octet4)?;
-        self.ips = ips;
-        Ok(self)
-    }
-
+    // Range handler
     /// Set IPs from a range string in the format "10.1-199.0.1-199"
     pub fn with_range(self, range_str: &str) -> Result<Self> {
         let parts: Vec<&str> = range_str.split('.').collect();
@@ -306,53 +427,32 @@ impl MinerFactory {
 
         self.with_octets(parts[0], parts[1], parts[2], parts[3])
     }
-    pub fn add_search_make(mut self, search_make: MinerMake) -> Self {
-        if self.search_makes.is_none() {
-            self.search_makes = Some(vec![search_make]);
-        } else {
-            self.search_makes.as_mut().unwrap().push(search_make);
-        }
-        self
+
+    /// Return current scan IPs
+    pub fn hosts(&self) -> Vec<IpAddr> {
+        self.ips.clone()
     }
 
-    pub fn add_search_firmware(mut self, search_firmware: MinerFirmware) -> Self {
-        if self.search_firmwares.is_none() {
-            self.search_firmwares = Some(vec![search_firmware]);
-        } else {
-            self.search_firmwares
-                .as_mut()
-                .unwrap()
-                .push(search_firmware);
-        }
-        self
+    /// Get current count of scan IPs
+    pub fn len(&self) -> usize {
+        self.ips.len()
     }
 
-    pub fn remove_search_make(mut self, search_make: MinerMake) -> Self {
-        if let Some(makes) = self.search_makes.as_mut() {
-            makes.retain(|val| *val != search_make);
-        }
-        self
-    }
-
-    pub fn remove_search_firmware(mut self, search_firmware: MinerFirmware) -> Self {
-        if let Some(firmwares) = self.search_firmwares.as_mut() {
-            firmwares.retain(|val| *val != search_firmware);
-        }
-        self
-    }
-
+    /// Scan the IPs specified in the factory
     pub async fn scan(&self) -> Result<Vec<Box<dyn GetMinerData>>> {
-        const MAX_CONCURRENT_TASKS: usize = 250;
-
         if self.ips.is_empty() {
             return Err(anyhow::anyhow!(
                 "No IPs to scan. Use with_subnet, with_octets, or with_range to set IPs."
             ));
         }
 
+        let concurrency = self
+            .concurrent
+            .unwrap_or(calculate_optimal_concurrency(self.ips.len()));
+
         let miners: Vec<Box<dyn GetMinerData>> = stream::iter(self.ips.iter().copied())
             .map(|ip| async move { self.get_miner(ip).await.ok().flatten() })
-            .buffer_unordered(MAX_CONCURRENT_TASKS)
+            .buffer_unordered(concurrency)
             .filter_map(|miner_opt| async move { miner_opt })
             .collect()
             .await;
@@ -361,13 +461,15 @@ impl MinerFactory {
     }
 
     pub fn scan_stream(&self) -> Result<impl Stream<Item = Box<dyn GetMinerData>>> {
-        const MAX_CONCURRENT_TASKS: usize = 1024;
-
         if self.ips.is_empty() {
             return Err(anyhow::anyhow!(
                 "No IPs to scan. Use with_subnet, with_octets, or with_range to set IPs."
             ));
         }
+
+        let concurrency = self
+            .concurrent
+            .unwrap_or(calculate_optimal_concurrency(self.ips.len()));
 
         let stream = stream::iter(
             self.ips
@@ -375,8 +477,32 @@ impl MinerFactory {
                 .copied()
                 .map(move |ip| async move { self.get_miner(ip).await.ok().flatten() }),
         )
-        .buffer_unordered(MAX_CONCURRENT_TASKS)
+        .buffer_unordered(concurrency)
         .filter_map(|miner_opt| async move { miner_opt });
+
+        Ok(Box::pin(stream))
+    }
+
+    pub fn scan_stream_with_ip(
+        &self,
+    ) -> Result<impl Stream<Item = (IpAddr, Option<Box<dyn GetMinerData>>)>> {
+        if self.ips.is_empty() {
+            return Err(anyhow::anyhow!(
+                "No IPs to scan. Use with_subnet, with_octets, or with_range to set IPs."
+            ));
+        }
+
+        let concurrency = self
+            .concurrent
+            .unwrap_or(calculate_optimal_concurrency(self.ips.len()));
+
+        let stream = stream::iter(
+            self.ips
+                .iter()
+                .copied()
+                .map(move |ip| async move { (ip, self.get_miner(ip).await.ok().flatten()) }),
+        )
+        .buffer_unordered(concurrency);
 
         Ok(Box::pin(stream))
     }
