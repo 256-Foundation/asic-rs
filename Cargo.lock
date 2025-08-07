@@ -43,6 +43,7 @@ dependencies = [
  "ipnet",
  "macaddr",
  "measurements",
+ "once_cell",
  "regex",
  "reqwest",
  "semver",
