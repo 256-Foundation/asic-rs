@@ -22,6 +22,7 @@ use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
 use crate::miners::backends::btminer::BTMiner;
 use crate::miners::backends::espminer::ESPMiner;
 use crate::miners::backends::traits::GetMinerData;
+use crate::miners::backends::vnish::Vnish;
 use crate::miners::factory::traits::VersionSelection;
 use traits::{DiscoveryCommands, ModelSelection};
 
@@ -134,6 +135,7 @@ fn select_backend(
         (Some(MinerMake::BitAxe), Some(MinerFirmware::Stock)) => {
             Some(ESPMiner::new(ip, model?, firmware?, version?))
         }
+        (_, Some(MinerFirmware::VNish)) => Some(Box::new(Vnish::new(ip, model?, firmware?))),
         _ => None,
     }
 }

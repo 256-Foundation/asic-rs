@@ -20,7 +20,6 @@ semver = "1.0.26"
 anyhow = "1.0.98"
 ipnet = "2.11.0"
 
-
 [profile.release]
 opt-level = 3
 lto = "fat"
