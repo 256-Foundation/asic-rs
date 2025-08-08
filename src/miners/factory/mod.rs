@@ -151,9 +151,7 @@ fn select_backend(
         (Some(MinerMake::BitAxe), Some(MinerFirmware::Stock)) => {
             Some(ESPMiner::new(ip, model?, firmware?, version?))
         }
-        (Some(MinerMake::AntMiner), Some(MinerFirmware::VNish)) => {
-            Some(Box::new(Vnish::new(ip, make?, model?)))
-        }
+        (Some(_), Some(MinerFirmware::VNish)) => Some(Box::new(Vnish::new(ip, make?, model?))),
         _ => None,
     }
 }
@@ -253,21 +251,18 @@ impl MinerFactory {
 
         match miner_info {
             Some((make, firmware)) => {
-                let model = if let Some(MinerFirmware::VNish) = firmware {
-                    firmware.unwrap().get_model(ip).await
+                let model = if let Some(miner_firmware) = firmware {
+                    miner_firmware.get_model(ip).await
                 } else if let Some(miner_make) = make {
                     miner_make.get_model(ip).await
-                } else if let Some(miner_firmware) = firmware {
-                    miner_firmware.get_model(ip).await
                 } else {
                     return Ok(None);
                 };
-                let version = if let Some(MinerFirmware::VNish) = firmware {
-                    firmware.unwrap().get_version(ip).await
+
+                let version = if let Some(miner_firmware) = firmware {
+                    miner_firmware.get_version(ip).await
                 } else if let Some(miner_make) = make {
                     miner_make.get_version(ip).await
-                } else if let Some(miner_firmware) = firmware {
-                    miner_firmware.get_version(ip).await
                 } else {
                     return Ok(None);
                 };
