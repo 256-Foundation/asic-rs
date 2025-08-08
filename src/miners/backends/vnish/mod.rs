@@ -306,7 +306,7 @@ impl GetHashrate for Vnish {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::Hashrate, |f| HashRate {
             value: f,
-            unit: HashRateUnit::TeraHash,
+            unit: HashRateUnit::GigaHash,
             algo: String::from("SHA256"),
         })
     }
@@ -316,7 +316,7 @@ impl GetExpectedHashrate for Vnish {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| HashRate {
             value: f,
-            unit: HashRateUnit::TeraHash,
+            unit: HashRateUnit::GigaHash,
             algo: String::from("SHA256"),
         })
     }
@@ -457,7 +457,7 @@ impl Vnish {
             .find_map(|&path| chain.pointer(path).and_then(|v| v.as_f64()))
             .map(|f| HashRate {
                 value: f,
-                unit: HashRateUnit::TeraHash,
+                unit: HashRateUnit::GigaHash,
                 algo: String::from("SHA256"),
             })
     }
@@ -591,7 +591,7 @@ impl Vnish {
                     .and_then(|v| v.as_f64())
                     .map(|f| HashRate {
                         value: f,
-                        unit: HashRateUnit::TeraHash,
+                        unit: HashRateUnit::GigaHash,
                         algo: String::from("SHA256"),
                     });
 
@@ -610,28 +610,19 @@ impl Vnish {
                     .and_then(|v| v.as_i64())
                     .map(|f| Frequency::from_megahertz(f as f64));
 
-                let working = chip
-                    .pointer("/grade")
-                    .and_then(|v| v.as_str())
-                    .map(|grade| grade != "red");
-
-                // For tuning status, check if chip has throttling or if it's been tuned
-                let tuned = chip
-                    .pointer("/throttled")
-                    .and_then(|v| v.as_bool())
-                    .map(|throttled| !throttled);
+                let working = hashrate.as_ref().map(|hr| hr.value > 0.0);
 
                 chips.push(ChipData {
                     position: chip
                         .pointer("/id")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(idx as u64) as u16,
-                    hashrate,
-                    temperature,
-                    voltage,
-                    frequency,
-                    tuned,
-                    working,
+                    hashrate: hashrate,
+                    temperature: temperature,
+                    voltage: voltage,
+                    frequency: frequency,
+                    tuned: None,
+                    working: working,
                 });
             }
         }
