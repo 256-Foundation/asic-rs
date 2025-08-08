@@ -9,6 +9,8 @@ use serde_json::Value;
 use std::{net::IpAddr, time::Duration};
 
 /// VNish WebAPI client
+
+#[derive(Debug)]
 pub struct VnishWebAPI {
     client: Client,
     pub ip: IpAddr,
@@ -18,22 +20,6 @@ pub struct VnishWebAPI {
     api_key: Option<String>,
     bearer_token: Option<String>,
     password: Option<String>,
-    auto_authenticate: bool,
-}
-
-impl std::fmt::Debug for VnishWebAPI {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VnishWebAPI")
-            .field("ip", &self.ip)
-            .field("port", &self.port)
-            .field("timeout", &self.timeout)
-            .field("retries", &self.retries)
-            .field("api_key", &self.api_key.as_ref().map(|_| "***"))
-            .field("bearer_token", &self.bearer_token.as_ref().map(|_| "***"))
-            .field("password", &self.password.as_ref().map(|_| "***"))
-            .field("auto_authenticate", &self.auto_authenticate)
-            .finish()
-    }
 }
 
 #[async_trait]
@@ -123,7 +109,6 @@ impl VnishWebAPI {
             api_key: None,
             bearer_token: None,
             password: Some("admin".to_string()), // Default password
-            auto_authenticate: true,
         }
     }
 
@@ -151,20 +136,14 @@ impl VnishWebAPI {
         self
     }
 
-    /// Set password for automatic authentication
+    /// Set password for authentication
     pub fn with_password(mut self, password: String) -> Self {
         self.password = Some(password);
         self
     }
 
-    /// Enable or disable automatic authentication
-    pub fn with_auto_authenticate(mut self, enabled: bool) -> Self {
-        self.auto_authenticate = enabled;
-        self
-    }
-
     fn should_retry_with_auth(&self, attempt: u32) -> bool {
-        self.auto_authenticate && attempt == 0 && self.password.is_some()
+        attempt == 0 && self.password.is_some()
     }
 
     async fn try_authenticate(&self) -> Option<String> {
@@ -192,7 +171,6 @@ impl VnishWebAPI {
             api_key: self.api_key.clone(),
             bearer_token: Some(token),
             password: self.password.clone(),
-            auto_authenticate: self.auto_authenticate,
         };
         updated_self
             .send_command(command, privileged, parameters, method)
