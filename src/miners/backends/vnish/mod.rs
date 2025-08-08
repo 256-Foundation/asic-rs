@@ -7,7 +7,7 @@ use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
 use serde_json::Value;
 
-use crate::data::board::BoardData;
+use crate::data::board::{BoardData, ChipData};
 use crate::data::device::MinerMake;
 use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerModel};
 use crate::data::fan::FanData;
@@ -181,10 +181,17 @@ impl GetDataLocations for Vnish {
                 },
             )],
             DataField::Efficiency => vec![(
-                summary_cmd,
+                summary_cmd.clone(),
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/miner/power_efficiency"),
+                },
+            )],
+            DataField::LightFlashing => vec![(
+                status_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/find_miner"),
                 },
             )],
             _ => vec![],
@@ -265,6 +272,9 @@ impl GetHashboards for Vnish {
 
                 let working_chips = Self::extract_working_chips(chain);
                 let active = Self::extract_chain_active_status(chain, &hashrate);
+                let serial_number = Self::extract_chain_serial(chain, data);
+                let tuned = Self::extract_tuned_status(chain, data);
+                let chips = Self::extract_chips(chain);
 
                 hashboards.push(BoardData {
                     position: chain
@@ -278,11 +288,11 @@ impl GetHashboards for Vnish {
                     outlet_temperature: chip_temperature,
                     expected_chips: self.device_info.hardware.chips,
                     working_chips,
-                    serial_number: None,
-                    chips: vec![],
+                    serial_number,
+                    chips,
                     voltage,
                     frequency,
-                    tuned: Some(true),
+                    tuned,
                     active,
                 });
             }
@@ -345,7 +355,11 @@ impl GetWattage for Vnish {
 
 impl GetWattageLimit for Vnish {}
 
-impl GetLightFlashing for Vnish {}
+impl GetLightFlashing for Vnish {
+    fn parse_light_flashing(&self, data: &HashMap<DataField, Value>) -> Option<bool> {
+        data.extract::<bool>(DataField::LightFlashing)
+    }
+}
 
 impl GetMessages for Vnish {}
 
@@ -540,5 +554,88 @@ impl Vnish {
             Some("rejecting") => (Some(false), Some(true)),
             _ => (None, None),
         }
+    }
+
+    fn extract_chain_serial(chain: &Value, data: &HashMap<DataField, Value>) -> Option<String> {
+        // Try to get serial from chain-specific data first (factory-info)
+        chain
+            .pointer("/serial")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .or_else(|| {
+                // Fallback to miner-wide serial number
+                data.extract::<String>(DataField::SerialNumber)
+            })
+    }
+
+    fn extract_tuned_status(_chain: &Value, data: &HashMap<DataField, Value>) -> Option<bool> {
+        // Check miner state to determine tuning status
+        if let Some(miner_state) = data.extract::<String>(DataField::IsMining) {
+            match miner_state.as_str() {
+                "auto-tuning" => Some(false), // Currently tuning, not yet tuned
+                "mining" => Some(true),       // Tuned and mining
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    fn extract_chips(chain: &Value) -> Vec<ChipData> {
+        let mut chips: Vec<ChipData> = Vec::new();
+
+        if let Some(chips_array) = chain.pointer("/chips").and_then(|v| v.as_array()) {
+            for (idx, chip) in chips_array.iter().enumerate() {
+                let hashrate = chip
+                    .pointer("/hr")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| HashRate {
+                        value: f,
+                        unit: HashRateUnit::TeraHash,
+                        algo: String::from("SHA256"),
+                    });
+
+                let temperature = chip
+                    .pointer("/temp")
+                    .and_then(|v| v.as_f64())
+                    .map(Temperature::from_celsius);
+
+                let voltage = chip
+                    .pointer("/volt")
+                    .and_then(|v| v.as_i64())
+                    .map(|v| Voltage::from_millivolts(v as f64));
+
+                let frequency = chip
+                    .pointer("/freq")
+                    .and_then(|v| v.as_i64())
+                    .map(|f| Frequency::from_megahertz(f as f64));
+
+                let working = chip
+                    .pointer("/grade")
+                    .and_then(|v| v.as_str())
+                    .map(|grade| grade != "red");
+
+                // For tuning status, check if chip has throttling or if it's been tuned
+                let tuned = chip
+                    .pointer("/throttled")
+                    .and_then(|v| v.as_bool())
+                    .map(|throttled| !throttled);
+
+                chips.push(ChipData {
+                    position: chip
+                        .pointer("/id")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(idx as u64) as u16,
+                    hashrate,
+                    temperature,
+                    voltage,
+                    frequency,
+                    tuned,
+                    working,
+                });
+            }
+        }
+
+        chips
     }
 }
