@@ -153,12 +153,12 @@ impl GetIP for ESPMiner200 {
 }
 impl GetDeviceInfo for ESPMiner200 {
     fn get_device_info(&self) -> DeviceInfo {
-        self.device_info.clone()
+        self.device_info
     }
 }
 
 impl CollectData for ESPMiner200 {
-    fn get_collector(&self) -> DataCollector {
+    fn get_collector(&self) -> DataCollector<'_> {
         DataCollector::new(self, &self.web)
     }
 }

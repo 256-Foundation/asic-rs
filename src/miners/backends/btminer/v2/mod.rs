@@ -208,12 +208,12 @@ impl GetIP for BTMiner2 {
 }
 impl GetDeviceInfo for BTMiner2 {
     fn get_device_info(&self) -> DeviceInfo {
-        self.device_info.clone()
+        self.device_info
     }
 }
 
 impl CollectData for BTMiner2 {
-    fn get_collector(&self) -> DataCollector {
+    fn get_collector(&self) -> DataCollector<'_> {
         DataCollector::new(self, &self.rpc)
     }
 }

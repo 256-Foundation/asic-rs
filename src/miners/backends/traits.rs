@@ -34,7 +34,7 @@ pub trait CollectData: GetDataLocations {
     ///
     /// This method is responsible for creating and returning a `DataCollector`
     /// instance that can be used to collect data from the miner.
-    fn get_collector(&self) -> DataCollector;
+    fn get_collector(&self) -> DataCollector<'_>;
 }
 
 pub trait GetDataLocations: Send + Sync + Debug {
@@ -143,7 +143,7 @@ impl<
             mac,
 
             // Device identification
-            device_info: device_info.clone(),
+            device_info,
             serial_number,
             hostname,
 
