@@ -16,8 +16,6 @@ pub struct VnishWebAPI {
     pub ip: IpAddr,
     port: u16,
     timeout: Duration,
-    retries: u32,
-    api_key: Option<String>,
     bearer_token: RwLock<Option<String>>,
     password: Option<String>,
 }
@@ -55,36 +53,18 @@ impl WebAPIClient for VnishWebAPI {
 
         let url = format!("http://{}:{}/api/v1/{}", self.ip, self.port, command);
 
-        for attempt in 0..=self.retries {
-            let result = self
-                .execute_request(&url, &method, parameters.clone())
-                .await;
+        let response = self.execute_request(&url, &method, parameters).await?;
 
-            match result {
-                Ok(response) => {
-                    let status = response.status();
-                    if status.is_success() {
-                        match response.json().await {
-                            Ok(json_data) => return Ok(json_data),
-                            Err(e) => {
-                                if attempt == self.retries {
-                                    return Err(VnishError::ParseError(e.to_string()))?;
-                                }
-                            }
-                        }
-                    } else if attempt == self.retries {
-                        return Err(VnishError::HttpError(status.as_u16()))?;
-                    }
-                }
-                Err(e) => {
-                    if attempt == self.retries {
-                        return Err(e)?;
-                    }
-                }
-            }
+        let status = response.status();
+        if status.is_success() {
+            let json_data = response
+                .json()
+                .await
+                .map_err(|e| VnishError::ParseError(e.to_string()))?;
+            Ok(json_data)
+        } else {
+            Err(VnishError::HttpError(status.as_u16()))?
         }
-
-        Err(VnishError::MaxRetriesExceeded)?
     }
 }
 
@@ -101,8 +81,6 @@ impl VnishWebAPI {
             ip,
             port,
             timeout: Duration::from_secs(5),
-            retries: 2,
-            api_key: None,
             bearer_token: RwLock::new(None),
             password: Some("admin".to_string()), // Default password
         }
@@ -125,36 +103,6 @@ impl VnishWebAPI {
         } else {
             Ok(())
         }
-    }
-
-    /// Set the timeout for API requests
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-
-    /// Set the number of retries for failed requests
-    pub fn with_retries(mut self, retries: u32) -> Self {
-        self.retries = retries;
-        self
-    }
-
-    /// Set API key for authentication (x-api-key header)
-    pub fn with_api_key(mut self, api_key: String) -> Self {
-        self.api_key = Some(api_key);
-        self
-    }
-
-    /// Set bearer token for authentication (Authorization: Bearer header)
-    pub fn with_bearer_token(self, token: String) -> Self {
-        *self.bearer_token.write().unwrap() = Some(token);
-        self
-    }
-
-    /// Set password for authentication
-    pub fn with_password(mut self, password: String) -> Self {
-        self.password = Some(password);
-        self
     }
 
     async fn authenticate(&self, password: &str) -> Result<String, VnishError> {
@@ -215,9 +163,6 @@ impl VnishWebAPI {
         let mut request_builder = request_builder.timeout(self.timeout);
 
         // Add authentication headers if provided
-        if let Some(ref api_key) = self.api_key {
-            request_builder = request_builder.header("x-api-key", api_key);
-        }
         if let Some(ref token) = *self.bearer_token.read().unwrap() {
             request_builder = request_builder.header("Authorization", format!("Bearer {}", token));
         }
