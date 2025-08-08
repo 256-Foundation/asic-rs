@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use macaddr::MacAddr;
-use measurements::{AngularVelocity, Frequency, Power, Temperature};
+use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
 use serde_json::Value;
 
 use crate::data::board::BoardData;
@@ -30,38 +30,29 @@ pub struct Vnish {
 }
 
 impl Vnish {
-    pub fn new(ip: IpAddr, model: MinerModel, firmware: MinerFirmware) -> Self {
+    pub fn new(ip: IpAddr, make: MinerMake, model: MinerModel) -> Self {
         Vnish {
             ip,
-            web: VnishWebAPI::new(ip, 80), // Standard HTTP port for VnishOS
-            device_info: DeviceInfo::new(
-                MinerMake::AntMiner, // VnishOS typically runs on AntMiner hardware
-                model,
-                firmware,
-                HashAlgorithm::SHA256,
-            ),
+            web: VnishWebAPI::new(ip, 80),
+            device_info: DeviceInfo::new(make, model, MinerFirmware::VNish, HashAlgorithm::SHA256),
         }
     }
 }
 
 impl GetDataLocations for Vnish {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
-        let info_cmd: MinerCommand = MinerCommand::WebAPI {
-            command: "info",
-            parameters: None,
-        };
-        let status_cmd: MinerCommand = MinerCommand::WebAPI {
-            command: "status",
-            parameters: None,
-        };
-        let summary_cmd: MinerCommand = MinerCommand::WebAPI {
-            command: "summary",
-            parameters: None,
-        };
-        let chains_cmd: MinerCommand = MinerCommand::WebAPI {
-            command: "chains",
-            parameters: None,
-        };
+        fn cmd(endpoint: &'static str) -> MinerCommand {
+            MinerCommand::WebAPI {
+                command: endpoint,
+                parameters: None,
+            }
+        }
+
+        let info_cmd = cmd("info");
+        let status_cmd = cmd("status");
+        let summary_cmd = cmd("summary");
+        let chains_cmd = cmd("chains");
+        let factory_info_cmd = cmd("chains/factory-info");
 
         match data_field {
             DataField::Mac => vec![(
@@ -71,13 +62,22 @@ impl GetDataLocations for Vnish {
                     key: Some("/system/network_status/mac"),
                 },
             )],
-            DataField::SerialNumber => vec![(
-                info_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/serial"),
-                },
-            )],
+            DataField::SerialNumber => vec![
+                (
+                    factory_info_cmd.clone(),
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/psu_serial"),
+                    },
+                ),
+                (
+                    info_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/serial"),
+                    },
+                ),
+            ],
             DataField::Hostname => vec![(
                 info_cmd,
                 DataExtractor {
@@ -120,13 +120,22 @@ impl GetDataLocations for Vnish {
                     key: Some("/miner/hr_realtime"),
                 },
             )],
-            DataField::ExpectedHashrate => vec![(
-                summary_cmd.clone(),
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/miner/hr_nominal"),
-                },
-            )],
+            DataField::ExpectedHashrate => vec![
+                (
+                    factory_info_cmd.clone(),
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/hr_stock"),
+                    },
+                ),
+                (
+                    summary_cmd.clone(),
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/miner/hr_stock"),
+                    },
+                ),
+            ],
             DataField::Wattage => vec![(
                 summary_cmd.clone(),
                 DataExtractor {
@@ -141,13 +150,22 @@ impl GetDataLocations for Vnish {
                     key: Some("/miner/cooling/fans"),
                 },
             )],
-            DataField::Hashboards => vec![(
-                chains_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some(""),
-                },
-            )],
+            DataField::Hashboards => vec![
+                (
+                    summary_cmd.clone(),
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/miner/chains"),
+                    },
+                ),
+                (
+                    chains_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                    },
+                ),
+            ],
             DataField::Pools => vec![(
                 summary_cmd,
                 DataExtractor {
@@ -156,10 +174,17 @@ impl GetDataLocations for Vnish {
                 },
             )],
             DataField::IsMining => vec![(
-                status_cmd,
+                status_cmd.clone(),
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/miner_state"),
+                },
+            )],
+            DataField::Efficiency => vec![(
+                summary_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/miner/power_efficiency"),
                 },
             )],
             _ => vec![],
@@ -180,7 +205,7 @@ impl GetDeviceInfo for Vnish {
 }
 
 impl CollectData for Vnish {
-    fn get_collector(&self) -> DataCollector {
+    fn get_collector(&self) -> DataCollector<'_> {
         DataCollector::new(self, &self.web)
     }
 }
@@ -226,81 +251,20 @@ impl GetHashboards for Vnish {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
 
-        if let Some(chains_data) = data.get(&DataField::Hashboards)
-            && let Some(chains_array) = chains_data.as_array()
-        {
+        let chains_data = data.get(&DataField::Hashboards).and_then(|v| v.as_array());
+
+        if let Some(chains_array) = chains_data {
             for (idx, chain) in chains_array.iter().enumerate() {
-                // Use correct paths from AntmChainChips schema
-                let hashrate = chain
-                    .pointer("/hr_realtime")
-                    .and_then(|v| v.as_f64())
-                    .map(|f| HashRate {
-                        value: f,
-                        unit: HashRateUnit::TeraHash, // VnishOS returns TH/s
-                        algo: String::from("SHA256"),
-                    });
-
+                let hashrate = Self::extract_hashrate(chain, &["/hashrate_rt", "/hr_realtime"]);
                 let expected_hashrate =
-                    chain
-                        .pointer("/hr_nominal")
-                        .and_then(|v| v.as_f64())
-                        .map(|f| HashRate {
-                            value: f,
-                            unit: HashRateUnit::TeraHash,
-                            algo: String::from("SHA256"),
-                        });
+                    Self::extract_hashrate(chain, &["/hashrate_ideal", "/hr_nominal"]);
 
-                let frequency = chain
-                    .pointer("/freq")
-                    .and_then(|v| v.as_f64())
-                    .map(Frequency::from_megahertz);
+                let frequency = Self::extract_frequency(chain);
+                let voltage = Self::extract_voltage(chain);
+                let (board_temperature, chip_temperature) = Self::extract_temperatures(chain);
 
-                // Extract temperature sensors data properly
-                let sensors_data = chain.pointer("/sensors").and_then(|v| v.as_array());
-                let (board_temperature, chip_temperature) = if let Some(sensors) = sensors_data {
-                    let mut pcb_temps = Vec::new();
-                    let mut chip_temps = Vec::new();
-
-                    for sensor in sensors {
-                        if let Some(pcb_temp) = sensor.pointer("/pcb_temp").and_then(|v| v.as_i64())
-                        {
-                            pcb_temps.push(pcb_temp as f64);
-                        }
-                        if let Some(chip_temp) =
-                            sensor.pointer("/chip_temp").and_then(|v| v.as_i64())
-                        {
-                            chip_temps.push(chip_temp as f64);
-                        }
-                    }
-
-                    let board_temp = if !pcb_temps.is_empty() {
-                        pcb_temps
-                            .iter()
-                            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-                            .map(|&temp| Temperature::from_celsius(temp))
-                    } else {
-                        None
-                    };
-
-                    let chip_temp = if !chip_temps.is_empty() {
-                        chip_temps
-                            .iter()
-                            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-                            .map(|&temp| Temperature::from_celsius(temp))
-                    } else {
-                        None
-                    };
-
-                    (board_temp, chip_temp)
-                } else {
-                    (None, None)
-                };
-
-                // Count working chips from individual chip data
-                let chips_array = chain.pointer("/chips").and_then(|v| v.as_array());
-                let working_chips = chips_array.map(|chips| chips.len() as u16);
-
-                let active = hashrate.as_ref().map(|h| h.value > 0.0);
+                let working_chips = Self::extract_working_chips(chain);
+                let active = Self::extract_chain_active_status(chain, &hashrate);
 
                 hashboards.push(BoardData {
                     position: chain
@@ -314,9 +278,9 @@ impl GetHashboards for Vnish {
                     outlet_temperature: chip_temperature,
                     expected_chips: self.device_info.hardware.chips,
                     working_chips,
-                    serial_number: None, // Not provided in AntmChainChips schema
-                    chips: vec![],       // Could be populated from /chips array if needed
-                    voltage: None,       // Not directly provided
+                    serial_number: None,
+                    chips: vec![],
+                    voltage,
                     frequency,
                     tuned: Some(true),
                     active,
@@ -389,13 +353,36 @@ impl GetUptime for Vnish {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract::<String>(DataField::Uptime)
             .and_then(|uptime_str| {
-                // Parse uptime string format (e.g., "1 day, 2:30:45" or similar)
-                // This is a simplified parser - you may need to adjust based on actual format
-                if let Some(seconds_part) = uptime_str.split_whitespace().last()
-                    && let Ok(seconds) = seconds_part.parse::<u64>()
-                {
-                    return Some(Duration::from_secs(seconds));
+                // Parse uptime strings like "10 days, 18:00"
+                let trimmed = uptime_str.trim();
+
+                // Try to parse format like "X days, HH:MM" or "X days"
+                if trimmed.contains("days") {
+                    let mut total_seconds = 0u64;
+
+                    // Extract days
+                    if let Some(days_part) = trimmed.split("days").next() {
+                        if let Ok(days) = days_part.trim().parse::<u64>() {
+                            total_seconds += days * 24 * 60 * 60;
+                        }
+                    }
+
+                    // Extract hours and minutes if present (after comma)
+                    if let Some(time_part) = trimmed.split(',').nth(1) {
+                        let time_part = time_part.trim();
+                        if let Some((hours_str, minutes_str)) = time_part.split_once(':') {
+                            if let (Ok(hours), Ok(minutes)) = (
+                                hours_str.trim().parse::<u64>(),
+                                minutes_str.trim().parse::<u64>(),
+                            ) {
+                                total_seconds += hours * 60 * 60 + minutes * 60;
+                            }
+                        }
+                    }
+
+                    return Some(Duration::from_secs(total_seconds));
                 }
+
                 None
             })
     }
@@ -420,15 +407,7 @@ impl GetPools for Vnish {
                 let url = pool
                     .pointer("/url")
                     .and_then(|v| v.as_str())
-                    .map(|url_str| {
-                        // Parse the URL - assume stratum format
-                        PoolURL {
-                            scheme: PoolScheme::StratumV1,
-                            host: url_str.to_string(),
-                            port: 4444, // Default stratum port
-                            pubkey: None,
-                        }
-                    });
+                    .map(Self::parse_pool_url);
 
                 let user = pool
                     .pointer("/user")
@@ -436,15 +415,9 @@ impl GetPools for Vnish {
                     .map(String::from);
 
                 let accepted_shares = pool.pointer("/accepted").and_then(|v| v.as_u64());
-
                 let rejected_shares = pool.pointer("/rejected").and_then(|v| v.as_u64());
-
-                // Pool status according to spec: ["offline","working","disabled","active","rejecting","unknown"]
                 let pool_status = pool.pointer("/status").and_then(|v| v.as_str());
-
-                let active = pool_status.map(|status| matches!(status, "active" | "working"));
-
-                let alive = pool_status.map(|status| !matches!(status, "offline" | "disabled"));
+                let (active, alive) = Self::parse_pool_status(pool_status);
 
                 pools.push(PoolData {
                     position: Some(idx as u16),
@@ -459,5 +432,113 @@ impl GetPools for Vnish {
         }
 
         pools
+    }
+}
+
+// Helper methods for data extraction
+impl Vnish {
+    fn extract_hashrate(chain: &Value, paths: &[&str]) -> Option<HashRate> {
+        paths
+            .iter()
+            .find_map(|&path| chain.pointer(path).and_then(|v| v.as_f64()))
+            .map(|f| HashRate {
+                value: f,
+                unit: HashRateUnit::TeraHash,
+                algo: String::from("SHA256"),
+            })
+    }
+
+    fn extract_frequency(chain: &Value) -> Option<Frequency> {
+        chain
+            .pointer("/frequency")
+            .or_else(|| chain.pointer("/freq"))
+            .and_then(|v| v.as_f64())
+            .map(Frequency::from_megahertz)
+    }
+
+    fn extract_voltage(chain: &Value) -> Option<Voltage> {
+        chain
+            .pointer("/voltage")
+            .and_then(|v| v.as_i64())
+            .map(|v| Voltage::from_millivolts(v as f64))
+    }
+
+    fn extract_temperatures(chain: &Value) -> (Option<Temperature>, Option<Temperature>) {
+        let board_temp = chain
+            .pointer("/pcb_temp/max")
+            .and_then(|v| v.as_i64())
+            .map(|t| Temperature::from_celsius(t as f64));
+
+        let chip_temp = chain
+            .pointer("/chip_temp/max")
+            .and_then(|v| v.as_i64())
+            .map(|t| Temperature::from_celsius(t as f64));
+
+        (board_temp, chip_temp)
+    }
+
+    fn extract_working_chips(chain: &Value) -> Option<u16> {
+        chain
+            .pointer("/chip_statuses")
+            .and_then(|statuses| {
+                let red = statuses
+                    .pointer("/red")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let orange = statuses
+                    .pointer("/orange")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                Some((red + orange) as u16)
+            })
+            .or_else(|| {
+                chain
+                    .pointer("/chips")
+                    .and_then(|v| v.as_array())
+                    .map(|chips| chips.len() as u16)
+            })
+    }
+
+    fn extract_chain_active_status(chain: &Value, hashrate: &Option<HashRate>) -> Option<bool> {
+        chain
+            .pointer("/status/state")
+            .and_then(|v| v.as_str())
+            .map(|s| s == "mining")
+            .or_else(|| hashrate.as_ref().map(|h| h.value > 0.0))
+    }
+
+    fn parse_pool_url(url_str: &str) -> PoolURL {
+        // Extract port from URL if present, otherwise default to 4444
+        let port = if url_str.contains(':') {
+            url_str
+                .split(':')
+                .last()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(4444)
+        } else {
+            4444
+        };
+
+        let host = if url_str.contains(':') {
+            url_str.split(':').next().unwrap_or(url_str).to_string()
+        } else {
+            url_str.to_string()
+        };
+
+        PoolURL {
+            scheme: PoolScheme::StratumV1,
+            host,
+            port,
+            pubkey: None,
+        }
+    }
+
+    fn parse_pool_status(status: Option<&str>) -> (Option<bool>, Option<bool>) {
+        match status {
+            Some("active" | "working") => (Some(true), Some(true)),
+            Some("offline" | "disabled") => (Some(false), Some(false)),
+            Some("rejecting") => (Some(false), Some(true)),
+            _ => (None, None),
+        }
     }
 }

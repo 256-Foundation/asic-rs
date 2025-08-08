@@ -92,7 +92,9 @@ fn parse_type_from_socket(
         _ if json_string.contains("AVALON") => {
             Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
         }
-        _ if json_string.contains("VNISH") => Some((None, Some(MinerFirmware::VNish))),
+        _ if json_string.contains("VNISH") => {
+            Some((Some(MinerMake::AntMiner), Some(MinerFirmware::VNish)))
+        }
         _ => None,
     }
 }
@@ -123,7 +125,9 @@ fn parse_type_from_web(
         _ if resp_text.contains("Avalon") => {
             Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
         }
-        _ if resp_text.contains("AnthillOS") => Some((None, Some(MinerFirmware::VNish))),
+        _ if resp_text.contains("AnthillOS") => {
+            Some((Some(MinerMake::AntMiner), Some(MinerFirmware::VNish)))
+        }
         _ if redirect_header.contains("https://") && resp_status == 307
             || resp_text.contains("/cgi-bin/luci") =>
         {
@@ -132,6 +136,7 @@ fn parse_type_from_web(
         _ => None,
     }
 }
+
 fn select_backend(
     ip: IpAddr,
     make: Option<MinerMake>,
@@ -146,7 +151,9 @@ fn select_backend(
         (Some(MinerMake::BitAxe), Some(MinerFirmware::Stock)) => {
             Some(ESPMiner::new(ip, model?, firmware?, version?))
         }
-        (_, Some(MinerFirmware::VNish)) => Some(Box::new(Vnish::new(ip, model?, firmware?))),
+        (Some(MinerMake::AntMiner), Some(MinerFirmware::VNish)) => {
+            Some(Box::new(Vnish::new(ip, make?, model?)))
+        }
         _ => None,
     }
 }
@@ -246,14 +253,18 @@ impl MinerFactory {
 
         match miner_info {
             Some((make, firmware)) => {
-                let model = if let Some(miner_make) = make {
+                let model = if let Some(MinerFirmware::VNish) = firmware {
+                    firmware.unwrap().get_model(ip).await
+                } else if let Some(miner_make) = make {
                     miner_make.get_model(ip).await
                 } else if let Some(miner_firmware) = firmware {
                     miner_firmware.get_model(ip).await
                 } else {
                     return Ok(None);
                 };
-                let version = if let Some(miner_make) = make {
+                let version = if let Some(MinerFirmware::VNish) = firmware {
+                    firmware.unwrap().get_version(ip).await
+                } else if let Some(miner_make) = make {
                     miner_make.get_version(ip).await
                 } else if let Some(miner_firmware) = firmware {
                     miner_firmware.get_version(ip).await

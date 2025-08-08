@@ -8,7 +8,7 @@ use reqwest::{Client, Method, Response};
 use serde_json::Value;
 use std::{net::IpAddr, time::Duration};
 
-/// Vnish WebAPI client for communicating with VnishOS miners
+/// VNish WebAPI client
 pub struct VnishWebAPI {
     client: Client,
     pub ip: IpAddr,
@@ -17,6 +17,8 @@ pub struct VnishWebAPI {
     retries: u32,
     api_key: Option<String>,
     bearer_token: Option<String>,
+    password: Option<String>,
+    auto_authenticate: bool,
 }
 
 impl std::fmt::Debug for VnishWebAPI {
@@ -28,6 +30,8 @@ impl std::fmt::Debug for VnishWebAPI {
             .field("retries", &self.retries)
             .field("api_key", &self.api_key.as_ref().map(|_| "***"))
             .field("bearer_token", &self.bearer_token.as_ref().map(|_| "***"))
+            .field("password", &self.password.as_ref().map(|_| "***"))
+            .field("auto_authenticate", &self.auto_authenticate)
             .finish()
     }
 }
@@ -67,7 +71,8 @@ impl WebAPIClient for VnishWebAPI {
 
             match result {
                 Ok(response) => {
-                    if response.status().is_success() {
+                    let status = response.status();
+                    if status.is_success() {
                         match response.json().await {
                             Ok(json_data) => return Ok(json_data),
                             Err(e) => {
@@ -76,8 +81,17 @@ impl WebAPIClient for VnishWebAPI {
                                 }
                             }
                         }
+                    } else if status == 401 && self.should_retry_with_auth(attempt) {
+                        if let Some(token) = self.try_authenticate().await {
+                            return self
+                                .retry_with_token(token, command, _privileged, parameters, method)
+                                .await;
+                        }
+                        if attempt == self.retries {
+                            return Err(VnishError::Unauthorized)?;
+                        }
                     } else if attempt == self.retries {
-                        return Err(VnishError::HttpError(response.status().as_u16()))?;
+                        return Err(VnishError::HttpError(status.as_u16()))?;
                     }
                 }
                 Err(e) => {
@@ -108,6 +122,8 @@ impl VnishWebAPI {
             retries: 2,
             api_key: None,
             bearer_token: None,
+            password: Some("admin".to_string()), // Default password
+            auto_authenticate: true,
         }
     }
 
@@ -133,6 +149,83 @@ impl VnishWebAPI {
     pub fn with_bearer_token(mut self, token: String) -> Self {
         self.bearer_token = Some(token);
         self
+    }
+
+    /// Set password for automatic authentication
+    pub fn with_password(mut self, password: String) -> Self {
+        self.password = Some(password);
+        self
+    }
+
+    /// Enable or disable automatic authentication
+    pub fn with_auto_authenticate(mut self, enabled: bool) -> Self {
+        self.auto_authenticate = enabled;
+        self
+    }
+
+    fn should_retry_with_auth(&self, attempt: u32) -> bool {
+        self.auto_authenticate && attempt == 0 && self.password.is_some()
+    }
+
+    async fn try_authenticate(&self) -> Option<String> {
+        if let Some(ref password) = self.password {
+            self.authenticate(password).await.ok()
+        } else {
+            None
+        }
+    }
+
+    async fn retry_with_token(
+        &self,
+        token: String,
+        command: &str,
+        privileged: bool,
+        parameters: Option<Value>,
+        method: Method,
+    ) -> Result<Value> {
+        let updated_self = VnishWebAPI {
+            client: self.client.clone(),
+            ip: self.ip,
+            port: self.port,
+            timeout: self.timeout,
+            retries: self.retries,
+            api_key: self.api_key.clone(),
+            bearer_token: Some(token),
+            password: self.password.clone(),
+            auto_authenticate: self.auto_authenticate,
+        };
+        updated_self
+            .send_command(command, privileged, parameters, method)
+            .await
+    }
+
+    async fn authenticate(&self, password: &str) -> Result<String, VnishError> {
+        let unlock_payload = serde_json::json!({ "pw": password });
+        let url = format!("http://{}:{}/api/v1/unlock", self.ip, self.port);
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&unlock_payload)
+            .timeout(self.timeout)
+            .send()
+            .await
+            .map_err(|e| VnishError::NetworkError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            return Err(VnishError::AuthenticationFailed);
+        }
+
+        let unlock_response: Value = response
+            .json()
+            .await
+            .map_err(|e| VnishError::ParseError(e.to_string()))?;
+
+        unlock_response
+            .pointer("/token")
+            .and_then(|t| t.as_str())
+            .map(String::from)
+            .ok_or(VnishError::AuthenticationFailed)
     }
 
     /// Execute the actual HTTP request
@@ -202,6 +295,10 @@ pub enum VnishError {
     UnsupportedMethod(String),
     /// Maximum retries exceeded
     MaxRetriesExceeded,
+    /// Authentication failed
+    AuthenticationFailed,
+    /// Unauthorized (401)
+    Unauthorized,
 }
 
 impl std::fmt::Display for VnishError {
@@ -214,6 +311,8 @@ impl std::fmt::Display for VnishError {
             VnishError::Timeout => write!(f, "Request timeout"),
             VnishError::UnsupportedMethod(method) => write!(f, "Unsupported method: {}", method),
             VnishError::MaxRetriesExceeded => write!(f, "Maximum retries exceeded"),
+            VnishError::AuthenticationFailed => write!(f, "Authentication failed"),
+            VnishError::Unauthorized => write!(f, "Unauthorized access"),
         }
     }
 }
