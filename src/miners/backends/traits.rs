@@ -70,8 +70,8 @@ impl<
         + GetMessages
         + GetUptime
         + GetIsMining
-        + GetPools
-        + GetDeviceInfo,
+        + GetAverageTemperature
+        + GetPools,
 > GetMinerData for T
 {
     async fn get_data(&self) -> MinerData {
@@ -93,6 +93,7 @@ impl<
         let api_version = self.parse_api_version(&data);
         let firmware_version = self.parse_firmware_version(&data);
         let control_board_version = self.parse_control_board_version(&data);
+        let avg_temp = self.parse_average_temperature(&data);
         let uptime = self.parse_uptime(&data);
         let hashrate = self.parse_hashrate(&data);
         let expected_hashrate = self.parse_expected_hashrate(&data);
@@ -122,7 +123,7 @@ impl<
                     board_temps.iter().sum::<f64>() / hashboards.len() as f64,
                 ))
             } else {
-                None
+                avg_temp
             }
         };
         let efficiency = match (hashrate.as_ref(), wattage.as_ref()) {
@@ -399,6 +400,19 @@ pub trait GetPsuFans: CollectData {
     }
 }
 
+#[async_trait]
+pub trait GetAverageTemperature: CollectData {
+    async fn get_average_temperature(&self) -> Option<Temperature> {
+        let mut collector = self.get_collector();
+        let data = collector.collect(&[DataField::AverageTemperature]).await;
+        self.parse_average_temperature(&data)
+    }
+    #[allow(unused_variables)]
+    fn parse_average_temperature(&self, data: &HashMap<DataField, Value>) -> Option<Temperature> {
+        None
+    }
+}
+
 // Fluid Temperature
 #[async_trait]
 pub trait GetFluidTemperature: CollectData {
@@ -453,6 +467,32 @@ pub trait GetLightFlashing: CollectData {
     fn parse_light_flashing(&self, data: &HashMap<DataField, Value>) -> Option<bool> {
         None
     }
+}
+
+// Setters
+#[async_trait]
+pub trait SetFaultLight {
+    async fn set_fault_light(&self, fault: bool) -> Result<bool>;
+}
+
+#[async_trait]
+pub trait SetPowerLimit {
+    async fn set_power_limit(&self, limit: Power) -> Result<bool>;
+}
+
+#[async_trait]
+pub trait Restart {
+    async fn restart(&self) -> Result<bool>;
+}
+
+#[async_trait]
+pub trait Pause {
+    async fn pause(&self, at_time: Option<Duration>) -> Result<bool>;
+}
+
+#[async_trait]
+pub trait Resume {
+    async fn resume(&self, at_time: Option<Duration>) -> Result<bool>;
 }
 
 // Messages
