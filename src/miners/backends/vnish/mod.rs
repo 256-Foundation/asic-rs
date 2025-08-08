@@ -361,22 +361,22 @@ impl GetUptime for Vnish {
                     let mut total_seconds = 0u64;
 
                     // Extract days
-                    if let Some(days_part) = trimmed.split("days").next() {
-                        if let Ok(days) = days_part.trim().parse::<u64>() {
-                            total_seconds += days * 24 * 60 * 60;
-                        }
+                    if let Some(days_part) = trimmed.split("days").next()
+                        && let Ok(days) = days_part.trim().parse::<u64>()
+                    {
+                        total_seconds += days * 24 * 60 * 60;
                     }
 
                     // Extract hours and minutes if present (after comma)
                     if let Some(time_part) = trimmed.split(',').nth(1) {
                         let time_part = time_part.trim();
-                        if let Some((hours_str, minutes_str)) = time_part.split_once(':') {
-                            if let (Ok(hours), Ok(minutes)) = (
+                        if let Some((hours_str, minutes_str)) = time_part.split_once(':')
+                            && let (Ok(hours), Ok(minutes)) = (
                                 hours_str.trim().parse::<u64>(),
                                 minutes_str.trim().parse::<u64>(),
-                            ) {
-                                total_seconds += hours * 60 * 60 + minutes * 60;
-                            }
+                            )
+                        {
+                            total_seconds += hours * 60 * 60 + minutes * 60;
                         }
                     }
 
@@ -480,7 +480,7 @@ impl Vnish {
     fn extract_working_chips(chain: &Value) -> Option<u16> {
         chain
             .pointer("/chip_statuses")
-            .and_then(|statuses| {
+            .map(|statuses| {
                 let red = statuses
                     .pointer("/red")
                     .and_then(|v| v.as_u64())
@@ -489,7 +489,7 @@ impl Vnish {
                     .pointer("/orange")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
-                Some((red + orange) as u16)
+                (red + orange) as u16
             })
             .or_else(|| {
                 chain
@@ -512,7 +512,7 @@ impl Vnish {
         let port = if url_str.contains(':') {
             url_str
                 .split(':')
-                .last()
+                .next_back()
                 .and_then(|p| p.parse().ok())
                 .unwrap_or(4444)
         } else {
