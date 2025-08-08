@@ -87,6 +87,7 @@ impl Display for MinerModel {
             MinerModel::WhatsMiner(m) => Ok(m.fmt(f)?),
             MinerModel::Braiins(m) => Ok(m.fmt(f)?),
             MinerModel::Bitaxe(m) => Ok(m.fmt(f)?),
+            MinerModel::Avalon(m) => Ok(m.fmt(f)?),
         }
     }
 }
