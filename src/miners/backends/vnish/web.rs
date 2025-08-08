@@ -6,7 +6,7 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use reqwest::{Client, Method, Response};
 use serde_json::Value;
-use std::{net::IpAddr, time::Duration};
+use std::{net::IpAddr, sync::RwLock, time::Duration};
 
 /// VNish WebAPI client
 
@@ -18,7 +18,7 @@ pub struct VnishWebAPI {
     timeout: Duration,
     retries: u32,
     api_key: Option<String>,
-    bearer_token: Option<String>,
+    bearer_token: RwLock<Option<String>>,
     password: Option<String>,
 }
 
@@ -48,6 +48,11 @@ impl WebAPIClient for VnishWebAPI {
         parameters: Option<Value>,
         method: Method,
     ) -> Result<Value> {
+        // Ensure we're authenticated before making the request
+        if let Err(e) = self.ensure_authenticated().await {
+            return Err(anyhow!("Failed to authenticate: {}", e));
+        }
+
         let url = format!("http://{}:{}/api/v1/{}", self.ip, self.port, command);
 
         for attempt in 0..=self.retries {
@@ -66,15 +71,6 @@ impl WebAPIClient for VnishWebAPI {
                                     return Err(VnishError::ParseError(e.to_string()))?;
                                 }
                             }
-                        }
-                    } else if status == 401 && self.should_retry_with_auth(attempt) {
-                        if let Some(token) = self.try_authenticate().await {
-                            return self
-                                .retry_with_token(token, command, _privileged, parameters, method)
-                                .await;
-                        }
-                        if attempt == self.retries {
-                            return Err(VnishError::Unauthorized)?;
                         }
                     } else if attempt == self.retries {
                         return Err(VnishError::HttpError(status.as_u16()))?;
@@ -107,8 +103,27 @@ impl VnishWebAPI {
             timeout: Duration::from_secs(5),
             retries: 2,
             api_key: None,
-            bearer_token: None,
+            bearer_token: RwLock::new(None),
             password: Some("admin".to_string()), // Default password
+        }
+    }
+
+    /// Ensure authentication token is present, authenticate if needed
+    async fn ensure_authenticated(&self) -> Result<(), VnishError> {
+        if self.bearer_token.read().unwrap().is_none() && self.password.is_some() {
+            if let Some(ref password) = self.password {
+                match self.authenticate(password).await {
+                    Ok(token) => {
+                        *self.bearer_token.write().unwrap() = Some(token);
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
+            } else {
+                Err(VnishError::AuthenticationFailed)
+            }
+        } else {
+            Ok(())
         }
     }
 
@@ -131,8 +146,8 @@ impl VnishWebAPI {
     }
 
     /// Set bearer token for authentication (Authorization: Bearer header)
-    pub fn with_bearer_token(mut self, token: String) -> Self {
-        self.bearer_token = Some(token);
+    pub fn with_bearer_token(self, token: String) -> Self {
+        *self.bearer_token.write().unwrap() = Some(token);
         self
     }
 
@@ -140,41 +155,6 @@ impl VnishWebAPI {
     pub fn with_password(mut self, password: String) -> Self {
         self.password = Some(password);
         self
-    }
-
-    fn should_retry_with_auth(&self, attempt: u32) -> bool {
-        attempt == 0 && self.password.is_some()
-    }
-
-    async fn try_authenticate(&self) -> Option<String> {
-        if let Some(ref password) = self.password {
-            self.authenticate(password).await.ok()
-        } else {
-            None
-        }
-    }
-
-    async fn retry_with_token(
-        &self,
-        token: String,
-        command: &str,
-        privileged: bool,
-        parameters: Option<Value>,
-        method: Method,
-    ) -> Result<Value> {
-        let updated_self = VnishWebAPI {
-            client: self.client.clone(),
-            ip: self.ip,
-            port: self.port,
-            timeout: self.timeout,
-            retries: self.retries,
-            api_key: self.api_key.clone(),
-            bearer_token: Some(token),
-            password: self.password.clone(),
-        };
-        updated_self
-            .send_command(command, privileged, parameters, method)
-            .await
     }
 
     async fn authenticate(&self, password: &str) -> Result<String, VnishError> {
@@ -238,7 +218,7 @@ impl VnishWebAPI {
         if let Some(ref api_key) = self.api_key {
             request_builder = request_builder.header("x-api-key", api_key);
         }
-        if let Some(ref token) = self.bearer_token {
+        if let Some(ref token) = *self.bearer_token.read().unwrap() {
             request_builder = request_builder.header("Authorization", format!("Bearer {}", token));
         }
 
