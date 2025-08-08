@@ -617,12 +617,12 @@ impl Vnish {
                         .pointer("/id")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(idx as u64) as u16,
-                    hashrate: hashrate,
-                    temperature: temperature,
-                    voltage: voltage,
-                    frequency: frequency,
+                    hashrate,
+                    temperature,
+                    voltage,
+                    frequency,
                     tuned: None,
-                    working: working,
+                    working,
                 });
             }
         }
