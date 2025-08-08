@@ -12,7 +12,7 @@ use crate::data::device::MinerMake;
 use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerModel};
 use crate::data::fan::FanData;
 use crate::data::hashrate::{HashRate, HashRateUnit};
-use crate::data::pool::{PoolData, PoolScheme, PoolURL};
+use crate::data::pool::{PoolData, PoolURL};
 use crate::miners::backends::traits::*;
 use crate::miners::commands::MinerCommand;
 use crate::miners::data::{
