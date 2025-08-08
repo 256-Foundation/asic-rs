@@ -64,7 +64,7 @@ impl GetDataLocations for Vnish {
             )],
             DataField::SerialNumber => vec![
                 (
-                    factory_info_cmd.clone(),
+                    factory_info_cmd,
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/psu_serial"),
@@ -114,7 +114,7 @@ impl GetDataLocations for Vnish {
                 },
             )],
             DataField::Hashrate => vec![(
-                summary_cmd.clone(),
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/miner/hr_realtime"),
@@ -122,14 +122,14 @@ impl GetDataLocations for Vnish {
             )],
             DataField::ExpectedHashrate => vec![
                 (
-                    factory_info_cmd.clone(),
+                    factory_info_cmd,
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/hr_stock"),
                     },
                 ),
                 (
-                    summary_cmd.clone(),
+                    summary_cmd,
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/miner/hr_stock"),
@@ -137,14 +137,14 @@ impl GetDataLocations for Vnish {
                 ),
             ],
             DataField::Wattage => vec![(
-                summary_cmd.clone(),
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/miner/power_consumption"),
                 },
             )],
             DataField::Fans => vec![(
-                summary_cmd.clone(),
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/miner/cooling/fans"),
@@ -152,7 +152,7 @@ impl GetDataLocations for Vnish {
             )],
             DataField::Hashboards => vec![
                 (
-                    summary_cmd.clone(),
+                    summary_cmd,
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/miner/chains"),
@@ -174,14 +174,14 @@ impl GetDataLocations for Vnish {
                 },
             )],
             DataField::IsMining => vec![(
-                status_cmd.clone(),
+                status_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/miner_state"),
                 },
             )],
             DataField::Efficiency => vec![(
-                summary_cmd.clone(),
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/miner/power_efficiency"),
