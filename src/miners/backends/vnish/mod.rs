@@ -522,29 +522,14 @@ impl Vnish {
     }
 
     fn parse_pool_url(url_str: &str) -> PoolURL {
-        // Extract port from URL if present, otherwise default to 4444
-        let port = if url_str.contains(':') {
-            url_str
-                .split(':')
-                .next_back()
-                .and_then(|p| p.parse().ok())
-                .unwrap_or(4444)
-        } else {
-            4444
-        };
-
-        let host = if url_str.contains(':') {
-            url_str.split(':').next().unwrap_or(url_str).to_string()
-        } else {
+        // Convert host:port format to full UR
+        let full_url = if url_str.starts_with("stratum") {
             url_str.to_string()
+        } else {
+            format!("stratum+tcp://{}", url_str)
         };
 
-        PoolURL {
-            scheme: PoolScheme::StratumV1,
-            host,
-            port,
-            pubkey: None,
-        }
+        PoolURL::from(full_url)
     }
 
     fn parse_pool_status(status: Option<&str>) -> (Option<bool>, Option<bool>) {
