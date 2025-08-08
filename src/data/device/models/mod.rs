@@ -59,7 +59,6 @@ impl FromStr for BraiinsModel {
     }
 }
 
-
 impl FromStr for AvalonMinerModel {
     type Err = ModelParseError;
 
@@ -68,7 +67,6 @@ impl FromStr for AvalonMinerModel {
             .map_err(|_| ModelParseError)
     }
 }
-
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize)]
 #[serde(untagged)]

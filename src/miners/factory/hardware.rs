@@ -92,7 +92,7 @@ impl From<&AvalonMinerModel> for MinerHardware {
                 boards: Some(1),
                 chips: Some(160),
                 fans: Some(4),
-            }
+            },
         }
     }
 }
