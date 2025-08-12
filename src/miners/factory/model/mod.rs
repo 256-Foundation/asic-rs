@@ -66,11 +66,9 @@ pub(crate) async fn get_model_epic(ip: IpAddr) -> Option<MinerModel> {
             let json_data = data.json::<serde_json::Value>().await.ok()?;
             let model = json_data["Model"].as_str().unwrap_or("").to_uppercase();
 
-            //Todo: There are ePIC and Antminer models...so need to parse them eventually
-            let mut factory = MinerModelFactory::new();
-            factory
-                .with_make(MinerMake::AntMiner)
-                .parse_model(model.as_str())
+            MinerModelFactory::new()
+                .with_firmware(MinerFirmware::EPic)
+                .parse_model(&model)
         }
         None => None,
     }

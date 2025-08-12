@@ -281,12 +281,14 @@ impl MinerFactory {
                 let model = firmware.get_model(ip).await;
                 let version = firmware.get_version(ip).await;
                 // Should be parse by type here? Prob not
+                println!("Miner make not specified, using {:?} for {:?}", make, model);
                 if make.is_none() {
                     let make = match model {
                         Some(MinerModel::AntMiner(_)) => MinerMake::AntMiner,
                         Some(MinerModel::WhatsMiner(_)) => MinerMake::WhatsMiner,
                         Some(MinerModel::Braiins(_)) => MinerMake::Braiins,
                         Some(MinerModel::Bitaxe(_)) => MinerMake::BitAxe,
+                        Some(MinerModel::EPic(_)) => MinerMake::EPic,
                         _ => MinerMake::Unknown,
                     };
                     return Ok(select_backend(
