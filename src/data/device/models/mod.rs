@@ -122,6 +122,12 @@ impl MinerModelFactory {
                     }
                     None
                 }
+                Some(MinerFirmware::EPic) => {
+                    if let Ok(model) = AntMinerModel::from_str(model_str) {
+                        return Some(MinerModel::AntMiner(model));
+                    }
+                    None
+                }
                 Some(MinerFirmware::LuxOS) => {
                     if let Ok(model) = AntMinerModel::from_str(model_str) {
                         return Some(MinerModel::AntMiner(model));

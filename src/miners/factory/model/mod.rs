@@ -54,6 +54,49 @@ pub(crate) async fn get_version_vnish(ip: IpAddr) -> Option<semver::Version> {
     }
 }
 
+pub(crate) async fn get_model_epic(ip: IpAddr) -> Option<MinerModel> {
+    let response: Option<Response> = Client::new()
+        .get(format!("http://{ip}:4028/capabilities"))
+        .send()
+        .await
+        .ok();
+
+    match response {
+        Some(data) => {
+            let json_data = data.json::<serde_json::Value>().await.ok()?;
+            let model = json_data["Model"].as_str().unwrap_or("").to_uppercase();
+
+            //Todo: There are ePIC and Antminer models...so need to parse them eventually
+            let mut factory = MinerModelFactory::new();
+            factory
+                .with_make(MinerMake::AntMiner)
+                .parse_model(model.as_str())
+        }
+        None => None,
+    }
+}
+pub(crate) async fn get_version_epic(ip: IpAddr) -> Option<semver::Version> {
+    let response: Option<Response> = Client::new()
+        .get(format!("http://{ip}:4028/summary"))
+        .send()
+        .await
+        .ok();
+
+    match response {
+        Some(data) => {
+            let json_data = data.json::<serde_json::Value>().await.ok()?;
+            let fw_version = json_data["Software"]
+                .as_str()
+                .unwrap_or("")
+                .split(" ")
+                .last()?
+                .strip_prefix("v")?;
+            semver::Version::parse(fw_version).ok()
+        }
+        None => None,
+    }
+}
+
 pub(crate) async fn get_model_antminer(ip: IpAddr) -> Option<MinerModel> {
     let response: Option<Response> = Client::new()
         .get(format!("http://{}/cgi-bin/get_system_info.cgi", ip))

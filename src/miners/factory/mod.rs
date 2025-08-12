@@ -23,6 +23,7 @@ use super::commands::MinerCommand;
 use super::util::{send_rpc_command, send_web_command};
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
 use crate::miners::backends::btminer::BTMiner;
+use crate::miners::backends::epic::EPic;
 use crate::miners::backends::espminer::ESPMiner;
 use crate::miners::backends::traits::GetMinerData;
 use crate::miners::backends::vnish::Vnish;
@@ -165,6 +166,7 @@ fn select_backend(
             Some(ESPMiner::new(ip, model?, firmware?, version?))
         }
         (Some(_), Some(MinerFirmware::VNish)) => Some(Box::new(Vnish::new(ip, make?, model?))),
+        (_, Some(MinerFirmware::EPic)) => Some(Box::new(EPic::new(ip, make?, model?))),
         _ => None,
     }
 }
@@ -278,6 +280,23 @@ impl MinerFactory {
             Some((make, Some(firmware))) => {
                 let model = firmware.get_model(ip).await;
                 let version = firmware.get_version(ip).await;
+                // Should be parse by type here? Prob not
+                if make.is_none() {
+                    let make = match model {
+                        Some(MinerModel::AntMiner(_)) => MinerMake::AntMiner,
+                        Some(MinerModel::WhatsMiner(_)) => MinerMake::WhatsMiner,
+                        Some(MinerModel::Braiins(_)) => MinerMake::Braiins,
+                        Some(MinerModel::Bitaxe(_)) => MinerMake::BitAxe,
+                        _ => MinerMake::Unknown,
+                    };
+                    return Ok(select_backend(
+                        ip,
+                        Some(make),
+                        model,
+                        Some(firmware),
+                        version,
+                    ));
+                }
 
                 Ok(select_backend(ip, make, model, Some(firmware), version))
             }

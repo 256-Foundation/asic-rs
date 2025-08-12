@@ -37,6 +37,8 @@ pub enum MinerMake {
     Braiins,
     #[serde(rename = "BitAxe")]
     BitAxe,
+    #[serde(rename = "Unknown")]
+    Unknown,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, Display)]
