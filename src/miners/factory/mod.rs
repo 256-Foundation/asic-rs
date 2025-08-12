@@ -21,6 +21,7 @@ use tokio::time::timeout;
 use super::commands::MinerCommand;
 use super::util::{send_rpc_command, send_web_command};
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
+use crate::miners::backends::avalonminer::AvalonMiner;
 use crate::miners::backends::btminer::BTMiner;
 use crate::miners::backends::espminer::ESPMiner;
 use crate::miners::backends::traits::GetMinerData;
@@ -144,6 +145,9 @@ fn select_backend(
         }
         (Some(MinerMake::BitAxe), Some(MinerFirmware::Stock)) => {
             Some(ESPMiner::new(ip, model?, firmware?, version?))
+        }
+        (Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)) => {
+            Some(AvalonMiner::new(ip, model?, firmware?))
         }
         _ => None,
     }
