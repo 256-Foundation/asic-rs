@@ -6,7 +6,7 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use reqwest::{Client, Method, Response};
 use serde_json::Value;
-use std::{net::IpAddr, sync::RwLock, time::Duration};
+use std::{net::IpAddr, time::Duration};
 
 /// VNish WebAPI client
 
@@ -16,7 +16,6 @@ pub struct EPicWebAPI {
     pub ip: IpAddr,
     port: u16,
     timeout: Duration,
-    bearer_token: RwLock<Option<String>>,
     password: Option<String>,
 }
 
@@ -76,57 +75,8 @@ impl EPicWebAPI {
             ip,
             port,
             timeout: Duration::from_secs(5),
-            bearer_token: RwLock::new(None),
             password: Some("admin".to_string()), // Default password
         }
-    }
-
-    /// Ensure authentication token is present, authenticate if needed
-    async fn ensure_authenticated(&self) -> Result<(), EPicError> {
-        if self.bearer_token.read().unwrap().is_none() && self.password.is_some() {
-            if let Some(ref password) = self.password {
-                match self.authenticate(password).await {
-                    Ok(token) => {
-                        *self.bearer_token.write().unwrap() = Some(token);
-                        Ok(())
-                    }
-                    Err(e) => Err(e),
-                }
-            } else {
-                Err(EPicError::AuthenticationFailed)
-            }
-        } else {
-            Ok(())
-        }
-    }
-
-    async fn authenticate(&self, password: &str) -> Result<String, EPicError> {
-        let unlock_payload = serde_json::json!({ "pw": password });
-        let url = format!("http://{}:{}/api/v1/unlock", self.ip, self.port);
-
-        let response = self
-            .client
-            .post(&url)
-            .json(&unlock_payload)
-            .timeout(self.timeout)
-            .send()
-            .await
-            .map_err(|e| EPicError::NetworkError(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(EPicError::AuthenticationFailed);
-        }
-
-        let unlock_response: Value = response
-            .json()
-            .await
-            .map_err(|e| EPicError::ParseError(e.to_string()))?;
-
-        unlock_response
-            .pointer("/token")
-            .and_then(|t| t.as_str())
-            .map(String::from)
-            .ok_or(EPicError::AuthenticationFailed)
     }
 
     /// Execute the actual HTTP request
@@ -155,12 +105,7 @@ impl EPicWebAPI {
             _ => return Err(EPicError::UnsupportedMethod(method.to_string())),
         };
 
-        let mut request_builder = request_builder.timeout(self.timeout);
-
-        // Add authentication headers if provided
-        if let Some(ref token) = *self.bearer_token.read().unwrap() {
-            request_builder = request_builder.header("Authorization", format!("Bearer {}", token));
-        }
+        let request_builder = request_builder.timeout(self.timeout);
 
         let request = request_builder
             .build()
