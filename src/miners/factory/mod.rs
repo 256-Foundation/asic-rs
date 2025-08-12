@@ -7,6 +7,7 @@ use anyhow::Result;
 use futures::future::FutureExt;
 use futures::{Stream, StreamExt, pin_mut, stream};
 use ipnet::IpNet;
+use rand::seq::SliceRandom;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
 use std::collections::HashSet;
@@ -25,6 +26,7 @@ use crate::miners::backends::avalonminer::AvalonMiner;
 use crate::miners::backends::btminer::BTMiner;
 use crate::miners::backends::espminer::ESPMiner;
 use crate::miners::backends::traits::GetMinerData;
+use crate::miners::backends::vnish::Vnish;
 use crate::miners::factory::traits::VersionSelection;
 use traits::{DiscoveryCommands, ModelSelection};
 
@@ -92,7 +94,9 @@ fn parse_type_from_socket(
         _ if json_string.contains("AVALON") => {
             Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
         }
-        _ if json_string.contains("VNISH") => Some((None, Some(MinerFirmware::VNish))),
+        _ if json_string.contains("VNISH") => {
+            Some((Some(MinerMake::AntMiner), Some(MinerFirmware::VNish)))
+        }
         _ => None,
     }
 }
@@ -123,7 +127,9 @@ fn parse_type_from_web(
         _ if resp_text.contains("Avalon") => {
             Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
         }
-        _ if resp_text.contains("AnthillOS") => Some((None, Some(MinerFirmware::VNish))),
+        _ if resp_text.contains("AnthillOS") => {
+            Some((Some(MinerMake::AntMiner), Some(MinerFirmware::VNish)))
+        }
         _ if redirect_header.contains("https://") && resp_status == 307
             || resp_text.contains("/cgi-bin/luci") =>
         {
@@ -132,6 +138,7 @@ fn parse_type_from_web(
         _ => None,
     }
 }
+
 fn select_backend(
     ip: IpAddr,
     make: Option<MinerMake>,
@@ -149,6 +156,7 @@ fn select_backend(
         (Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)) => {
             Some(AvalonMiner::new(ip, model?, firmware?))
         }
+        (Some(_), Some(MinerFirmware::VNish)) => Some(Box::new(Vnish::new(ip, make?, model?))),
         _ => None,
     }
 }
@@ -247,25 +255,31 @@ impl MinerFactory {
         );
 
         match miner_info {
-            Some((make, firmware)) => {
-                let model = if let Some(miner_make) = make {
-                    miner_make.get_model(ip).await
-                } else if let Some(miner_firmware) = firmware {
-                    miner_firmware.get_model(ip).await
-                } else {
-                    return Ok(None);
-                };
-                let version = if let Some(miner_make) = make {
-                    miner_make.get_version(ip).await
-                } else if let Some(miner_firmware) = firmware {
-                    miner_firmware.get_version(ip).await
-                } else {
-                    return Ok(None);
-                };
+            Some((Some(make), Some(MinerFirmware::Stock))) => {
+                let model = make.get_model(ip).await;
+                let version = make.get_version(ip).await;
 
-                Ok(select_backend(ip, make, model, firmware, version))
+                Ok(select_backend(
+                    ip,
+                    Some(make),
+                    model,
+                    Some(MinerFirmware::Stock),
+                    version,
+                ))
             }
-            None => Ok(None),
+            Some((make, Some(firmware))) => {
+                let model = firmware.get_model(ip).await;
+                let version = firmware.get_version(ip).await;
+
+                Ok(select_backend(ip, make, model, Some(firmware), version))
+            }
+            Some((Some(make), firmware)) => {
+                let model = make.get_model(ip).await;
+                let version = make.get_version(ip).await;
+
+                Ok(select_backend(ip, Some(make), model, firmware, version))
+            }
+            _ => Ok(None),
         }
     }
 
@@ -393,11 +407,18 @@ impl MinerFactory {
     pub fn with_subnet(mut self, subnet: &str) -> Result<Self> {
         let ips = self.hosts_from_subnet(subnet)?;
         self.ips = ips;
+        self.shuffle_ips();
         Ok(self)
     }
     fn hosts_from_subnet(&self, subnet: &str) -> Result<Vec<IpAddr>> {
         let network = IpNet::from_str(subnet)?;
         Ok(network.hosts().collect())
+    }
+
+    /// Randomize IP order to avoid bursts to a single switch/segment
+    fn shuffle_ips(&mut self) {
+        let mut rng = rand::rng();
+        self.ips.shuffle(&mut rng);
     }
 
     // Octet handlers
@@ -411,6 +432,7 @@ impl MinerFactory {
     ) -> Result<Self> {
         let ips = self.hosts_from_octets(octet1, octet2, octet3, octet4)?;
         self.ips = ips;
+        self.shuffle_ips();
         self.update_adaptive_concurrency();
         Ok(self)
     }
