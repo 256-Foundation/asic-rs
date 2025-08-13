@@ -5,7 +5,7 @@ use crate::miners::{
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use reqwest::{Client, Method, Response};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::{net::IpAddr, time::Duration};
 
 /// VNish WebAPI client
@@ -16,7 +16,7 @@ pub struct EPicWebAPI {
     pub ip: IpAddr,
     port: u16,
     timeout: Duration,
-    password: Option<String>,
+    _password: Option<String>,
 }
 
 #[async_trait]
@@ -77,7 +77,7 @@ impl EPicWebAPI {
             ip,
             port,
             timeout: Duration::from_secs(5),
-            password: Some("admin".to_string()), // Default password
+            _password: Some("admin".to_string()), // Default password
         }
     }
 
@@ -149,12 +149,12 @@ pub enum EPicError {
 impl std::fmt::Display for EPicError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EPicError::NetworkError(msg) => write!(f, "Network error: {}", msg),
-            EPicError::HttpError(code) => write!(f, "HTTP error: {}", code),
-            EPicError::ParseError(msg) => write!(f, "Parse error: {}", msg),
-            EPicError::RequestError(msg) => write!(f, "Request error: {}", msg),
+            EPicError::NetworkError(msg) => write!(f, "Network error: {msg}"),
+            EPicError::HttpError(code) => write!(f, "HTTP error: {code}"),
+            EPicError::ParseError(msg) => write!(f, "Parse error: {msg}"),
+            EPicError::RequestError(msg) => write!(f, "Request error: {msg}"),
             EPicError::Timeout => write!(f, "Request timeout"),
-            EPicError::UnsupportedMethod(method) => write!(f, "Unsupported method: {}", method),
+            EPicError::UnsupportedMethod(method) => write!(f, "Unsupported method: {method}"),
             EPicError::MaxRetriesExceeded => write!(f, "Maximum retries exceeded"),
             EPicError::AuthenticationFailed => write!(f, "Authentication failed"),
             EPicError::Unauthorized => write!(f, "Unauthorized access"),

@@ -545,7 +545,7 @@ impl Vnish {
         let full_url = if url_str.starts_with("stratum") {
             url_str.to_string()
         } else {
-            format!("stratum+tcp://{}", url_str)
+            format!("stratum+tcp://{url_str}")
         };
 
         PoolURL::from(full_url)

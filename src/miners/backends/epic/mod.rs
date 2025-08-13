@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::data::board::{BoardData, ChipData};
 use crate::data::device::MinerMake;
@@ -42,17 +42,19 @@ impl EPic {
 impl GetDataLocations for EPic {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
         fn cmd(endpoint: &'static str) -> MinerCommand {
-            return MinerCommand::WebAPI {
+            MinerCommand::WebAPI {
                 command: endpoint,
                 parameters: None,
-            };
+            }
         }
 
         let summary_cmd = cmd("summary");
         let network_cmd = cmd("network");
-        let _capabilities_cmd = cmd("capabilities");
+        let capabilities_cmd = cmd("capabilities");
         let chip_temps_cmd = cmd("temps/chip");
         let chip_voltages_cmd = cmd("voltages");
+        let chip_hashrates_cmd = cmd("hashrate");
+        let chip_clocks_cmd = cmd("clocks");
         let temps_cmd = cmd("temps");
 
         match data_field {
@@ -197,6 +199,30 @@ impl GetDataLocations for EPic {
                         tag: Some("Chip Voltages"),
                     },
                 ),
+                (
+                    chip_hashrates_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: Some("Chip Hashrates"),
+                    },
+                ),
+                (
+                    chip_clocks_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: Some("Chip Clocks"),
+                    },
+                ),
+                (
+                    capabilities_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: Some("Capabilities"),
+                    },
+                ),
             ],
             DataField::Pools => vec![
                 (
@@ -312,7 +338,185 @@ impl GetHashboards for EPic {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
         let info = data.get(&DataField::Hashboards);
-        println!("info: {:?}", info);
+        let combined_hbs = Self::combine_by_index(info.unwrap());
+        for hb in combined_hbs {
+            let capabilities = info
+                .expect("Capabilities Endpoint should be present")
+                .get("Capabilities")
+                .expect("Capabilities should be present");
+
+            let mut hashrate = None;
+            let mut frequency = None;
+            let mut voltage = None;
+            let mut performance = 0.0;
+            let serial_number = None;
+            let mut expected_hashrate = HashRate {
+                value: 0.0,
+                unit: HashRateUnit::MegaHash,
+                algo: String::from("SHA256"),
+            };
+
+            let mut chips = vec![];
+
+            if hb
+                .pointer("/HBStatus/Enabled")
+                .and_then(|v| v.as_bool())
+                .expect("HBStatus/Enabled should be present")
+                && hb
+                    .pointer("/HBStatus/Detected")
+                    .and_then(|v| v.as_bool())
+                    .expect("HBStatus/Enabled should be present")
+            {
+                hashrate = hb
+                    .pointer("/HBs/Hashrate")
+                    .and_then(|v| v.as_array())
+                    .and_then(|v| v.first().and_then(|f| f.as_f64()))
+                    .map(|h| HashRate {
+                        value: h,
+                        unit: HashRateUnit::MegaHash,
+                        algo: String::from("SHA256"),
+                    });
+
+                frequency = hb
+                    .pointer("/HBs/Core Clock Avg")
+                    .and_then(|v| v.as_f64())
+                    .map(Frequency::from_megahertz);
+
+                voltage = hb
+                    .pointer("/HBs/Input Voltage")
+                    .and_then(|v| v.as_f64())
+                    .map(Voltage::from_volts);
+
+                performance = hb
+                    .pointer("/HBs/Hashrate")
+                    .and_then(|v| v.as_array())
+                    .and_then(|v| v.get(1).and_then(|f| f.as_f64()))
+                    .unwrap_or(0.0);
+
+                let chip_hashrates: Vec<HashRate> = hb
+                    .pointer("/Chip Hashrates/Data")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|inner| inner.as_array())
+                            .filter_map(|inner| inner.first().and_then(|v| v.as_f64()))
+                            .map(|hr| HashRate {
+                                value: hr,
+                                unit: HashRateUnit::MegaHash,
+                                algo: String::from("SHA256"),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let chip_temps: Vec<Temperature> = hb
+                    .pointer("/Chip Temps/Data")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_f64())
+                            .map(Temperature::from_celsius)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let chip_voltages: Vec<Voltage> = hb
+                    .pointer("/Chip Voltages/Data")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_f64())
+                            .map(Voltage::from_millivolts)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let chip_clocks: Vec<Frequency> = hb
+                    .pointer("/Chip Clocks/Data")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_f64())
+                            .map(Frequency::from_megahertz)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let chip_data: Vec<ChipData> = (0..chip_hashrates.len())
+                    .map(|i| ChipData {
+                        position: i as u16,
+                        hashrate: Some(chip_hashrates[i].clone()),
+                        temperature: Some(chip_temps[i]),
+                        voltage: Some(chip_voltages[i]),
+                        frequency: Some(chip_clocks[i]),
+                        tuned: None,
+                        working: Some(true),
+                    })
+                    .collect();
+                chips.extend(chip_data);
+            }
+
+            let board_temperature = hb
+                .pointer("/Board Temps/Data")
+                .and_then(|v| v.as_array())
+                .and_then(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_f64())
+                        .max_by(|a, b| a.partial_cmp(b).unwrap())
+                })
+                .map(Temperature::from_celsius);
+            let intake_temperature = hb
+                .pointer("/Board Temps/Data")
+                .and_then(|v| v.as_array())
+                .and_then(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_f64())
+                        .min_by(|a, b| a.partial_cmp(b).unwrap())
+                })
+                .map(Temperature::from_celsius);
+            let outlet_temperature = hb
+                .pointer("/Board Temps/Data")
+                .and_then(|v| v.as_array())
+                .and_then(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_f64())
+                        .min_by(|a, b| a.partial_cmp(b).unwrap())
+                })
+                .map(Temperature::from_celsius);
+            let expected_chips = capabilities
+                .pointer("/Performance Estimator/Chip Count")
+                .and_then(|v| v.as_u64().map(|v| v as u16));
+
+            if let Some(hashrate) = hashrate.clone() {
+                let calculated_hr = hashrate.value / performance;
+                expected_hashrate = HashRate {
+                    value: calculated_hr,
+                    unit: HashRateUnit::MegaHash,
+                    algo: String::from("SHA256"),
+                };
+            }
+
+            let bd = BoardData {
+                position: hb
+                    .get("Index")
+                    .and_then(|v| v.as_u64().map(|v| v as u8))
+                    .unwrap_or(0),
+                active: hb.pointer("/HBStatus/Enabled").and_then(|v| v.as_bool()),
+                hashrate,
+                expected_hashrate: Some(expected_hashrate),
+                intake_temperature,
+                outlet_temperature,
+                expected_chips,
+                board_temperature,
+                working_chips: Some(chips.len() as u16),
+                serial_number,
+                chips,
+                voltage,
+                frequency,
+                tuned: None,
+            };
+            hashboards.push(bd);
+        }
 
         // convert info to array
 
@@ -371,7 +575,7 @@ impl GetFluidTemperature for EPic {}
 
 impl GetWattage for EPic {
     fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
-        data.extract_map::<f64, _>(DataField::Wattage, |w| Power::from_watts(w))
+        data.extract_map::<f64, _>(DataField::Wattage, Power::from_watts)
     }
 }
 
@@ -387,11 +591,8 @@ impl GetMessages for EPic {}
 
 impl GetUptime for EPic {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
-        if let Some(time) = data.extract::<u64>(DataField::Uptime) {
-            Some(Duration::from_secs(time))
-        } else {
-            None
-        }
+        data.extract::<u64>(DataField::Uptime)
+            .map(Duration::from_secs)
     }
 }
 
@@ -458,5 +659,41 @@ impl EPic {
         };
 
         PoolURL::from(full_url)
+    }
+    fn combine_by_index(data: &Value) -> Vec<Value> {
+        let mut combined: HashMap<u64, serde_json::Map<String, Value>> = HashMap::new();
+
+        let keys = [
+            "Board Temps",
+            "Chip Temps",
+            "Chip Voltages",
+            "HBStatus",
+            "HBs",
+            "Chip Hashrates",
+            "Chip Clocks",
+        ];
+
+        for key in keys {
+            if let Some(arr) = data.get(key).and_then(|v| v.as_array()) {
+                for obj in arr {
+                    if let Some(index) = obj.get("Index").and_then(|i| i.as_u64()) {
+                        let entry = combined.entry(index).or_default();
+                        entry.insert(key.to_string(), obj.clone());
+                    }
+                }
+            }
+        }
+
+        // Convert the map into a sorted Vec<Value>
+        let mut result: Vec<Value> = combined
+            .into_iter()
+            .map(|(index, mut map)| {
+                map.insert("Index".to_string(), Value::Number(index.into()));
+                Value::Object(map)
+            })
+            .collect();
+
+        result.sort_by_key(|v| v.get("Index").and_then(|i| i.as_u64()).unwrap_or(0));
+        result
     }
 }
