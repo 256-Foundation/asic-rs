@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::data::board::{BoardData, ChipData};
 use crate::data::device::MinerMake;
@@ -41,16 +41,26 @@ impl EPic {
 
 impl GetDataLocations for EPic {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
-        fn cmd(endpoint: &'static str) -> MinerCommand {
-            MinerCommand::WebAPI {
-                command: endpoint,
-                parameters: None,
+        fn cmd(endpoint: &'static str, params: Option<serde_json::Value>) -> MinerCommand {
+            if params.is_none() {
+                return MinerCommand::WebAPI {
+                    command: endpoint,
+                    parameters: None,
+                };
+            } else {
+                MinerCommand::WebAPI {
+                    command: endpoint,
+                    parameters: params,
+                }
             }
         }
 
-        let summary_cmd = cmd("summary");
-        let network_cmd = cmd("network");
-        let _capabilities_cmd = cmd("capabilities");
+        let summary_cmd = cmd("summary", None);
+        let network_cmd = cmd("network", None);
+        let _capabilities_cmd = cmd("capabilities", None);
+        let chip_temps_cmd = cmd("temps/chip", Some(json!("chip_temp")));
+        let chip_voltages_cmd = cmd("voltages", Some(json!("chip_voltages")));
+        let temps_cmd = cmd("temps", Some(json!("temps")));
 
         match data_field {
             DataField::Mac => vec![(
@@ -148,22 +158,36 @@ impl GetDataLocations for EPic {
                     key: Some("/Fans Rpm"),
                 },
             )],
-            //DataField::Hashboards => vec![
-            //    (
-            //        summary_cmd,
-            //        DataExtractor {
-            //            func: get_by_pointer,
-            //            key: Some("/miner/chains"),
-            //        },
-            //    ),
-            //    (
-            //        chains_cmd,
-            //        DataExtractor {
-            //            func: get_by_pointer,
-            //            key: Some(""),
-            //        },
-            //    ),
-            //],
+            DataField::Hashboards => vec![
+                (
+                    temps_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                    },
+                ),
+                (
+                    summary_cmd.clone(),
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/HBStatus"),
+                    },
+                ),
+                //(
+                //    summary_cmd,
+                //    DataExtractor {
+                //        func: get_by_pointer,
+                //        key: Some("/HBs"),
+                //    },
+                //),
+                //(
+                //    chip_temps_cmd,
+                //    DataExtractor {
+                //        func: get_by_pointer,
+                //        key: Some(""),
+                //    },
+                //),
+            ],
             DataField::Pools => vec![
                 (
                     summary_cmd.clone(),
@@ -273,6 +297,12 @@ impl GetControlBoardVersion for EPic {
 impl GetHashboards for EPic {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
+        let info = data.get(&DataField::Hashboards);
+        //Hacky
+        println!("info: {:?}", info.unwrap().get("temps"));
+
+        // convert info to array
+
         hashboards
     }
 }

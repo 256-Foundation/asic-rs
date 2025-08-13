@@ -5,7 +5,7 @@ use crate::miners::{
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use reqwest::{Client, Method, Response};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::{net::IpAddr, time::Duration};
 
 /// VNish WebAPI client
@@ -47,7 +47,9 @@ impl WebAPIClient for EPicWebAPI {
     ) -> Result<Value> {
         let url = format!("http://{}:{}/{}", self.ip, self.port, command);
 
-        let response = self.execute_request(&url, &method, parameters).await?;
+        let response = self
+            .execute_request(&url, &method, parameters.clone())
+            .await?;
 
         let status = response.status();
         if status.is_success() {
@@ -55,7 +57,12 @@ impl WebAPIClient for EPicWebAPI {
                 .json()
                 .await
                 .map_err(|e| EPicError::ParseError(e.to_string()))?;
-            Ok(json_data)
+            if let Some(Value::String(key)) = parameters {
+                let wrapped = json!({key:json_data});
+                Ok(wrapped)
+            } else {
+                Ok(json_data)
+            }
         } else {
             Err(EPicError::HttpError(status.as_u16()))?
         }
