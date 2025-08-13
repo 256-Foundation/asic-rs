@@ -541,14 +541,7 @@ impl Vnish {
     }
 
     fn parse_pool_url(url_str: &str) -> PoolURL {
-        // Convert host:port format to full UR
-        let full_url = if url_str.starts_with("stratum") {
-            url_str.to_string()
-        } else {
-            format!("stratum+tcp://{url_str}")
-        };
-
-        PoolURL::from(full_url)
+        PoolURL::from(url_str.to_string())
     }
 
     fn parse_pool_status(status: Option<&str>) -> (Option<bool>, Option<bool>) {

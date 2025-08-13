@@ -5,22 +5,22 @@ use crate::miners::{
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use reqwest::{Client, Method, Response};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::{net::IpAddr, time::Duration};
 
-/// VNish WebAPI client
+/// ePIC PowerPlay WebAPI client
 
 #[derive(Debug)]
-pub struct EPicWebAPI {
+pub struct PowerPlayWebAPI {
     client: Client,
     pub ip: IpAddr,
     port: u16,
     timeout: Duration,
-    _password: Option<String>,
+    password: Option<String>,
 }
 
 #[async_trait]
-impl APIClient for EPicWebAPI {
+impl APIClient for PowerPlayWebAPI {
     async fn get_api_result(&self, command: &MinerCommand) -> Result<Value> {
         match command {
             MinerCommand::WebAPI {
@@ -36,7 +36,7 @@ impl APIClient for EPicWebAPI {
 }
 
 #[async_trait]
-impl WebAPIClient for EPicWebAPI {
+impl WebAPIClient for PowerPlayWebAPI {
     /// Send a command to the EPic miner API
     async fn send_command(
         &self,
@@ -56,15 +56,15 @@ impl WebAPIClient for EPicWebAPI {
             let json_data = response
                 .json()
                 .await
-                .map_err(|e| EPicError::ParseError(e.to_string()))?;
+                .map_err(|e| PowerPlayError::ParseError(e.to_string()))?;
             Ok(json_data)
         } else {
-            Err(EPicError::HttpError(status.as_u16()))?
+            Err(PowerPlayError::HttpError(status.as_u16()))?
         }
     }
 }
 
-impl EPicWebAPI {
+impl PowerPlayWebAPI {
     /// Create a new EPic WebAPI client
     pub fn new(ip: IpAddr, port: u16) -> Self {
         let client = Client::builder()
@@ -77,7 +77,7 @@ impl EPicWebAPI {
             ip,
             port,
             timeout: Duration::from_secs(5),
-            _password: Some("admin".to_string()), // Default password
+            password: Some("letmein".to_string()), // Default password
         }
     }
 
@@ -87,37 +87,33 @@ impl EPicWebAPI {
         url: &str,
         method: &Method,
         parameters: Option<Value>,
-    ) -> Result<Response, EPicError> {
+    ) -> Result<Response, PowerPlayError> {
         let request_builder = match *method {
             Method::GET => self.client.get(url),
-            Method::POST => {
-                let mut builder = self.client.post(url);
-                if let Some(params) = parameters {
-                    builder = builder.json(&params);
-                }
-                builder
-            }
-            Method::PATCH => {
-                let mut builder = self.client.patch(url);
-                if let Some(params) = parameters {
-                    builder = builder.json(&params);
-                }
-                builder
-            }
-            _ => return Err(EPicError::UnsupportedMethod(method.to_string())),
+            Method::POST => self.client.post(url).json(&{
+                let mut p = parameters.unwrap_or_else(|| json!({}));
+                p.as_object_mut().map(|m| {
+                    m.insert(
+                        "password".into(),
+                        Value::String(self.password.clone().unwrap_or_else(|| "letmein".into())),
+                    )
+                });
+                p
+            }),
+            _ => return Err(PowerPlayError::UnsupportedMethod(method.to_string())),
         };
 
         let request_builder = request_builder.timeout(self.timeout);
 
         let request = request_builder
             .build()
-            .map_err(|e| EPicError::RequestError(e.to_string()))?;
+            .map_err(|e| PowerPlayError::RequestError(e.to_string()))?;
 
         let response = self
             .client
             .execute(request)
             .await
-            .map_err(|e| EPicError::NetworkError(e.to_string()))?;
+            .map_err(|e| PowerPlayError::NetworkError(e.to_string()))?;
 
         Ok(response)
     }
@@ -125,7 +121,7 @@ impl EPicWebAPI {
 
 /// Error types for EPic WebAPI operations
 #[derive(Debug, Clone)]
-pub enum EPicError {
+pub enum PowerPlayError {
     /// Network error (connection issues, DNS resolution, etc.)
     NetworkError(String),
     /// HTTP error with status code
@@ -146,20 +142,20 @@ pub enum EPicError {
     Unauthorized,
 }
 
-impl std::fmt::Display for EPicError {
+impl std::fmt::Display for PowerPlayError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EPicError::NetworkError(msg) => write!(f, "Network error: {msg}"),
-            EPicError::HttpError(code) => write!(f, "HTTP error: {code}"),
-            EPicError::ParseError(msg) => write!(f, "Parse error: {msg}"),
-            EPicError::RequestError(msg) => write!(f, "Request error: {msg}"),
-            EPicError::Timeout => write!(f, "Request timeout"),
-            EPicError::UnsupportedMethod(method) => write!(f, "Unsupported method: {method}"),
-            EPicError::MaxRetriesExceeded => write!(f, "Maximum retries exceeded"),
-            EPicError::AuthenticationFailed => write!(f, "Authentication failed"),
-            EPicError::Unauthorized => write!(f, "Unauthorized access"),
+            PowerPlayError::NetworkError(msg) => write!(f, "Network error: {msg}"),
+            PowerPlayError::HttpError(code) => write!(f, "HTTP error: {code}"),
+            PowerPlayError::ParseError(msg) => write!(f, "Parse error: {msg}"),
+            PowerPlayError::RequestError(msg) => write!(f, "Request error: {msg}"),
+            PowerPlayError::Timeout => write!(f, "Request timeout"),
+            PowerPlayError::UnsupportedMethod(method) => write!(f, "Unsupported method: {method}"),
+            PowerPlayError::MaxRetriesExceeded => write!(f, "Maximum retries exceeded"),
+            PowerPlayError::AuthenticationFailed => write!(f, "Authentication failed"),
+            PowerPlayError::Unauthorized => write!(f, "Unauthorized access"),
         }
     }
 }
 
-impl std::error::Error for EPicError {}
+impl std::error::Error for PowerPlayError {}

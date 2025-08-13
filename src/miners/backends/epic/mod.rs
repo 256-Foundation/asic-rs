@@ -18,28 +18,28 @@ use crate::miners::commands::MinerCommand;
 use crate::miners::data::{
     DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_pointer,
 };
-use web::EPicWebAPI;
+use web::PowerPlayWebAPI;
 
 pub mod web;
 
 #[derive(Debug)]
-pub struct EPic {
+pub struct PowerPlay {
     ip: IpAddr,
-    web: EPicWebAPI,
+    web: PowerPlayWebAPI,
     device_info: DeviceInfo,
 }
 
-impl EPic {
+impl PowerPlay {
     pub fn new(ip: IpAddr, make: MinerMake, model: MinerModel) -> Self {
-        EPic {
+        PowerPlay {
             ip,
-            web: EPicWebAPI::new(ip, 4028),
+            web: PowerPlayWebAPI::new(ip, 4028),
             device_info: DeviceInfo::new(make, model, MinerFirmware::EPic, HashAlgorithm::SHA256),
         }
     }
 }
 
-impl GetDataLocations for EPic {
+impl GetDataLocations for PowerPlay {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
         fn cmd(endpoint: &'static str) -> MinerCommand {
             MinerCommand::WebAPI {
@@ -270,25 +270,25 @@ impl GetDataLocations for EPic {
     }
 }
 
-impl GetIP for EPic {
+impl GetIP for PowerPlay {
     fn get_ip(&self) -> IpAddr {
         self.ip
     }
 }
 
-impl GetDeviceInfo for EPic {
+impl GetDeviceInfo for PowerPlay {
     fn get_device_info(&self) -> DeviceInfo {
         self.device_info
     }
 }
 
-impl CollectData for EPic {
+impl CollectData for PowerPlay {
     fn get_collector(&self) -> DataCollector<'_> {
         DataCollector::new(self, &self.web)
     }
 }
 
-impl GetMAC for EPic {
+impl GetMAC for PowerPlay {
     fn parse_mac(&self, data: &HashMap<DataField, Value>) -> Option<MacAddr> {
         match serde_json::from_value::<HashMap<String, Value>>(data.get(&DataField::Mac)?.clone())
             .ok()
@@ -304,37 +304,37 @@ impl GetMAC for EPic {
     }
 }
 
-impl GetSerialNumber for EPic {
+impl GetSerialNumber for PowerPlay {
     fn parse_serial_number(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::SerialNumber)
     }
 }
 
-impl GetHostname for EPic {
+impl GetHostname for PowerPlay {
     fn parse_hostname(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::Hostname)
     }
 }
 
-impl GetApiVersion for EPic {
+impl GetApiVersion for PowerPlay {
     fn parse_api_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ApiVersion)
     }
 }
 
-impl GetFirmwareVersion for EPic {
+impl GetFirmwareVersion for PowerPlay {
     fn parse_firmware_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::FirmwareVersion)
     }
 }
 
-impl GetControlBoardVersion for EPic {
+impl GetControlBoardVersion for PowerPlay {
     fn parse_control_board_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ControlBoardVersion)
     }
 }
 
-impl GetHashboards for EPic {
+impl GetHashboards for PowerPlay {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
         let info = data.get(&DataField::Hashboards);
@@ -524,7 +524,7 @@ impl GetHashboards for EPic {
     }
 }
 
-impl GetHashrate for EPic {
+impl GetHashrate for PowerPlay {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::Hashrate, |f| HashRate {
             value: f,
@@ -534,7 +534,7 @@ impl GetHashrate for EPic {
     }
 }
 
-impl GetExpectedHashrate for EPic {
+impl GetExpectedHashrate for PowerPlay {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| HashRate {
             value: f,
@@ -544,7 +544,7 @@ impl GetExpectedHashrate for EPic {
     }
 }
 
-impl GetFans for EPic {
+impl GetFans for PowerPlay {
     fn parse_fans(&self, data: &HashMap<DataField, Value>) -> Vec<FanData> {
         let mut fans: Vec<FanData> = Vec::new();
         if let Some(fans_data) = data.get(&DataField::Fans) {
@@ -569,34 +569,34 @@ impl GetFans for EPic {
     }
 }
 
-impl GetPsuFans for EPic {}
+impl GetPsuFans for PowerPlay {}
 
-impl GetFluidTemperature for EPic {}
+impl GetFluidTemperature for PowerPlay {}
 
-impl GetWattage for EPic {
+impl GetWattage for PowerPlay {
     fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
         data.extract_map::<f64, _>(DataField::Wattage, Power::from_watts)
     }
 }
 
-impl GetWattageLimit for EPic {}
+impl GetWattageLimit for PowerPlay {}
 
-impl GetLightFlashing for EPic {
+impl GetLightFlashing for PowerPlay {
     fn parse_light_flashing(&self, data: &HashMap<DataField, Value>) -> Option<bool> {
         data.extract::<bool>(DataField::LightFlashing)
     }
 }
 
-impl GetMessages for EPic {}
+impl GetMessages for PowerPlay {}
 
-impl GetUptime for EPic {
+impl GetUptime for PowerPlay {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract::<u64>(DataField::Uptime)
             .map(Duration::from_secs)
     }
 }
 
-impl GetIsMining for EPic {
+impl GetIsMining for PowerPlay {
     fn parse_is_mining(&self, data: &HashMap<DataField, Value>) -> bool {
         data.extract::<String>(DataField::IsMining)
             .map(|state| state != "Idling")
@@ -604,7 +604,7 @@ impl GetIsMining for EPic {
     }
 }
 
-impl GetPools for EPic {
+impl GetPools for PowerPlay {
     fn parse_pools(&self, data: &HashMap<DataField, Value>) -> Vec<PoolData> {
         let mut pools_vec: Vec<PoolData> = Vec::new();
 
@@ -649,16 +649,9 @@ impl GetPools for EPic {
 }
 
 // Helper methods for data extraction
-impl EPic {
+impl PowerPlay {
     fn parse_pool_url(url_str: &str) -> PoolURL {
-        // Convert host:port format to full UR
-        let full_url = if url_str.starts_with("stratum") {
-            url_str.to_string()
-        } else {
-            format!("stratum+tcp://{url_str}")
-        };
-
-        PoolURL::from(full_url)
+        PoolURL::from(url_str.to_string())
     }
     fn combine_by_index(data: &Value) -> Vec<Value> {
         let mut combined: HashMap<u64, serde_json::Map<String, Value>> = HashMap::new();

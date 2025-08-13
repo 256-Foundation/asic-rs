@@ -26,7 +26,6 @@ impl DiscoveryCommands for MinerMake {
             MinerMake::EPic => vec![HTTP_WEB_ROOT],
             MinerMake::Braiins => vec![RPC_VERSION, HTTP_WEB_ROOT],
             MinerMake::BitAxe => vec![HTTP_WEB_ROOT],
-            MinerMake::Unknown => vec![],
         }
     }
 }
