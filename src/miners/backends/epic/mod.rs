@@ -41,26 +41,19 @@ impl EPic {
 
 impl GetDataLocations for EPic {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
-        fn cmd(endpoint: &'static str, params: Option<serde_json::Value>) -> MinerCommand {
-            if params.is_none() {
-                return MinerCommand::WebAPI {
-                    command: endpoint,
-                    parameters: None,
-                };
-            } else {
-                MinerCommand::WebAPI {
-                    command: endpoint,
-                    parameters: params,
-                }
-            }
+        fn cmd(endpoint: &'static str) -> MinerCommand {
+            return MinerCommand::WebAPI {
+                command: endpoint,
+                parameters: None,
+            };
         }
 
-        let summary_cmd = cmd("summary", None);
-        let network_cmd = cmd("network", None);
-        let _capabilities_cmd = cmd("capabilities", None);
-        let chip_temps_cmd = cmd("temps/chip", Some(json!("chip_temp")));
-        let chip_voltages_cmd = cmd("voltages", Some(json!("chip_voltages")));
-        let temps_cmd = cmd("temps", Some(json!("temps")));
+        let summary_cmd = cmd("summary");
+        let network_cmd = cmd("network");
+        let _capabilities_cmd = cmd("capabilities");
+        let chip_temps_cmd = cmd("temps/chip");
+        let chip_voltages_cmd = cmd("voltages");
+        let temps_cmd = cmd("temps");
 
         match data_field {
             DataField::Mac => vec![(
@@ -68,6 +61,7 @@ impl GetDataLocations for EPic {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some(""),
+                    tag: None,
                 },
             )],
             DataField::Hostname => vec![(
@@ -75,6 +69,7 @@ impl GetDataLocations for EPic {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Hostname"),
+                    tag: None,
                 },
             )],
             //DataField::SerialNumber => vec![
@@ -119,6 +114,7 @@ impl GetDataLocations for EPic {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Session/Uptime"),
+                    tag: None,
                 },
             )],
             //DataField::Hashrate => vec![(
@@ -149,6 +145,7 @@ impl GetDataLocations for EPic {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Power Supply Stats/Input Power"),
+                    tag: None,
                 },
             )],
             DataField::Fans => vec![(
@@ -156,6 +153,7 @@ impl GetDataLocations for EPic {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Fans Rpm"),
+                    tag: None,
                 },
             )],
             DataField::Hashboards => vec![
@@ -164,6 +162,7 @@ impl GetDataLocations for EPic {
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some(""),
+                        tag: Some("Board Temps"),
                     },
                 ),
                 (
@@ -171,22 +170,33 @@ impl GetDataLocations for EPic {
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/HBStatus"),
+                        tag: Some("HBStatus"),
                     },
                 ),
-                //(
-                //    summary_cmd,
-                //    DataExtractor {
-                //        func: get_by_pointer,
-                //        key: Some("/HBs"),
-                //    },
-                //),
-                //(
-                //    chip_temps_cmd,
-                //    DataExtractor {
-                //        func: get_by_pointer,
-                //        key: Some(""),
-                //    },
-                //),
+                (
+                    summary_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/HBs"),
+                        tag: Some("HBs"),
+                    },
+                ),
+                (
+                    chip_temps_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: Some("Chip Temps"),
+                    },
+                ),
+                (
+                    chip_voltages_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: Some("Chip Voltages"),
+                    },
+                ),
             ],
             DataField::Pools => vec![
                 (
@@ -194,6 +204,7 @@ impl GetDataLocations for EPic {
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/Stratum"),
+                        tag: None,
                     },
                 ),
                 (
@@ -201,6 +212,7 @@ impl GetDataLocations for EPic {
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/Session"),
+                        tag: None,
                     },
                 ),
             ],
@@ -209,6 +221,7 @@ impl GetDataLocations for EPic {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Status/Operating State"),
+                    tag: None,
                 },
             )],
             //DataField::Efficiency => vec![(
@@ -223,6 +236,7 @@ impl GetDataLocations for EPic {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Misc/Locate Miner State"),
+                    tag: None,
                 },
             )],
             _ => vec![],
@@ -298,8 +312,7 @@ impl GetHashboards for EPic {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
         let info = data.get(&DataField::Hashboards);
-        //Hacky
-        println!("info: {:?}", info.unwrap().get("temps"));
+        println!("info: {:?}", info);
 
         // convert info to array
 

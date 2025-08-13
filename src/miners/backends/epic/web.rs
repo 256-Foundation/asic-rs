@@ -57,12 +57,7 @@ impl WebAPIClient for EPicWebAPI {
                 .json()
                 .await
                 .map_err(|e| EPicError::ParseError(e.to_string()))?;
-            if let Some(Value::String(key)) = parameters {
-                let wrapped = json!({key:json_data});
-                Ok(wrapped)
-            } else {
-                Ok(json_data)
-            }
+            Ok(json_data)
         } else {
             Err(EPicError::HttpError(status.as_u16()))?
         }

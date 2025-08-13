@@ -1,6 +1,6 @@
 use crate::miners::backends::traits::GetDataLocations;
 use crate::miners::{api::APIClient, commands::MinerCommand};
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use strum::{EnumIter, IntoEnumIterator};
 
@@ -309,23 +309,6 @@ impl<'a> DataCollector<'a> {
             (Value::Array(a_array), Value::Array(b_array)) => {
                 // Combine arrays by extending
                 a_array.extend(b_array);
-            }
-            (Value::Array(a_array), Value::Object(b_map)) => {
-                // Convert object into array of single-entry objects
-                let obj_as_array: Vec<Value> = b_map
-                    .into_iter()
-                    .map(|(k, v)| {
-                        let mut map = serde_json::Map::new();
-                        map.insert(k, v);
-                        Value::Object(map)
-                    })
-                    .collect();
-                a_array.extend(obj_as_array);
-            }
-            (Value::Object(a_map), Value::Array(b_array)) => {
-                for (index, item) in b_array.into_iter().enumerate() {
-                    Self::merge_values(a_map.entry(index.to_string()).or_insert(Value::Null), item);
-                }
             }
             (a_slot, b_val) => {
                 // For everything else (including mismatched types), overwrite
