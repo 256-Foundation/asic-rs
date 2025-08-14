@@ -108,19 +108,11 @@ impl GetDataLocations for PowerPlay {
                     },
                 ),
                 (
-                    summary_cmd.clone(),
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/HBStatus"),
-                        tag: Some("HBStatus"),
-                    },
-                ),
-                (
                     summary_cmd,
                     DataExtractor {
                         func: get_by_pointer,
-                        key: Some("/HBs"),
-                        tag: Some("HBs"),
+                        key: Some(""),
+                        tag: Some("Summary"),
                     },
                 ),
                 (
@@ -164,24 +156,14 @@ impl GetDataLocations for PowerPlay {
                     },
                 ),
             ],
-            DataField::Pools => vec![
-                (
-                    summary_cmd.clone(),
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/Stratum"),
-                        tag: None,
-                    },
-                ),
-                (
-                    summary_cmd,
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/Session"),
-                        tag: None,
-                    },
-                ),
-            ],
+            DataField::Pools => vec![(
+                summary_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some(""),
+                    tag: None,
+                },
+            )],
             DataField::IsMining => vec![(
                 summary_cmd,
                 DataExtractor {
@@ -234,7 +216,7 @@ impl GetDataLocations for PowerPlay {
                 summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/Session/Average MHs"),
+                    key: Some("/HBs"),
                     tag: None,
                 },
             )],
@@ -310,187 +292,311 @@ impl GetControlBoardVersion for PowerPlay {
 impl GetHashboards for PowerPlay {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
-        let info = data.get(&DataField::Hashboards);
-        let combined_hbs = Self::combine_by_index(info.unwrap());
-        let capabilities = match info.and_then(|v| v.get("Capabilities")) {
-            Some(caps) => caps,
-            None => return hashboards,
-        };
-        for hb in combined_hbs {
-            let mut hashrate = None;
-            let mut frequency = None;
-            let mut voltage = None;
-            let mut performance = 0.0;
-            let serial_number = None;
-            let mut expected_hashrate = HashRate {
-                value: 0.0,
-                unit: HashRateUnit::MegaHash,
-                algo: String::from("SHA256"),
-            };
-
-            let mut chips = vec![];
-
-            if hb
-                .pointer("/HBStatus/Enabled")
-                .and_then(|v| v.as_bool())
-                .expect("HBStatus/Enabled should be present")
-                && hb
-                    .pointer("/HBStatus/Detected")
-                    .and_then(|v| v.as_bool())
-                    .expect("HBStatus/Enabled should be present")
-            {
-                hashrate = hb
-                    .pointer("/HBs/Hashrate")
-                    .and_then(|v| v.as_array())
-                    .and_then(|v| v.first().and_then(|f| f.as_f64()))
-                    .map(|h| HashRate {
-                        value: h,
-                        unit: HashRateUnit::MegaHash,
-                        algo: String::from("SHA256"),
-                    });
-
-                frequency = hb
-                    .pointer("/HBs/Core Clock Avg")
-                    .and_then(|v| v.as_f64())
-                    .map(Frequency::from_megahertz);
-
-                voltage = hb
-                    .pointer("/HBs/Input Voltage")
-                    .and_then(|v| v.as_f64())
-                    .map(Voltage::from_volts);
-
-                performance = hb
-                    .pointer("/HBs/Hashrate")
-                    .and_then(|v| v.as_array())
-                    .and_then(|v| v.get(1).and_then(|f| f.as_f64()))
-                    .unwrap_or(0.0);
-
-                let chip_hashrates: Vec<HashRate> = hb
-                    .pointer("/Chip Hashrates/Data")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|inner| inner.as_array())
-                            .filter_map(|inner| inner.first().and_then(|v| v.as_f64()))
-                            .map(|hr| HashRate {
-                                value: hr,
-                                unit: HashRateUnit::MegaHash,
-                                algo: String::from("SHA256"),
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                let chip_temps: Vec<Temperature> = hb
-                    .pointer("/Chip Temps/Data")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_f64())
-                            .map(Temperature::from_celsius)
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                let chip_voltages: Vec<Voltage> = hb
-                    .pointer("/Chip Voltages/Data")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_f64())
-                            .map(Voltage::from_millivolts)
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                let chip_clocks: Vec<Frequency> = hb
-                    .pointer("/Chip Clocks/Data")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_f64())
-                            .map(Frequency::from_megahertz)
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                let chip_data: Vec<ChipData> = (0..chip_hashrates.len())
-                    .map(|i| ChipData {
-                        position: i as u16,
-                        hashrate: Some(chip_hashrates[i].clone()),
-                        temperature: Some(chip_temps[i]),
-                        voltage: Some(chip_voltages[i]),
-                        frequency: Some(chip_clocks[i]),
-                        tuned: None,
-                        working: Some(true),
-                    })
-                    .collect();
-                chips.extend(chip_data);
-            }
-
-            let board_temperature = hb
-                .pointer("/Board Temps/Data")
-                .and_then(|v| v.as_array())
-                .and_then(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_f64())
-                        .max_by(|a, b| a.partial_cmp(b).unwrap())
-                })
-                .map(Temperature::from_celsius);
-            let intake_temperature = hb
-                .pointer("/Board Temps/Data")
-                .and_then(|v| v.as_array())
-                .and_then(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_f64())
-                        .min_by(|a, b| a.partial_cmp(b).unwrap())
-                })
-                .map(Temperature::from_celsius);
-            let outlet_temperature = hb
-                .pointer("/Board Temps/Data")
-                .and_then(|v| v.as_array())
-                .and_then(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_f64())
-                        .min_by(|a, b| a.partial_cmp(b).unwrap())
-                })
-                .map(Temperature::from_celsius);
-            let expected_chips = capabilities
-                .pointer("/Performance Estimator/Chip Count")
-                .and_then(|v| v.as_u64().map(|v| v as u16));
-
-            if let Some(hashrate) = hashrate.clone() {
-                let calculated_hr = hashrate.value / performance;
-                expected_hashrate = HashRate {
-                    value: calculated_hr,
-                    unit: HashRateUnit::MegaHash,
-                    algo: String::from("SHA256"),
-                };
-            }
-
-            let bd = BoardData {
-                position: hb
-                    .get("Index")
-                    .and_then(|v| v.as_u64().map(|v| v as u8))
-                    .unwrap_or(0),
-                active: hb.pointer("/HBStatus/Enabled").and_then(|v| v.as_bool()),
-                hashrate,
-                expected_hashrate: Some(expected_hashrate),
-                intake_temperature,
-                outlet_temperature,
-                expected_chips,
-                board_temperature,
-                working_chips: Some(chips.len() as u16),
-                serial_number,
-                chips,
-                voltage,
-                frequency,
+        for _ in 0..self.device_info.hardware.boards.unwrap_or_default() {
+            hashboards.push(BoardData {
+                position: 0,
+                hashrate: None,
+                expected_hashrate: None,
+                board_temperature: None,
+                intake_temperature: None,
+                outlet_temperature: None,
+                expected_chips: None,
+                working_chips: None,
+                serial_number: None,
+                chips: vec![],
+                voltage: None,
+                frequency: None,
                 tuned: None,
-            };
-            hashboards.push(bd);
+                active: None,
+            });
         }
 
-        // convert info to array
+        data.get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Summary/HBStatus"))
+            .and_then(|v| {
+                v.as_array().map(|boards| {
+                    boards.iter().for_each(|board| {
+                        if let Some(idx) = board.get("Index").and_then(|v| v.as_u64()) {
+                            if let Some(hashboard) = hashboards.get_mut(idx as usize) {
+                                hashboard.position = idx as u8;
+                                if let Some(v) = board.get("Enabled").and_then(|v| v.as_bool()) {
+                                    hashboard.active = Some(v);
+                                }
+                            }
+                        }
+                    })
+                })
+            });
+
+        //Capabilities Chip Data
+        if let Some(chip_count) = data
+            .get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Capabilities/Performance Estimator/Chip Count"))
+        {
+            for board in &mut hashboards {
+                if let Some(count) = chip_count.as_u64() {
+                    board.expected_chips = Some(count as u16);
+                    // No need to add ChipData if we know the board is not active
+                    if board.active.unwrap_or(false) {
+                        board.chips = vec![
+                            ChipData {
+                                position: 0,
+                                hashrate: None,
+                                temperature: None,
+                                voltage: None,
+                                frequency: None,
+                                tuned: None,
+                                working: None,
+                            };
+                            count as usize
+                        ];
+                    }
+                }
+            }
+        };
+
+        //Capabilities Board Serial Numbers
+        if let Some(serial_numbers) = data
+            .get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Capabilities/Board Serial Numbers"))
+            .and_then(|v| v.as_array())
+        {
+            for serial in serial_numbers {
+                // Since we only have an array with no index, it will only correspond to working boards, so search for first working board
+                // without serial and insert there
+                for hb in hashboards.iter_mut() {
+                    if hb.serial_number.is_none() && hb.active.unwrap_or(false) {
+                        if let Some(serial_str) = serial.as_str() {
+                            hb.serial_number = Some(serial_str.to_string());
+                        }
+                        break; // Only assign to the first board without a serial number
+                    }
+                }
+            }
+        };
+
+        // Summary Data
+        data.get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Summary/HBs"))
+            .and_then(|v| {
+                v.as_array().map(|boards| {
+                    boards.iter().for_each(|board| {
+                        if let Some(idx) = board.get("Index").and_then(|v| v.as_u64()) {
+                            if let Some(hashboard) = hashboards.get_mut(idx as usize) {
+                                // Hashrate
+                                if let Some(h) = board
+                                    .get("Hashrate")
+                                    .and_then(|v| v.as_array())
+                                    .and_then(|v| v.first().and_then(|f| f.as_f64()))
+                                {
+                                    hashboard.hashrate = Some(HashRate {
+                                        value: h,
+                                        unit: HashRateUnit::MegaHash,
+                                        algo: String::from("SHA256"),
+                                    })
+                                };
+
+                                // ExpectedHashrate
+                                if let Some(h) = board
+                                    .get("Hashrate")
+                                    .and_then(|v| v.as_array())
+                                    .and_then(|v| {
+                                        Some((
+                                            v.first().and_then(|f| f.as_f64())?,
+                                            v.get(1).and_then(|f| f.as_f64())?,
+                                        ))
+                                    })
+                                {
+                                    hashboard.expected_hashrate = Some(HashRate {
+                                        value: h.0 / h.1,
+                                        unit: HashRateUnit::MegaHash,
+                                        algo: String::from("SHA256"),
+                                    })
+                                };
+
+                                //Frequency
+                                if let Some(f) =
+                                    board.get("Core Clock Avg").and_then(|v| v.as_f64())
+                                {
+                                    hashboard.frequency = Some(Frequency::from_megahertz(f))
+                                };
+
+                                //Voltage
+                                if let Some(v) = board.get("Input Voltage").and_then(|v| v.as_f64())
+                                {
+                                    hashboard.voltage = Some(Voltage::from_volts(v));
+                                };
+                                //Board Temp
+                                if let Some(v) = board.get("Temperature").and_then(|v| v.as_f64()) {
+                                    hashboard.board_temperature =
+                                        Some(Temperature::from_celsius(v));
+                                };
+                            };
+                        }
+                    })
+                })
+            });
+
+        //Temp Data
+        data.get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Board Temps"))
+            .and_then(|v| {
+                v.as_array().map(|boards| {
+                    boards.iter().for_each(|board| {
+                        if let Some(idx) = board.get("Index").and_then(|v| v.as_u64()) {
+                            if let Some(hashboard) = hashboards.get_mut(idx as usize) {
+                                // Outlet Temperature
+                                if let Some(h) = board.get("Data").and_then(|v| {
+                                    v.as_array().and_then(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_f64())
+                                            .max_by(|a, b| a.partial_cmp(b).unwrap())
+                                    })
+                                }) {
+                                    hashboard.outlet_temperature =
+                                        Some(Temperature::from_celsius(h));
+                                };
+
+                                if let Some(h) = board.get("Data").and_then(|v| {
+                                    v.as_array().and_then(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_f64())
+                                            .min_by(|a, b| a.partial_cmp(b).unwrap())
+                                    })
+                                }) {
+                                    hashboard.intake_temperature =
+                                        Some(Temperature::from_celsius(h));
+                                };
+                            };
+                        }
+                    })
+                })
+            });
+
+        //Chip Temps
+        data.get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Chip Temps"))
+            .and_then(|v| {
+                v.as_array().map(|boards| {
+                    boards.iter().for_each(|board| {
+                        if let Some(idx) = board.get("Index").and_then(|v| v.as_u64()) {
+                            if let Some(hashboard) = hashboards.get_mut(idx as usize) {
+                                if let Some(t) =
+                                    board.get("Data").and_then(|v| v.as_array()).map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_f64())
+                                            .map(Temperature::from_celsius)
+                                            .collect::<Vec<Temperature>>()
+                                    })
+                                {
+                                    for (chip_no, temp) in t.iter().enumerate() {
+                                        if let Some(chip_data) = hashboard.chips.get_mut(chip_no) {
+                                            chip_data.position = chip_no as u16;
+                                            chip_data.temperature = Some(*temp);
+                                        }
+                                    }
+                                }
+                            };
+                        }
+                    })
+                })
+            });
+
+        //Chip Voltages
+        data.get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Chip Voltages"))
+            .and_then(|v| {
+                v.as_array().map(|boards| {
+                    boards.iter().for_each(|board| {
+                        if let Some(idx) = board.get("Index").and_then(|v| v.as_u64()) {
+                            if let Some(hashboard) = hashboards.get_mut(idx as usize) {
+                                if let Some(t) =
+                                    board.get("Data").and_then(|v| v.as_array()).map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_f64())
+                                            .map(Voltage::from_millivolts)
+                                            .collect::<Vec<Voltage>>()
+                                    })
+                                {
+                                    for (chip_no, voltage) in t.iter().enumerate() {
+                                        if let Some(chip_data) = hashboard.chips.get_mut(chip_no) {
+                                            chip_data.position = chip_no as u16;
+                                            chip_data.voltage = Some(*voltage);
+                                        }
+                                    }
+                                }
+                            };
+                        }
+                    })
+                })
+            });
+
+        //Chip Frequencies
+        data.get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Chip Clocks"))
+            .and_then(|v| {
+                v.as_array().map(|boards| {
+                    boards.iter().for_each(|board| {
+                        if let Some(idx) = board.get("Index").and_then(|v| v.as_u64()) {
+                            if let Some(hashboard) = hashboards.get_mut(idx as usize) {
+                                if let Some(t) =
+                                    board.get("Data").and_then(|v| v.as_array()).map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_f64())
+                                            .map(Frequency::from_megahertz)
+                                            .collect::<Vec<Frequency>>()
+                                    })
+                                {
+                                    for (chip_no, freq) in t.iter().enumerate() {
+                                        if let Some(chip_data) = hashboard.chips.get_mut(chip_no) {
+                                            chip_data.position = chip_no as u16;
+                                            chip_data.frequency = Some(*freq);
+                                        }
+                                    }
+                                }
+                            };
+                        }
+                    })
+                })
+            });
+
+        //Chip Hashrate
+        //There should always be a hashrate, and if there is a hashrate its also working
+        data.get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/Chip Hashrates"))
+            .and_then(|v| {
+                v.as_array().map(|boards| {
+                    boards.iter().for_each(|board| {
+                        if let Some(idx) = board.get("Index").and_then(|v| v.as_u64()) {
+                            if let Some(hashboard) = hashboards.get_mut(idx as usize) {
+                                if let Some(t) =
+                                    board.get("Data").and_then(|v| v.as_array()).map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|inner| inner.as_array())
+                                            .filter_map(|inner| {
+                                                inner.first().and_then(|v| v.as_f64())
+                                            })
+                                            .map(|hr| HashRate {
+                                                value: hr,
+                                                unit: HashRateUnit::MegaHash,
+                                                algo: String::from("SHA256"),
+                                            })
+                                            .collect::<Vec<HashRate>>()
+                                    })
+                                {
+                                    for (chip_no, hashrate) in t.iter().enumerate() {
+                                        if let Some(chip_data) = hashboard.chips.get_mut(chip_no) {
+                                            chip_data.position = chip_no as u16;
+                                            chip_data.working = Some(true);
+                                            chip_data.hashrate = Some(hashrate.clone());
+                                        }
+                                    }
+                                }
+                            };
+                        }
+                    })
+                })
+            });
 
         hashboards
     }
@@ -498,8 +604,27 @@ impl GetHashboards for PowerPlay {
 
 impl GetHashrate for PowerPlay {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::Hashrate, |f| HashRate {
-            value: f,
+        let mut total_hashrate: f64 = 0.0;
+
+        data.get(&DataField::Hashrate).and_then(|v| {
+            v.as_array().map(|boards| {
+                boards.iter().for_each(|board| {
+                    if let Some(_idx) = board.get("Index").and_then(|v| v.as_u64()) {
+                        // Hashrate
+                        if let Some(h) = board
+                            .get("Hashrate")
+                            .and_then(|v| v.as_array())
+                            .and_then(|v| v.first().and_then(|f| f.as_f64()))
+                        {
+                            total_hashrate += h;
+                        };
+                    }
+                })
+            })
+        });
+
+        Some(HashRate {
+            value: total_hashrate,
             unit: HashRateUnit::MegaHash,
             algo: String::from("SHA256"),
         })
@@ -581,85 +706,78 @@ impl GetPools for PowerPlay {
     fn parse_pools(&self, data: &HashMap<DataField, Value>) -> Vec<PoolData> {
         let mut pools_vec: Vec<PoolData> = Vec::new();
 
-        if let Some(pools_data) = data.get(&DataField::Pools) {
-            if let Some(pool) = pools_data.as_object() {
-                let position = pool
-                    .get("Config Id")
-                    .and_then(|v| v.as_u64().map(|v| v as u16));
-                let url = pool
-                    .get("Current Pool")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| {
-                        if s.is_empty() {
-                            None
-                        } else {
-                            Some(Self::parse_pool_url(s))
-                        }
-                    });
-
-                let user = pool
-                    .get("Current User")
+        if let Some(configs) = data
+            .get(&DataField::Pools)
+            .and_then(|v| v.pointer("/StratumConfigs"))
+            .and_then(|v| v.as_array())
+        {
+            for (idx, config) in configs.iter().enumerate() {
+                let url = config.get("pool").and_then(|v| v.as_str()).and_then(|s| {
+                    if s.is_empty() {
+                        None
+                    } else {
+                        Some(PoolURL::from(s.to_string()))
+                    }
+                });
+                let user = config
+                    .get("login")
                     .and_then(|v| v.as_str())
                     .map(String::from);
-
-                let accepted_shares = pool.get("Accepted").and_then(|v| v.as_u64());
-                let rejected_shares = pool.get("Rejected").and_then(|v| v.as_u64());
-                let alive = pool.get("IsPoolConnected").and_then(|v| v.as_bool());
-
                 pools_vec.push(PoolData {
-                    position,
+                    position: Some(idx as u16),
                     url,
-                    accepted_shares,
-                    rejected_shares,
-                    active: Some(true),
-                    alive,
+                    accepted_shares: None,
+                    rejected_shares: None,
+                    active: Some(false),
+                    alive: None,
                     user,
                 });
             }
         }
-        pools_vec
-    }
-}
 
-// Helper methods for data extraction
-impl PowerPlay {
-    fn parse_pool_url(url_str: &str) -> PoolURL {
-        PoolURL::from(url_str.to_string())
-    }
-    fn combine_by_index(data: &Value) -> Vec<Value> {
-        let mut combined: HashMap<u64, serde_json::Map<String, Value>> = HashMap::new();
+        if let Some(stratum) = data
+            .get(&DataField::Pools)
+            .and_then(|v| v.pointer("/Stratum"))
+            .and_then(|v| v.as_object())
+        {
+            for pool in pools_vec.iter_mut() {
+                if pool.position
+                    == stratum
+                        .get("Config Id")
+                        .and_then(|v| v.as_u64().map(|v| v as u16))
+                {
+                    pool.active = stratum.get("IsPoolConnected").and_then(|v| v.as_bool());
+                    pool.user = stratum
+                        .get("Current User")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+                    pool.url = stratum
+                        .get("Current Pool")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| {
+                            if s.is_empty() {
+                                None
+                            } else {
+                                Some(PoolURL::from(s.to_string()))
+                            }
+                        });
 
-        let keys = [
-            "Board Temps",
-            "Chip Temps",
-            "Chip Voltages",
-            "HBStatus",
-            "HBs",
-            "Chip Hashrates",
-            "Chip Clocks",
-        ];
-
-        for key in keys {
-            if let Some(arr) = data.get(key).and_then(|v| v.as_array()) {
-                for obj in arr {
-                    if let Some(index) = obj.get("Index").and_then(|i| i.as_u64()) {
-                        let entry = combined.entry(index).or_default();
-                        entry.insert(key.to_string(), obj.clone());
+                    // Get Stats
+                    if let Some(session) = data
+                        .get(&DataField::Pools)
+                        .and_then(|v| v.pointer("/Session"))
+                        .and_then(|v| v.as_object())
+                    {
+                        pool.accepted_shares = session.get("Accepted").and_then(|v| v.as_u64());
+                        pool.rejected_shares = session.get("Rejected").and_then(|v| v.as_u64());
                     }
                 }
             }
         }
 
-        // Convert the map into a sorted Vec<Value>
-        let mut result: Vec<Value> = combined
-            .into_iter()
-            .map(|(index, mut map)| {
-                map.insert("Index".to_string(), Value::Number(index.into()));
-                Value::Object(map)
-            })
-            .collect();
-
-        result.sort_by_key(|v| v.get("Index").and_then(|i| i.as_u64()).unwrap_or(0));
-        result
+        pools_vec
     }
 }
+
+// Helper methods for data extraction
+impl PowerPlay {}
