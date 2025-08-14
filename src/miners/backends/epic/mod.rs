@@ -74,43 +74,6 @@ impl GetDataLocations for PowerPlay {
                     tag: None,
                 },
             )],
-            //DataField::SerialNumber => vec![
-            //    (
-            //        factory_info_cmd,
-            //        DataExtractor {
-            //            func: get_by_pointer,
-            //            key: Some("/psu_serial"),
-            //        },
-            //    ),
-            //    (
-            //        info_cmd,
-            //        DataExtractor {
-            //            func: get_by_pointer,
-            //            key: Some("/serial"),
-            //        },
-            //    ),
-            //],
-            //DataField::ApiVersion => vec![(
-            //    info_cmd,
-            //    DataExtractor {
-            //        func: get_by_pointer,
-            //        key: Some("/fw_version"),
-            //    },
-            //)],
-            //DataField::FirmwareVersion => vec![(
-            //    info_cmd,
-            //    DataExtractor {
-            //        func: get_by_pointer,
-            //        key: Some("/fw_version"),
-            //    },
-            //)],
-            //DataField::ControlBoardVersion => vec![(
-            //    info_cmd,
-            //    DataExtractor {
-            //        func: get_by_pointer,
-            //        key: Some("/platform"),
-            //    },
-            //)],
             DataField::Uptime => vec![(
                 summary_cmd,
                 DataExtractor {
@@ -119,29 +82,6 @@ impl GetDataLocations for PowerPlay {
                     tag: None,
                 },
             )],
-            //DataField::Hashrate => vec![(
-            //    summary_cmd,
-            //    DataExtractor {
-            //        func: get_by_pointer,
-            //        key: Some("/miner/hr_realtime"),
-            //    },
-            //)],
-            //DataField::ExpectedHashrate => vec![
-            //    (
-            //        factory_info_cmd,
-            //        DataExtractor {
-            //            func: get_by_pointer,
-            //            key: Some("/hr_stock"),
-            //        },
-            //    ),
-            //    (
-            //        summary_cmd,
-            //        DataExtractor {
-            //            func: get_by_pointer,
-            //            key: Some("/miner/hr_stock"),
-            //        },
-            //    ),
-            //],
             DataField::Wattage => vec![(
                 summary_cmd,
                 DataExtractor {
@@ -250,18 +190,51 @@ impl GetDataLocations for PowerPlay {
                     tag: None,
                 },
             )],
-            //DataField::Efficiency => vec![(
-            //    summary_cmd,
-            //    DataExtractor {
-            //        func: get_by_pointer,
-            //        key: Some("/Power Supply Stats/Input Power"),
-            //    },
-            //)],
             DataField::LightFlashing => vec![(
                 summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Misc/Locate Miner State"),
+                    tag: None,
+                },
+            )],
+            DataField::ControlBoardVersion => vec![(
+                capabilities_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/Control Board Version/cpuHardware"),
+                    tag: None,
+                },
+            )],
+            DataField::SerialNumber => vec![(
+                capabilities_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/Control Board Version/cpuSerial"),
+                    tag: None,
+                },
+            )],
+            DataField::ExpectedHashrate => vec![(
+                capabilities_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/Default Hashrate"),
+                    tag: None,
+                },
+            )],
+            DataField::FirmwareVersion => vec![(
+                summary_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/Software"),
+                    tag: None,
+                },
+            )],
+            DataField::Hashrate => vec![(
+                summary_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/Session/Average MHs"),
                     tag: None,
                 },
             )],
@@ -339,12 +312,11 @@ impl GetHashboards for PowerPlay {
         let mut hashboards: Vec<BoardData> = Vec::new();
         let info = data.get(&DataField::Hashboards);
         let combined_hbs = Self::combine_by_index(info.unwrap());
+        let capabilities = match info.and_then(|v| v.get("Capabilities")) {
+            Some(caps) => caps,
+            None => return hashboards,
+        };
         for hb in combined_hbs {
-            let capabilities = info
-                .expect("Capabilities Endpoint should be present")
-                .get("Capabilities")
-                .expect("Capabilities should be present");
-
             let mut hashrate = None;
             let mut frequency = None;
             let mut voltage = None;
@@ -528,7 +500,7 @@ impl GetHashrate for PowerPlay {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::Hashrate, |f| HashRate {
             value: f,
-            unit: HashRateUnit::GigaHash,
+            unit: HashRateUnit::MegaHash,
             algo: String::from("SHA256"),
         })
     }
@@ -538,7 +510,7 @@ impl GetExpectedHashrate for PowerPlay {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| HashRate {
             value: f,
-            unit: HashRateUnit::GigaHash,
+            unit: HashRateUnit::TeraHash,
             algo: String::from("SHA256"),
         })
     }
