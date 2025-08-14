@@ -82,6 +82,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Msg/mac"),
+                    tag: None,
                 },
             )],
             DataField::ApiVersion => vec![(
@@ -89,6 +90,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Msg/api_ver"),
+                    tag: None,
                 },
             )],
             DataField::FirmwareVersion => vec![(
@@ -96,6 +98,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Msg/fw_ver"),
+                    tag: None,
                 },
             )],
             DataField::ControlBoardVersion => vec![(
@@ -103,6 +106,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Msg/platform"),
+                    tag: None,
                 },
             )],
             DataField::Hostname => vec![(
@@ -110,6 +114,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Msg/hostname"),
+                    tag: None,
                 },
             )],
             DataField::LightFlashing => vec![(
@@ -117,6 +122,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Msg/ledstat"),
+                    tag: None,
                 },
             )],
             DataField::WattageLimit => vec![(
@@ -124,6 +130,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/Power Limit"),
+                    tag: None,
                 },
             )],
             DataField::Fans => vec![(
@@ -131,6 +138,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0"),
+                    tag: None,
                 },
             )],
             DataField::PsuFans => vec![(
@@ -138,6 +146,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/Msg/fan_speed"),
+                    tag: None,
                 },
             )],
             DataField::Hashboards => vec![(
@@ -145,6 +154,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some(""),
+                    tag: None,
                 },
             )],
             DataField::Pools => vec![(
@@ -152,6 +162,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/POOLS"),
+                    tag: None,
                 },
             )],
             DataField::Uptime => vec![(
@@ -159,6 +170,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/Elapsed"),
+                    tag: None,
                 },
             )],
             DataField::Wattage => vec![(
@@ -166,6 +178,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/Power"),
+                    tag: None,
                 },
             )],
             DataField::Hashrate => vec![(
@@ -173,6 +186,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/HS RT"),
+                    tag: None,
                 },
             )],
             DataField::ExpectedHashrate => vec![(
@@ -180,6 +194,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/Factory GHS"),
+                    tag: None,
                 },
             )],
             DataField::FluidTemperature => vec![(
@@ -187,6 +202,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/Env Temp"),
+                    tag: None,
                 },
             )],
             DataField::IsMining => vec![(
@@ -194,6 +210,7 @@ impl GetDataLocations for BTMiner2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/btmineroff"),
+                    tag: None,
                 },
             )],
             _ => vec![],
@@ -253,7 +270,7 @@ impl GetHashboards for BTMiner2 {
         for idx in 0..board_count {
             let hashrate = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/DEVS/{}/MHS av", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{idx}/MHS av")))
                 .and_then(|val| val.as_f64())
                 .map(|f| {
                     HashRate {
@@ -265,7 +282,7 @@ impl GetHashboards for BTMiner2 {
                 });
             let expected_hashrate = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/DEVS/{}/Factory GHS", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{idx}/Factory GHS")))
                 .and_then(|val| val.as_f64())
                 .map(|f| {
                     HashRate {
@@ -277,32 +294,32 @@ impl GetHashboards for BTMiner2 {
                 });
             let board_temperature = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/DEVS/{}/Temperature", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{idx}/Temperature")))
                 .and_then(|val| val.as_f64())
                 .map(Temperature::from_celsius);
             let intake_temperature = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/DEVS/{}/Chip Temp Min", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{idx}/Chip Temp Min")))
                 .and_then(|val| val.as_f64())
                 .map(Temperature::from_celsius);
             let outlet_temperature = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/DEVS/{}/Chip Temp Max", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{idx}/Chip Temp Max")))
                 .and_then(|val| val.as_f64())
                 .map(Temperature::from_celsius);
             let serial_number = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/DEVS/{}/PCB SN", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{idx}/PCB SN")))
                 .and_then(|val| val.as_str())
                 .map(String::from);
             let working_chips = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/DEVS/{}/Effective Chips", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{idx}/Effective Chips")))
                 .and_then(|val| val.as_u64())
                 .map(|u| u as u16);
             let frequency = data
                 .get(&DataField::Hashboards)
-                .and_then(|val| val.pointer(&format!("/DEVS/{}/Frequency", idx)))
+                .and_then(|val| val.pointer(&format!("/DEVS/{idx}/Frequency")))
                 .and_then(|val| val.as_f64())
                 .map(Frequency::from_megahertz);
 
@@ -357,7 +374,7 @@ impl GetFans for BTMiner2 {
         for (idx, direction) in ["In", "Out"].iter().enumerate() {
             let fan = data.extract_nested_map::<f64, _>(
                 DataField::Fans,
-                &format!("Fan Speed {}", direction),
+                &format!("Fan Speed {direction}"),
                 |rpm| FanData {
                     position: idx as i16,
                     rpm: Some(AngularVelocity::from_rpm(rpm)),
@@ -430,33 +447,33 @@ impl GetPools for BTMiner2 {
             {
                 let user = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/User", idx)))
+                    .and_then(|val| val.pointer(&format!("/{idx}/User")))
                     .map(|val| String::from(val.as_str().unwrap_or("")));
 
                 let alive = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/Status", idx)))
+                    .and_then(|val| val.pointer(&format!("/{idx}/Status")))
                     .map(|val| val.as_str())
                     .map(|val| val == Some("Alive"));
 
                 let active = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/Stratum Active", idx)))
+                    .and_then(|val| val.pointer(&format!("/{idx}/Stratum Active")))
                     .and_then(|val| val.as_bool());
 
                 let url = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/URL", idx)))
+                    .and_then(|val| val.pointer(&format!("/{idx}/URL")))
                     .map(|val| PoolURL::from(String::from(val.as_str().unwrap_or(""))));
 
                 let accepted_shares = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/Accepted", idx)))
+                    .and_then(|val| val.pointer(&format!("/{idx}/Accepted")))
                     .and_then(|val| val.as_u64());
 
                 let rejected_shares = data
                     .get(&DataField::Pools)
-                    .and_then(|val| val.pointer(&format!("/{}/Rejected", idx)))
+                    .and_then(|val| val.pointer(&format!("/{idx}/Rejected")))
                     .and_then(|val| val.as_u64());
 
                 pools.push(PoolData {

@@ -24,10 +24,12 @@ use super::util::{send_rpc_command, send_web_command};
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
 use crate::miners::backends::avalonminer::AvalonMiner;
 use crate::miners::backends::btminer::BTMiner;
+use crate::miners::backends::epic::PowerPlay;
 use crate::miners::backends::espminer::ESPMiner;
 use crate::miners::backends::traits::GetMinerData;
 use crate::miners::backends::vnish::Vnish;
 use crate::miners::factory::traits::VersionSelection;
+use std::net::SocketAddr;
 use traits::{DiscoveryCommands, ModelSelection};
 
 const IDENTIFICATION_TIMEOUT: Duration = Duration::from_secs(10);
@@ -45,11 +47,22 @@ fn calculate_optimal_concurrency(ip_count: usize) -> usize {
     }
 }
 
+/// Fast port connectivity check with TCP optimizations
 async fn check_port_open(ip: IpAddr, port: u16, connectivity_timeout: Duration) -> bool {
-    let addr = format!("{}:{}", ip, port);
-    timeout(connectivity_timeout, TcpStream::connect(&addr))
-        .await
-        .is_ok()
+    let addr: SocketAddr = (ip, port).into();
+
+    let stream = match timeout(connectivity_timeout, TcpStream::connect(addr)).await {
+        Ok(Ok(stream)) => stream,
+        _ => return false,
+    };
+
+    // disable Nagle's algorithm for immediate transmission
+    let _ = stream.set_nodelay(true);
+
+    // immediate close without waiting for lingering data
+    let _ = stream.set_linger(Some(Duration::from_secs(0)));
+
+    true
 }
 
 async fn get_miner_type_from_command(
@@ -157,6 +170,7 @@ fn select_backend(
             Some(AvalonMiner::new(ip, model?, firmware?))
         }
         (Some(_), Some(MinerFirmware::VNish)) => Some(Box::new(Vnish::new(ip, make?, model?))),
+        (Some(_), Some(MinerFirmware::EPic)) => Some(Box::new(PowerPlay::new(ip, make?, model?))),
         _ => None,
     }
 }
@@ -270,6 +284,22 @@ impl MinerFactory {
             Some((make, Some(firmware))) => {
                 let model = firmware.get_model(ip).await;
                 let version = firmware.get_version(ip).await;
+                if let Some(model) = model {
+                    let make = match model {
+                        MinerModel::AntMiner(_) => MinerMake::AntMiner,
+                        MinerModel::WhatsMiner(_) => MinerMake::WhatsMiner,
+                        MinerModel::Braiins(_) => MinerMake::Braiins,
+                        MinerModel::Bitaxe(_) => MinerMake::BitAxe,
+                        MinerModel::EPic(_) => MinerMake::EPic,
+                    };
+                    return Ok(select_backend(
+                        ip,
+                        Some(make),
+                        Some(model),
+                        Some(firmware),
+                        version,
+                    ));
+                }
 
                 Ok(select_backend(ip, make, model, Some(firmware), version))
             }
