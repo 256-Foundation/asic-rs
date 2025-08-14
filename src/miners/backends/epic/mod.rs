@@ -328,32 +328,25 @@ impl GetHashboards for PowerPlay {
                 })
             });
 
-        //Capabilities Chip Data
-        if let Some(chip_count) = data
-            .get(&DataField::Hashboards)
-            .and_then(|v| v.pointer("/Capabilities/Performance Estimator/Chip Count"))
-        {
-            for board in &mut hashboards {
-                if let Some(count) = chip_count.as_u64() {
-                    board.expected_chips = Some(count as u16);
-                    // No need to add ChipData if we know the board is not active
-                    if board.active.unwrap_or(false) {
-                        board.chips = vec![
-                            ChipData {
-                                position: 0,
-                                hashrate: None,
-                                temperature: None,
-                                voltage: None,
-                                frequency: None,
-                                tuned: None,
-                                working: None,
-                            };
-                            count as usize
-                        ];
-                    }
-                }
+        // Create ChipData for each active board
+        for board in &mut hashboards {
+            board.expected_chips = self.device_info.hardware.chips;
+            // No need to add ChipData if we know the board is not active
+            if board.active.unwrap_or(false) {
+                board.chips = vec![
+                    ChipData {
+                        position: 0,
+                        hashrate: None,
+                        temperature: None,
+                        voltage: None,
+                        frequency: None,
+                        tuned: None,
+                        working: None,
+                    };
+                    self.device_info.hardware.chips.unwrap_or_default() as usize
+                ];
             }
-        };
+        }
 
         //Capabilities Board Serial Numbers
         if let Some(serial_numbers) = data
@@ -779,6 +772,3 @@ impl GetPools for PowerPlay {
         pools_vec
     }
 }
-
-// Helper methods for data extraction
-impl PowerPlay {}
