@@ -746,7 +746,8 @@ impl GetPools for PowerPlay {
                         .get("Config Id")
                         .and_then(|v| v.as_u64().map(|v| v as u16))
                 {
-                    pool.active = stratum.get("IsPoolConnected").and_then(|v| v.as_bool());
+                    pool.active = Some(true);
+                    pool.alive = stratum.get("IsPoolConnected").and_then(|v| v.as_bool());
                     pool.user = stratum
                         .get("Current User")
                         .and_then(|v| v.as_str())
