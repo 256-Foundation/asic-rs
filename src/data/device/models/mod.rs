@@ -61,14 +61,14 @@ impl FromStr for BraiinsModel {
 }
 
 impl FromStr for AvalonMinerModel {
-  type Err = ModelParseError;
+    type Err = ModelParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         serde_json::from_value(serde_json::Value::String(s.to_string()))
             .map_err(|_| ModelParseError)
     }
 }
-  
+
 impl FromStr for EPicModel {
     type Err = ModelParseError;
 
