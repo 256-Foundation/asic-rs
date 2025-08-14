@@ -519,18 +519,19 @@ impl GetExpectedHashrate for PowerPlay {
 impl GetFans for PowerPlay {
     fn parse_fans(&self, data: &HashMap<DataField, Value>) -> Vec<FanData> {
         let mut fans: Vec<FanData> = Vec::new();
-        if let Some(fans_data) = data.get(&DataField::Fans) {
-            if let Some(obj) = fans_data.as_object() {
-                for (key, value) in obj {
-                    if let Some(num) = value.as_f64() {
-                        // Extract the number from the key (e.g. "Fans Speed 3" -> 3)
-                        if let Some(pos_str) = key.strip_prefix("Fans Speed ") {
-                            if let Ok(pos) = pos_str.parse::<i16>() {
-                                fans.push(FanData {
-                                    position: pos,
-                                    rpm: Some(AngularVelocity::from_rpm(num)),
-                                });
-                            }
+
+        if let Some(fans_data) = data.get(&DataField::Fans)
+            && let Some(obj) = fans_data.as_object()
+        {
+            for (key, value) in obj {
+                if let Some(num) = value.as_f64() {
+                    // Extract the number from the key (e.g. "Fans Speed 3" -> 3)
+                    if let Some(pos_str) = key.strip_prefix("Fans Speed ") {
+                        if let Ok(pos) = pos_str.parse::<i16>() {
+                            fans.push(FanData {
+                                position: pos,
+                                rpm: Some(AngularVelocity::from_rpm(num)),
+                            });
                         }
                     }
                 }
