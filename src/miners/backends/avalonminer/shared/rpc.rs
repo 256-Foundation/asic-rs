@@ -4,15 +4,16 @@ use crate::miners::api::{APIClient, RPCAPIClient};
 use crate::miners::commands::MinerCommand;
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::sync::LazyLock;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-static STATS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\w+)\[([^\]]+)\]").unwrap());
-static NESTED_STATS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"'([^']+)':\{([^}]*)\}").unwrap());
+static STATS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\w+)\[([^]]+)]").unwrap());
+static NESTED_STATS_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"'([^']+)':\{([^}]*)}").unwrap());
 
 #[derive(Debug)]
 pub struct AvalonMinerRPCAPI {
