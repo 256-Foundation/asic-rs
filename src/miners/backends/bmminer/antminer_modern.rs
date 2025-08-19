@@ -78,16 +78,140 @@ impl AntminerModern {
             ),
         }
     }
+
+    fn parse_temp_string(temp_str: &str) -> Option<Temperature> {
+        let temps: Vec<f64> = temp_str
+            .split('-')
+            .filter_map(|s| s.parse().ok())
+            .filter(|&temp| temp > 0.0)
+            .collect();
+
+        if !temps.is_empty() {
+            let avg = temps.iter().sum::<f64>() / temps.len() as f64;
+            Some(Temperature::from_celsius(avg))
+        } else {
+            None
+        }
+    }
+
+    fn calculate_average_temp_s21_hyd(chain: &Value) -> Option<Temperature> {
+        let mut temps = Vec::new();
+
+        if let Some(temp_pic) = chain.get("temp_pic").and_then(|v| v.as_array()) {
+            for i in 1..=3 {
+                if let Some(temp) = temp_pic.get(i).and_then(|v| v.as_f64())
+                    && temp != 0.0
+                {
+                    temps.push(temp);
+                }
+            }
+        }
+
+        if let Some(temp_pcb) = chain.get("temp_pcb").and_then(|v| v.as_array()) {
+            if let Some(temp) = temp_pcb.get(1).and_then(|v| v.as_f64())
+                && temp != 0.0
+            {
+                temps.push(temp);
+            }
+            if let Some(temp) = temp_pcb.get(3).and_then(|v| v.as_f64())
+                && temp != 0.0
+            {
+                temps.push(temp);
+            }
+        }
+
+        if !temps.is_empty() {
+            let avg = temps.iter().sum::<f64>() / temps.len() as f64;
+            Some(Temperature::from_celsius(avg))
+        } else {
+            None
+        }
+    }
+
+    fn calculate_average_temp_pcb(chain: &Value) -> Option<Temperature> {
+        if let Some(temp_pcb) = chain.get("temp_pcb").and_then(|v| v.as_array()) {
+            let temps: Vec<f64> = temp_pcb
+                .iter()
+                .filter_map(|v| v.as_f64())
+                .filter(|&temp| temp != 0.0)
+                .collect();
+
+            if !temps.is_empty() {
+                let avg = temps.iter().sum::<f64>() / temps.len() as f64;
+                Some(Temperature::from_celsius(avg))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn calculate_average_temp_chip(chain: &Value) -> Option<Temperature> {
+        if let Some(temp_chip) = chain.get("temp_chip").and_then(|v| v.as_array()) {
+            let temps: Vec<f64> = temp_chip
+                .iter()
+                .filter_map(|v| v.as_f64())
+                .filter(|&temp| temp != 0.0)
+                .collect();
+
+            if !temps.is_empty() {
+                let avg = temps.iter().sum::<f64>() / temps.len() as f64;
+                Some(Temperature::from_celsius(avg))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 impl GetDataLocations for AntminerModern {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
+        let version_cmd = MinerCommand::RPC {
+            command: "version",
+            parameters: None,
+        };
+
+        let stats_cmd = MinerCommand::RPC {
+            command: "stats",
+            parameters: None,
+        };
+
+        let summary_cmd = MinerCommand::RPC {
+            command: "summary",
+            parameters: None,
+        };
+
+        let pools_cmd = MinerCommand::RPC {
+            command: "pools",
+            parameters: None,
+        };
+
+        let system_info_cmd = MinerCommand::WebAPI {
+            command: "get_system_info",
+            parameters: None,
+        };
+
+        let blink_status_cmd = MinerCommand::WebAPI {
+            command: "get_blink_status",
+            parameters: None,
+        };
+
+        let miner_conf_cmd = MinerCommand::WebAPI {
+            command: "get_miner_conf",
+            parameters: None,
+        };
+
+        let web_summary_cmd = MinerCommand::WebAPI {
+            command: "summary",
+            parameters: None,
+        };
+
         match data_field {
             DataField::Mac => vec![(
-                MinerCommand::WebAPI {
-                    command: "get_system_info",
-                    parameters: None,
-                },
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/macaddr"),
@@ -95,10 +219,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::ApiVersion => vec![(
-                MinerCommand::RPC {
-                    command: "version",
-                    parameters: None,
-                },
+                version_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/VERSION/0/API"),
@@ -106,21 +227,15 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::FirmwareVersion => vec![(
-                MinerCommand::RPC {
-                    command: "version",
-                    parameters: None,
-                },
+                version_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/VERSION/0/CompileTime"), //Between Miner and CompileTime for this...
+                    key: Some("/VERSION/0/CompileTime"),
                     tag: None,
                 },
             )],
             DataField::Hostname => vec![(
-                MinerCommand::WebAPI {
-                    command: "get_system_info",
-                    parameters: None,
-                },
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/hostname"),
@@ -128,10 +243,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::Hashrate => vec![(
-                MinerCommand::RPC {
-                    command: "summary",
-                    parameters: None,
-                },
+                summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/GHS 5s"),
@@ -139,10 +251,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::ExpectedHashrate => vec![(
-                MinerCommand::RPC {
-                    command: "stats",
-                    parameters: None,
-                },
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/1/total_rateideal"),
@@ -150,10 +259,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::Fans => vec![(
-                MinerCommand::RPC {
-                    command: "stats",
-                    parameters: None,
-                },
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/1"),
@@ -161,10 +267,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::Hashboards => vec![(
-                MinerCommand::RPC {
-                    command: "stats",
-                    parameters: None,
-                },
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/1"),
@@ -172,10 +275,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::LightFlashing => vec![(
-                MinerCommand::WebAPI {
-                    command: "get_blink_status",
-                    parameters: None,
-                },
+                blink_status_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/blink"),
@@ -183,10 +283,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::IsMining => vec![(
-                MinerCommand::WebAPI {
-                    command: "get_miner_conf",
-                    parameters: None,
-                },
+                miner_conf_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/bitmain-work-mode"),
@@ -194,10 +291,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::Uptime => vec![(
-                MinerCommand::RPC {
-                    command: "stats",
-                    parameters: None,
-                },
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/1/Elapsed"),
@@ -205,10 +299,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::Pools => vec![(
-                MinerCommand::RPC {
-                    command: "pools",
-                    parameters: None,
-                },
+                pools_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/POOLS"),
@@ -216,32 +307,15 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::Wattage => vec![(
-                MinerCommand::RPC {
-                    command: "stats",
-                    parameters: None,
-                },
+                stats_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/STATS/1"),
                     tag: None,
                 },
             )],
-            DataField::WattageLimit => vec![(
-                MinerCommand::RPC {
-                    command: "summary",
-                    parameters: None,
-                },
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/SUMMARY/0/Power Limit"), // Cant find on 2022/2025 firmware
-                    tag: None,
-                },
-            )],
             DataField::SerialNumber => vec![(
-                MinerCommand::WebAPI {
-                    command: "get_system_info",
-                    parameters: None,
-                },
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/serial_no"), // Cant find on 2022 firmware, does exist on 2025 firmware for XP
@@ -249,10 +323,7 @@ impl GetDataLocations for AntminerModern {
                 },
             )],
             DataField::Messages => vec![(
-                MinerCommand::WebAPI {
-                    command: "summary",
-                    parameters: None,
-                },
+                web_summary_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/status"),
@@ -394,95 +465,6 @@ impl GetHashboards for AntminerModern {
         }
 
         hashboards
-    }
-}
-
-impl AntminerModern {
-    fn parse_temp_string(temp_str: &str) -> Option<Temperature> {
-        let temps: Vec<f64> = temp_str
-            .split('-')
-            .filter_map(|s| s.parse().ok())
-            .filter(|&temp| temp > 0.0)
-            .collect();
-
-        if !temps.is_empty() {
-            let avg = temps.iter().sum::<f64>() / temps.len() as f64;
-            Some(Temperature::from_celsius(avg))
-        } else {
-            None
-        }
-    }
-
-    fn calculate_average_temp_s21_hyd(chain: &Value) -> Option<Temperature> {
-        let mut temps = Vec::new();
-
-        if let Some(temp_pic) = chain.get("temp_pic").and_then(|v| v.as_array()) {
-            for i in 1..=3 {
-                if let Some(temp) = temp_pic.get(i).and_then(|v| v.as_f64())
-                    && temp != 0.0
-                {
-                    temps.push(temp);
-                }
-            }
-        }
-
-        if let Some(temp_pcb) = chain.get("temp_pcb").and_then(|v| v.as_array()) {
-            if let Some(temp) = temp_pcb.get(1).and_then(|v| v.as_f64())
-                && temp != 0.0
-            {
-                temps.push(temp);
-            }
-            if let Some(temp) = temp_pcb.get(3).and_then(|v| v.as_f64())
-                && temp != 0.0
-            {
-                temps.push(temp);
-            }
-        }
-
-        if !temps.is_empty() {
-            let avg = temps.iter().sum::<f64>() / temps.len() as f64;
-            Some(Temperature::from_celsius(avg))
-        } else {
-            None
-        }
-    }
-
-    fn calculate_average_temp_pcb(chain: &Value) -> Option<Temperature> {
-        if let Some(temp_pcb) = chain.get("temp_pcb").and_then(|v| v.as_array()) {
-            let temps: Vec<f64> = temp_pcb
-                .iter()
-                .filter_map(|v| v.as_f64())
-                .filter(|&temp| temp != 0.0)
-                .collect();
-
-            if !temps.is_empty() {
-                let avg = temps.iter().sum::<f64>() / temps.len() as f64;
-                Some(Temperature::from_celsius(avg))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    fn calculate_average_temp_chip(chain: &Value) -> Option<Temperature> {
-        if let Some(temp_chip) = chain.get("temp_chip").and_then(|v| v.as_array()) {
-            let temps: Vec<f64> = temp_chip
-                .iter()
-                .filter_map(|v| v.as_f64())
-                .filter(|&temp| temp != 0.0)
-                .collect();
-
-            if !temps.is_empty() {
-                let avg = temps.iter().sum::<f64>() / temps.len() as f64;
-                Some(Temperature::from_celsius(avg))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
     }
 }
 
@@ -640,11 +622,7 @@ impl GetWattage for AntminerModern {
     }
 }
 
-impl GetWattageLimit for AntminerModern {
-    fn parse_wattage_limit(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
-        data.extract_map::<f64, _>(DataField::WattageLimit, Power::from_watts)
-    }
-}
+impl GetWattageLimit for AntminerModern {}
 
 impl GetFluidTemperature for AntminerModern {
     fn parse_fluid_temperature(&self, data: &HashMap<DataField, Value>) -> Option<Temperature> {
@@ -700,9 +678,9 @@ impl GetMessages for AntminerModern {
                         .unwrap_or("Unknown error")
                         .to_string();
 
-                    let severity = match status {
-                        "E" | "e" => MessageSeverity::Error,
-                        "W" | "w" => MessageSeverity::Warning,
+                    let severity = match status.to_lowercase().as_str() {
+                        "e" => MessageSeverity::Error,
+                        "w" => MessageSeverity::Warning,
                         _ => MessageSeverity::Info,
                     };
 
