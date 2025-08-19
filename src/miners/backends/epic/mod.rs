@@ -355,14 +355,12 @@ impl GetHashboards for PowerPlay {
             .and_then(|v| v.as_array())
         {
             for serial in serial_numbers {
-                // Since we only have an array with no index, it will only correspond to working boards, so search for first working board
-                // without serial and insert there
                 for hb in hashboards.iter_mut() {
                     if hb.serial_number.is_none() && hb.active.unwrap_or(false) {
                         if let Some(serial_str) = serial.as_str() {
                             hb.serial_number = Some(serial_str.to_string());
                         }
-                        break; // Only assign to the first board without a serial number
+                        break;
                     }
                 }
             }
