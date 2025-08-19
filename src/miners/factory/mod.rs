@@ -23,6 +23,7 @@ use super::commands::MinerCommand;
 use super::util::{send_rpc_command, send_web_command};
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
 use crate::miners::backends::avalonminer::AvalonMiner;
+use crate::miners::backends::bmminer::antminer_modern::AntminerModern;
 use crate::miners::backends::btminer::BTMiner;
 use crate::miners::backends::epic::PowerPlay;
 use crate::miners::backends::espminer::ESPMiner;
@@ -171,6 +172,9 @@ fn select_backend(
         }
         (Some(_), Some(MinerFirmware::VNish)) => Some(Box::new(Vnish::new(ip, make?, model?))),
         (Some(_), Some(MinerFirmware::EPic)) => Some(Box::new(PowerPlay::new(ip, make?, model?))),
+        (Some(MinerMake::AntMiner), Some(MinerFirmware::Stock)) => {
+            Some(Box::new(AntminerModern::new(ip, model?, firmware?)))
+        }
         _ => None,
     }
 }
