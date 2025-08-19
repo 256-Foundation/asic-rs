@@ -7,23 +7,29 @@ use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature};
 use serde_json::Value;
 
-use super::api::AntminerAPI;
+use super::rpc::AntminerRPCClient;
+use super::web::AntminerWebClient;
 use crate::data::board::BoardData;
 use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerMake, MinerModel};
 use crate::data::fan::FanData;
 use crate::data::hashrate::{HashRate, HashRateUnit};
 use crate::data::message::{MessageSeverity, MinerMessage};
 use crate::data::pool::{PoolData, PoolURL};
+use crate::miners::api::{APIClient, RPCAPIClient, WebAPIClient};
 use crate::miners::backends::traits::*;
 use crate::miners::commands::MinerCommand;
 use crate::miners::data::{
     DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_pointer,
 };
+use anyhow::{Result, anyhow};
+use async_trait::async_trait;
+use reqwest::Method;
 
 #[derive(Debug)]
 pub struct AntminerModern {
     pub ip: IpAddr,
-    pub api: AntminerAPI,
+    pub rpc_client: AntminerRPCClient,
+    pub web_client: AntminerWebClient,
     pub device_info: DeviceInfo,
 }
 
@@ -31,7 +37,8 @@ impl AntminerModern {
     pub fn new(ip: IpAddr, model: MinerModel, firmware: MinerFirmware) -> Self {
         AntminerModern {
             ip,
-            api: AntminerAPI::new(ip, Some(4028), Some(80)),
+            rpc_client: AntminerRPCClient::new(ip, Some(4028)),
+            web_client: AntminerWebClient::new(ip, Some(80)),
             device_info: DeviceInfo::new(
                 MinerMake::AntMiner,
                 model,
@@ -50,7 +57,8 @@ impl AntminerModern {
     ) -> Self {
         AntminerModern {
             ip,
-            api: AntminerAPI::new(ip, rpc_port, web_port),
+            rpc_client: AntminerRPCClient::new(ip, rpc_port),
+            web_client: AntminerWebClient::new(ip, web_port),
             device_info: DeviceInfo::new(
                 MinerMake::AntMiner,
                 model,
@@ -69,7 +77,8 @@ impl AntminerModern {
     ) -> Self {
         AntminerModern {
             ip,
-            api: AntminerAPI::with_auth(ip, Some(4098), Some(80), username, password),
+            rpc_client: AntminerRPCClient::new(ip, Some(4028)),
+            web_client: AntminerWebClient::with_auth(ip, Some(80), username, password),
             device_info: DeviceInfo::new(
                 MinerMake::AntMiner,
                 model,
@@ -163,6 +172,31 @@ impl AntminerModern {
             }
         } else {
             None
+        }
+    }
+}
+
+#[async_trait]
+impl APIClient for AntminerModern {
+    async fn get_api_result(&self, command: &MinerCommand) -> Result<Value> {
+        match command {
+            MinerCommand::RPC {
+                command,
+                parameters,
+            } => {
+                self.rpc_client
+                    .send_command(command, false, parameters.clone())
+                    .await
+            }
+            MinerCommand::WebAPI {
+                command,
+                parameters,
+            } => {
+                self.web_client
+                    .send_command(command, false, parameters.clone(), Method::GET)
+                    .await
+            }
+            _ => Err(anyhow!("Unsupported command type for Antminer API")),
         }
     }
 }
@@ -349,7 +383,7 @@ impl GetDeviceInfo for AntminerModern {
 
 impl CollectData for AntminerModern {
     fn get_collector(&self) -> DataCollector<'_> {
-        DataCollector::new(self, &self.api)
+        DataCollector::new(self, self)
     }
 }
 
@@ -750,6 +784,27 @@ mod tests {
 
         let miner_data = miner.parse_data(data);
 
-        dbg!(&miner_data);
+        assert_eq!(miner_data.ip.to_string(), "127.0.0.1".to_owned());
+        assert_eq!(miner_data.hashboards.len(), 3);
+        assert_eq!(miner_data.light_flashing, None);
+        assert_eq!(miner_data.fans.len(), 4);
+        assert_eq!(
+            miner_data.expected_hashrate.unwrap(),
+            HashRate {
+                value: 110.0,
+                unit: HashRateUnit::TeraHash,
+                algo: "SHA256".to_string(),
+            }
+        );
+        assert_eq!(
+            miner_data.hashrate.unwrap(),
+            HashRate {
+                value: 110.56689,
+                unit: HashRateUnit::TeraHash,
+                algo: "SHA256".to_string(),
+            }
+        );
+
+        //dbg!(&miner_data);
     }
 }
