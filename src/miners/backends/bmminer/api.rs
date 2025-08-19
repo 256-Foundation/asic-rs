@@ -332,14 +332,13 @@ impl RPCCommandStatus {
     fn from_antminer(response: &str) -> Result<Self, RPCError> {
         let value: serde_json::Value = serde_json::from_str(response)?;
 
-        if let Some(status_array) = value.get("STATUS") {
-            if let Some(status_obj) = status_array.get(0) {
-                if let Some(status) = status_obj.get("STATUS").and_then(|v| v.as_str()) {
-                    let message = status_obj.get("Msg").and_then(|v| v.as_str());
+        if let Some(status_array) = value.get("STATUS")
+            && let Some(status_obj) = status_array.get(0)
+            && let Some(status) = status_obj.get("STATUS").and_then(|v| v.as_str())
+        {
+            let message = status_obj.get("Msg").and_then(|v| v.as_str());
 
-                    return Ok(Self::from_str(status, message));
-                }
-            }
+            return Ok(Self::from_str(status, message));
         }
 
         Ok(Self::Success)

@@ -339,7 +339,7 @@ impl GetHashboards for AntminerModern {
                 }
 
                 if let Some(hashrate) = stats_data
-                    .get(&format!("chain_rate{}", idx))
+                    .get(format!("chain_rate{}", idx))
                     .and_then(|v| v.as_str())
                     .and_then(|s| s.parse::<f64>().ok())
                     .map(|f| {
@@ -355,7 +355,7 @@ impl GetHashboards for AntminerModern {
                 }
 
                 if let Some(working_chips) = stats_data
-                    .get(&format!("chain_acn{}", idx))
+                    .get(format!("chain_acn{}", idx))
                     .and_then(|v| v.as_u64())
                     .map(|u| u as u16)
                 {
@@ -363,15 +363,15 @@ impl GetHashboards for AntminerModern {
                 }
 
                 if let Some(board_temp) = stats_data
-                    .get(&format!("temp_pcb{}", idx))
+                    .get(format!("temp_pcb{}", idx))
                     .and_then(|v| v.as_str())
-                    .and_then(|s| Self::parse_temp_string(s))
+                    .and_then(Self::parse_temp_string)
                 {
                     hashboards[board_idx].board_temperature = Some(board_temp);
                 }
 
                 if let Some(frequency) = stats_data
-                    .get(&format!("freq{}", idx))
+                    .get(format!("freq{}", idx))
                     .and_then(|v| v.as_u64())
                     .map(|f| Frequency::from_megahertz(f as f64))
                 {
@@ -418,24 +418,24 @@ impl AntminerModern {
 
         if let Some(temp_pic) = chain.get("temp_pic").and_then(|v| v.as_array()) {
             for i in 1..=3 {
-                if let Some(temp) = temp_pic.get(i).and_then(|v| v.as_f64()) {
-                    if temp != 0.0 {
-                        temps.push(temp);
-                    }
+                if let Some(temp) = temp_pic.get(i).and_then(|v| v.as_f64())
+                    && temp != 0.0
+                {
+                    temps.push(temp);
                 }
             }
         }
 
         if let Some(temp_pcb) = chain.get("temp_pcb").and_then(|v| v.as_array()) {
-            if let Some(temp) = temp_pcb.get(1).and_then(|v| v.as_f64()) {
-                if temp != 0.0 {
-                    temps.push(temp);
-                }
+            if let Some(temp) = temp_pcb.get(1).and_then(|v| v.as_f64())
+                && temp != 0.0
+            {
+                temps.push(temp);
             }
-            if let Some(temp) = temp_pcb.get(3).and_then(|v| v.as_f64()) {
-                if temp != 0.0 {
-                    temps.push(temp);
-                }
+            if let Some(temp) = temp_pcb.get(3).and_then(|v| v.as_f64())
+                && temp != 0.0
+            {
+                temps.push(temp);
             }
         }
 
@@ -518,16 +518,14 @@ impl GetFans for AntminerModern {
 
         if let Some(stats_data) = data.get(&DataField::Fans) {
             for i in 1..=self.device_info.hardware.fans.unwrap_or(4) {
-                if let Some(fan_speed) = stats_data
-                    .get(&format!("fan{}", i))
-                    .and_then(|v| v.as_f64())
+                if let Some(fan_speed) =
+                    stats_data.get(format!("fan{}", i)).and_then(|v| v.as_f64())
+                    && fan_speed > 0.0
                 {
-                    if fan_speed > 0.0 {
-                        fans.push(FanData {
-                            position: (i - 1) as i16,
-                            rpm: Some(AngularVelocity::from_rpm(fan_speed)),
-                        });
-                    }
+                    fans.push(FanData {
+                        position: (i - 1) as i16,
+                        rpm: Some(AngularVelocity::from_rpm(fan_speed)),
+                    });
                 }
             }
         }
@@ -567,40 +565,40 @@ impl GetPools for AntminerModern {
     fn parse_pools(&self, data: &HashMap<DataField, Value>) -> Vec<PoolData> {
         let mut pools: Vec<PoolData> = Vec::new();
 
-        if let Some(pools_data) = data.get(&DataField::Pools) {
-            if let Some(pools_array) = pools_data.as_array() {
-                for (idx, pool_info) in pools_array.iter().enumerate() {
-                    let url = pool_info
-                        .get("URL")
-                        .and_then(|v| v.as_str())
-                        .map(|s| PoolURL::from(s.to_string()));
+        if let Some(pools_data) = data.get(&DataField::Pools)
+            && let Some(pools_array) = pools_data.as_array()
+        {
+            for (idx, pool_info) in pools_array.iter().enumerate() {
+                let url = pool_info
+                    .get("URL")
+                    .and_then(|v| v.as_str())
+                    .map(|s| PoolURL::from(s.to_string()));
 
-                    let user = pool_info
-                        .get("User")
-                        .and_then(|v| v.as_str())
-                        .map(String::from);
+                let user = pool_info
+                    .get("User")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
 
-                    let alive = pool_info
-                        .get("Status")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s == "Alive");
+                let alive = pool_info
+                    .get("Status")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s == "Alive");
 
-                    let active = pool_info.get("Stratum Active").and_then(|v| v.as_bool());
+                let active = pool_info.get("Stratum Active").and_then(|v| v.as_bool());
 
-                    let accepted_shares = pool_info.get("Accepted").and_then(|v| v.as_u64());
+                let accepted_shares = pool_info.get("Accepted").and_then(|v| v.as_u64());
 
-                    let rejected_shares = pool_info.get("Rejected").and_then(|v| v.as_u64());
+                let rejected_shares = pool_info.get("Rejected").and_then(|v| v.as_u64());
 
-                    pools.push(PoolData {
-                        position: Some(idx as u16),
-                        url,
-                        accepted_shares,
-                        rejected_shares,
-                        active,
-                        alive,
-                        user,
-                    });
-                }
+                pools.push(PoolData {
+                    position: Some(idx as u16),
+                    url,
+                    accepted_shares,
+                    rejected_shares,
+                    active,
+                    alive,
+                    user,
+                });
             }
         }
 
@@ -619,14 +617,14 @@ impl GetControlBoardVersion for AntminerModern {}
 impl GetWattage for AntminerModern {
     fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
         if let Some(stats_data) = data.get(&DataField::Wattage) {
-            if let Some(chain_power) = stats_data.get("chain_power") {
-                if let Some(power_str) = chain_power.as_str() {
-                    // Parse "3250 W" format
-                    if let Some(watt_part) = power_str.split_whitespace().next() {
-                        if let Ok(watts) = watt_part.parse::<f64>() {
-                            return Some(Power::from_watts(watts));
-                        }
-                    }
+            if let Some(chain_power) = stats_data.get("chain_power")
+                && let Some(power_str) = chain_power.as_str()
+            {
+                // Parse "3250 W" format
+                if let Some(watt_part) = power_str.split_whitespace().next()
+                    && let Ok(watts) = watt_part.parse::<f64>()
+                {
+                    return Some(Power::from_watts(watts));
                 }
             }
 
@@ -644,39 +642,38 @@ impl GetWattage for AntminerModern {
 
 impl GetWattageLimit for AntminerModern {
     fn parse_wattage_limit(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
-        data.extract_map::<f64, _>(DataField::WattageLimit, |f| Power::from_watts(f))
+        data.extract_map::<f64, _>(DataField::WattageLimit, Power::from_watts)
     }
 }
 
 impl GetFluidTemperature for AntminerModern {
     fn parse_fluid_temperature(&self, data: &HashMap<DataField, Value>) -> Option<Temperature> {
         // For S21+ Hyd models, use inlet/outlet temperature average
-        if self.device_info.model.to_string().contains("S21+ Hyd") {
-            if let Some(hashboards_data) = data.get(&DataField::Hashboards) {
-                if let Some(chains) = hashboards_data.as_array() {
-                    let mut temps = Vec::new();
+        if self.device_info.model.to_string().contains("S21+ Hyd")
+            && let Some(hashboards_data) = data.get(&DataField::Hashboards)
+            && let Some(chains) = hashboards_data.as_array()
+        {
+            let mut temps = Vec::new();
 
-                    for chain in chains {
-                        if let Some(temp_pcb) = chain.get("temp_pcb").and_then(|v| v.as_array()) {
-                            // Inlet temp (index 0) and outlet temp (index 2)
-                            if let Some(inlet) = temp_pcb.get(0).and_then(|v| v.as_f64()) {
-                                if inlet != 0.0 {
-                                    temps.push(inlet);
-                                }
-                            }
-                            if let Some(outlet) = temp_pcb.get(2).and_then(|v| v.as_f64()) {
-                                if outlet != 0.0 {
-                                    temps.push(outlet);
-                                }
-                            }
-                        }
+            for chain in chains {
+                if let Some(temp_pcb) = chain.get("temp_pcb").and_then(|v| v.as_array()) {
+                    // Inlet temp (index 0) and outlet temp (index 2)
+                    if let Some(inlet) = temp_pcb.first().and_then(|v| v.as_f64())
+                        && inlet != 0.0
+                    {
+                        temps.push(inlet);
                     }
-
-                    if !temps.is_empty() {
-                        let avg = temps.iter().sum::<f64>() / temps.len() as f64;
-                        return Some(Temperature::from_celsius(avg));
+                    if let Some(outlet) = temp_pcb.get(2).and_then(|v| v.as_f64())
+                        && outlet != 0.0
+                    {
+                        temps.push(outlet);
                     }
                 }
+            }
+
+            if !temps.is_empty() {
+                let avg = temps.iter().sum::<f64>() / temps.len() as f64;
+                return Some(Temperature::from_celsius(avg));
             }
         }
         None
@@ -689,27 +686,27 @@ impl GetMessages for AntminerModern {
     fn parse_messages(&self, data: &HashMap<DataField, Value>) -> Vec<MinerMessage> {
         let mut messages = Vec::new();
 
-        if let Some(status_data) = data.get(&DataField::Messages) {
-            if let Some(status_array) = status_data.as_array() {
-                for (idx, item) in status_array.iter().enumerate() {
-                    if let Some(status) = item.get("status").and_then(|v| v.as_str()) {
-                        if status != "s" {
-                            // 's' means success/ok
-                            let message_text = item
-                                .get("msg")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Unknown error")
-                                .to_string();
+        if let Some(status_data) = data.get(&DataField::Messages)
+            && let Some(status_array) = status_data.as_array()
+        {
+            for (idx, item) in status_array.iter().enumerate() {
+                if let Some(status) = item.get("status").and_then(|v| v.as_str())
+                    && status != "s"
+                {
+                    // 's' means success/ok
+                    let message_text = item
+                        .get("msg")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string();
 
-                            let severity = match status {
-                                "E" | "e" => MessageSeverity::Error,
-                                "W" | "w" => MessageSeverity::Warning,
-                                _ => MessageSeverity::Info,
-                            };
+                    let severity = match status {
+                        "E" | "e" => MessageSeverity::Error,
+                        "W" | "w" => MessageSeverity::Warning,
+                        _ => MessageSeverity::Info,
+                    };
 
-                            messages.push(MinerMessage::new(0, idx as u64, message_text, severity));
-                        }
-                    }
+                    messages.push(MinerMessage::new(0, idx as u64, message_text, severity));
                 }
             }
         }
