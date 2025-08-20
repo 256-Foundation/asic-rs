@@ -1,7 +1,7 @@
 pub mod antminer;
 pub mod avalonminer;
-pub mod btminer;
+pub mod bitaxe;
 pub mod epic;
-pub mod espminer;
 pub mod traits;
 pub mod vnish;
+pub mod whatsminer;

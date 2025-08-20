@@ -24,11 +24,11 @@ use super::util::{send_rpc_command, send_web_command};
 use crate::data::device::{MinerFirmware, MinerMake, MinerModel};
 use crate::miners::backends::antminer::AntMiner;
 use crate::miners::backends::avalonminer::AvalonMiner;
-use crate::miners::backends::btminer::BTMiner;
+use crate::miners::backends::bitaxe::BitAxe;
 use crate::miners::backends::epic::PowerPlay;
-use crate::miners::backends::espminer::ESPMiner;
-use crate::miners::backends::traits::GetMinerData;
+use crate::miners::backends::traits::{GetMinerData, MinerConstructor};
 use crate::miners::backends::vnish::Vnish;
+use crate::miners::backends::whatsminer::WhatsMiner;
 use crate::miners::factory::traits::VersionSelection;
 use std::net::SocketAddr;
 use traits::{DiscoveryCommands, ModelSelection};
@@ -108,9 +108,7 @@ fn parse_type_from_socket(
         _ if json_string.contains("AVALON") => {
             Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
         }
-        _ if json_string.contains("VNISH") => {
-            Some((Some(MinerMake::AntMiner), Some(MinerFirmware::VNish)))
-        }
+        _ if json_string.contains("VNISH") => Some((None, Some(MinerFirmware::VNish))),
         _ => None,
     }
 }
@@ -141,9 +139,7 @@ fn parse_type_from_web(
         _ if resp_text.contains("Avalon") => {
             Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
         }
-        _ if resp_text.contains("AnthillOS") => {
-            Some((Some(MinerMake::AntMiner), Some(MinerFirmware::VNish)))
-        }
+        _ if resp_text.contains("AnthillOS") => Some((None, Some(MinerFirmware::VNish))),
         _ if redirect_header.contains("https://") && resp_status == 307
             || resp_text.contains("/cgi-bin/luci") =>
         {
@@ -155,26 +151,25 @@ fn parse_type_from_web(
 
 fn select_backend(
     ip: IpAddr,
-    make: Option<MinerMake>,
     model: Option<MinerModel>,
     firmware: Option<MinerFirmware>,
     version: Option<semver::Version>,
 ) -> Option<Box<dyn GetMinerData>> {
-    match (make, firmware) {
-        (Some(MinerMake::WhatsMiner), Some(MinerFirmware::Stock)) => {
-            Some(BTMiner::new(ip, model?, firmware?, version?))
+    match (model, firmware) {
+        (Some(MinerModel::WhatsMiner(_)), Some(MinerFirmware::Stock)) => {
+            Some(WhatsMiner::new(ip, model?, version))
         }
-        (Some(MinerMake::BitAxe), Some(MinerFirmware::Stock)) => {
-            Some(ESPMiner::new(ip, model?, firmware?, version?))
+        (Some(MinerModel::BitAxe(_)), Some(MinerFirmware::Stock)) => {
+            Some(BitAxe::new(ip, model?, version))
         }
-        (Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)) => {
-            Some(AvalonMiner::new(ip, model?, firmware?))
+        (Some(MinerModel::AvalonMiner(_)), Some(MinerFirmware::Stock)) => {
+            Some(AvalonMiner::new(ip, model?, version))
         }
-        (Some(_), Some(MinerFirmware::VNish)) => Some(Box::new(Vnish::new(ip, make?, model?))),
-        (Some(_), Some(MinerFirmware::EPic)) => Some(Box::new(PowerPlay::new(ip, make?, model?))),
         (Some(MinerMake::AntMiner), Some(MinerFirmware::Stock)) => {
             Some(AntMiner::new(ip, model?, version))
         }
+        (Some(_), Some(MinerFirmware::VNish)) => Some(Vnish::new(ip, model?, version)),
+        (Some(_), Some(MinerFirmware::EPic)) => Some(PowerPlay::new(ip, model?, version)),
         _ => None,
     }
 }
@@ -279,40 +274,25 @@ impl MinerFactory {
 
                 Ok(select_backend(
                     ip,
-                    Some(make),
                     model,
                     Some(MinerFirmware::Stock),
                     version,
                 ))
             }
-            Some((make, Some(firmware))) => {
+            Some((_, Some(firmware))) => {
                 let model = firmware.get_model(ip).await;
                 let version = firmware.get_version(ip).await;
                 if let Some(model) = model {
-                    let make = match model {
-                        MinerModel::AntMiner(_) => MinerMake::AntMiner,
-                        MinerModel::WhatsMiner(_) => MinerMake::WhatsMiner,
-                        MinerModel::Braiins(_) => MinerMake::Braiins,
-                        MinerModel::Bitaxe(_) => MinerMake::BitAxe,
-                        MinerModel::EPic(_) => MinerMake::EPic,
-                        MinerModel::Avalon(_) => MinerMake::AvalonMiner,
-                    };
-                    return Ok(select_backend(
-                        ip,
-                        Some(make),
-                        Some(model),
-                        Some(firmware),
-                        version,
-                    ));
+                    return Ok(select_backend(ip, Some(model), Some(firmware), version));
                 }
 
-                Ok(select_backend(ip, make, model, Some(firmware), version))
+                Ok(select_backend(ip, model, Some(firmware), version))
             }
             Some((Some(make), firmware)) => {
                 let model = make.get_model(ip).await;
                 let version = make.get_version(ip).await;
 
-                Ok(select_backend(ip, Some(make), model, firmware, version))
+                Ok(select_backend(ip, model, firmware, version))
             }
             _ => Ok(None),
         }
@@ -512,6 +492,11 @@ impl MinerFactory {
     /// Get current count of scan IPs
     pub fn len(&self) -> usize {
         self.ips.len()
+    }
+
+    /// Check if the list of IPs is empty
+    pub fn is_empty(&self) -> bool {
+        self.ips.is_empty()
     }
 
     /// Scan the IPs specified in the factory

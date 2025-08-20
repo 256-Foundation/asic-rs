@@ -1,4 +1,4 @@
-pub use rpc::BTMinerRPCAPI;
+pub use rpc::WhatsMinerRPCAPI;
 
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -25,28 +25,28 @@ use crate::miners::data::{
 mod rpc;
 
 #[derive(Debug)]
-pub struct BTMiner1 {
+pub struct WhatsMinerV1 {
     pub ip: IpAddr,
-    pub rpc: BTMinerRPCAPI,
+    pub rpc: WhatsMinerRPCAPI,
     pub device_info: DeviceInfo,
 }
 
-impl BTMiner1 {
-    pub fn new(ip: IpAddr, model: MinerModel, firmware: MinerFirmware) -> Self {
-        BTMiner1 {
+impl WhatsMinerV1 {
+    pub fn new(ip: IpAddr, model: MinerModel) -> Self {
+        WhatsMinerV1 {
             ip,
-            rpc: BTMinerRPCAPI::new(ip, None),
+            rpc: WhatsMinerRPCAPI::new(ip, None),
             device_info: DeviceInfo::new(
                 MinerMake::WhatsMiner,
                 model,
-                firmware,
+                MinerFirmware::Stock,
                 HashAlgorithm::SHA256,
             ),
         }
     }
 }
 
-impl GetDataLocations for BTMiner1 {
+impl GetDataLocations for WhatsMinerV1 {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
         let summary_cmd: MinerCommand = MinerCommand::RPC {
             command: "summary",
@@ -207,48 +207,48 @@ impl GetDataLocations for BTMiner1 {
     }
 }
 
-impl GetIP for BTMiner1 {
+impl GetIP for WhatsMinerV1 {
     fn get_ip(&self) -> IpAddr {
         self.ip
     }
 }
-impl GetDeviceInfo for BTMiner1 {
+impl GetDeviceInfo for WhatsMinerV1 {
     fn get_device_info(&self) -> DeviceInfo {
         self.device_info
     }
 }
 
-impl CollectData for BTMiner1 {
+impl CollectData for WhatsMinerV1 {
     fn get_collector(&self) -> DataCollector<'_> {
         DataCollector::new(self, &self.rpc)
     }
 }
 
-impl GetMAC for BTMiner1 {
+impl GetMAC for WhatsMinerV1 {
     fn parse_mac(&self, data: &HashMap<DataField, Value>) -> Option<MacAddr> {
         data.extract::<String>(DataField::Mac)
             .and_then(|s| MacAddr::from_str(&s).ok())
     }
 }
 
-impl GetSerialNumber for BTMiner1 {}
-impl GetHostname for BTMiner1 {}
-impl GetApiVersion for BTMiner1 {
+impl GetSerialNumber for WhatsMinerV1 {}
+impl GetHostname for WhatsMinerV1 {}
+impl GetApiVersion for WhatsMinerV1 {
     fn parse_api_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ApiVersion)
     }
 }
-impl GetFirmwareVersion for BTMiner1 {
+impl GetFirmwareVersion for WhatsMinerV1 {
     fn parse_firmware_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::FirmwareVersion)
     }
 }
-impl GetControlBoardVersion for BTMiner1 {
+impl GetControlBoardVersion for WhatsMinerV1 {
     fn parse_control_board_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ControlBoardVersion)
     }
 }
-impl GetHashboards for BTMiner1 {
+impl GetHashboards for WhatsMinerV1 {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
         let board_count = self.device_info.hardware.boards.unwrap_or(3);
@@ -323,7 +323,7 @@ impl GetHashboards for BTMiner1 {
         hashboards
     }
 }
-impl GetHashrate for BTMiner1 {
+impl GetHashrate for WhatsMinerV1 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::Hashrate, |f| {
             HashRate {
@@ -335,7 +335,7 @@ impl GetHashrate for BTMiner1 {
         })
     }
 }
-impl GetExpectedHashrate for BTMiner1 {
+impl GetExpectedHashrate for WhatsMinerV1 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| {
             HashRate {
@@ -347,7 +347,7 @@ impl GetExpectedHashrate for BTMiner1 {
         })
     }
 }
-impl GetFans for BTMiner1 {
+impl GetFans for WhatsMinerV1 {
     fn parse_fans(&self, data: &HashMap<DataField, Value>) -> Vec<FanData> {
         let mut fans: Vec<FanData> = Vec::new();
         for (idx, direction) in ["In", "Out"].iter().enumerate() {
@@ -366,7 +366,7 @@ impl GetFans for BTMiner1 {
         fans
     }
 }
-impl GetPsuFans for BTMiner1 {
+impl GetPsuFans for WhatsMinerV1 {
     fn parse_psu_fans(&self, data: &HashMap<DataField, Value>) -> Vec<FanData> {
         let mut psu_fans: Vec<FanData> = Vec::new();
 
@@ -380,23 +380,23 @@ impl GetPsuFans for BTMiner1 {
         psu_fans
     }
 }
-impl GetFluidTemperature for BTMiner1 {
+impl GetFluidTemperature for WhatsMinerV1 {
     fn parse_fluid_temperature(&self, data: &HashMap<DataField, Value>) -> Option<Temperature> {
         data.extract_map::<f64, _>(DataField::FluidTemperature, Temperature::from_celsius)
     }
 }
-impl GetWattage for BTMiner1 {
+impl GetWattage for WhatsMinerV1 {
     fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
         data.extract_map::<f64, _>(DataField::Wattage, Power::from_watts)
     }
 }
-impl GetWattageLimit for BTMiner1 {
+impl GetWattageLimit for WhatsMinerV1 {
     fn parse_wattage_limit(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
         data.extract_map::<f64, _>(DataField::WattageLimit, Power::from_watts)
     }
 }
-impl GetLightFlashing for BTMiner1 {}
-impl GetMessages for BTMiner1 {
+impl GetLightFlashing for WhatsMinerV1 {}
+impl GetMessages for WhatsMinerV1 {
     fn parse_messages(&self, data: &HashMap<DataField, Value>) -> Vec<MinerMessage> {
         let mut messages = Vec::new();
 
@@ -425,23 +425,22 @@ impl GetMessages for BTMiner1 {
         messages
     }
 }
-impl GetUptime for BTMiner1 {
+impl GetUptime for WhatsMinerV1 {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract_map::<u64, _>(DataField::Uptime, Duration::from_secs)
     }
 }
-impl GetIsMining for BTMiner1 {
+impl GetIsMining for WhatsMinerV1 {
     fn parse_is_mining(&self, data: &HashMap<DataField, Value>) -> bool {
         data.extract_map::<String, _>(DataField::IsMining, |l| l != "false")
             .unwrap_or(true)
     }
 }
-impl GetPools for BTMiner1 {
+impl GetPools for WhatsMinerV1 {
     fn parse_pools(&self, data: &HashMap<DataField, Value>) -> Vec<PoolData> {
         let mut pools: Vec<PoolData> = Vec::new();
         let pools_raw = data.get(&DataField::Pools);
-        if pools_raw.is_some() {
-            let pools_response = pools_raw.unwrap();
+        if let Some(pools_response) = pools_raw {
             for (idx, _) in pools_response
                 .as_array()
                 .unwrap_or(&Vec::new())

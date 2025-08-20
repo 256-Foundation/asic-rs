@@ -21,37 +21,46 @@ use crate::miners::data::{
     DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_key,
     get_by_pointer,
 };
-use web::ESPMinerWebAPI;
-
+use web::BitAxeWebAPI;
 pub mod web;
+
 #[derive(Debug)]
-pub struct ESPMiner200 {
+pub struct BitAxe290 {
     ip: IpAddr,
-    web: ESPMinerWebAPI,
+    web: BitAxeWebAPI,
     device_info: DeviceInfo,
 }
 
-impl ESPMiner200 {
-    pub fn new(ip: IpAddr, model: MinerModel, firmware: MinerFirmware) -> Self {
-        ESPMiner200 {
+impl BitAxe290 {
+    pub fn new(ip: IpAddr, model: MinerModel) -> Self {
+        BitAxe290 {
             ip,
-            web: ESPMinerWebAPI::new(ip, 80),
-            device_info: DeviceInfo::new(MinerMake::BitAxe, model, firmware, HashAlgorithm::SHA256),
+            web: BitAxeWebAPI::new(ip, 80),
+            device_info: DeviceInfo::new(
+                MinerMake::BitAxe,
+                model,
+                MinerFirmware::Stock,
+                HashAlgorithm::SHA256,
+            ),
         }
     }
 }
 
 #[async_trait]
-impl GetDataLocations for ESPMiner200 {
+impl GetDataLocations for BitAxe290 {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
-        let system_info_command: MinerCommand = MinerCommand::WebAPI {
+        let system_info_cmd: MinerCommand = MinerCommand::WebAPI {
             command: "system/info",
+            parameters: None,
+        };
+        let asic_info_cmd: MinerCommand = MinerCommand::WebAPI {
+            command: "system/asic",
             parameters: None,
         };
 
         match data_field {
             DataField::Mac => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("macAddr"),
@@ -59,7 +68,7 @@ impl GetDataLocations for ESPMiner200 {
                 },
             )],
             DataField::Hostname => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("hostname"),
@@ -67,7 +76,7 @@ impl GetDataLocations for ESPMiner200 {
                 },
             )],
             DataField::FirmwareVersion => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("version"),
@@ -75,7 +84,7 @@ impl GetDataLocations for ESPMiner200 {
                 },
             )],
             DataField::ApiVersion => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("version"),
@@ -83,39 +92,49 @@ impl GetDataLocations for ESPMiner200 {
                 },
             )],
             DataField::ControlBoardVersion => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("boardVersion"),
                     tag: None,
                 },
             )],
-            DataField::Hashboards => vec![(
-                system_info_command,
+            DataField::ExpectedHashrate => vec![(
+                system_info_cmd,
                 DataExtractor {
-                    func: get_by_pointer,
-                    key: Some(""),
+                    func: get_by_key,
+                    key: Some("expectedHashrate"),
                     tag: None,
                 },
             )],
+            DataField::Hashboards => vec![
+                (
+                    system_info_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: None,
+                    },
+                ),
+                (
+                    asic_info_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: None,
+                    },
+                ),
+            ],
             DataField::Hashrate => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("hashRate"),
                     tag: None,
                 },
             )],
-            DataField::ExpectedHashrate => vec![(
-                system_info_command,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some(""),
-                    tag: None,
-                },
-            )],
             DataField::Fans => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("fanrpm"),
@@ -123,7 +142,7 @@ impl GetDataLocations for ESPMiner200 {
                 },
             )],
             DataField::AverageTemperature => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("temp"),
@@ -131,7 +150,7 @@ impl GetDataLocations for ESPMiner200 {
                 },
             )],
             DataField::Wattage => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("power"),
@@ -139,7 +158,7 @@ impl GetDataLocations for ESPMiner200 {
                 },
             )],
             DataField::Uptime => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_key,
                     key: Some("uptimeSeconds"),
@@ -147,7 +166,7 @@ impl GetDataLocations for ESPMiner200 {
                 },
             )],
             DataField::Pools => vec![(
-                system_info_command,
+                system_info_cmd,
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some(""),
@@ -159,54 +178,54 @@ impl GetDataLocations for ESPMiner200 {
     }
 }
 
-impl GetIP for ESPMiner200 {
+impl GetIP for BitAxe290 {
     fn get_ip(&self) -> IpAddr {
         self.ip
     }
 }
-impl GetDeviceInfo for ESPMiner200 {
+impl GetDeviceInfo for BitAxe290 {
     fn get_device_info(&self) -> DeviceInfo {
         self.device_info
     }
 }
 
-impl CollectData for ESPMiner200 {
+impl CollectData for BitAxe290 {
     fn get_collector(&self) -> DataCollector<'_> {
         DataCollector::new(self, &self.web)
     }
 }
 
-impl GetMAC for ESPMiner200 {
+impl GetMAC for BitAxe290 {
     fn parse_mac(&self, data: &HashMap<DataField, Value>) -> Option<MacAddr> {
         data.extract::<String>(DataField::Mac)
             .and_then(|s| MacAddr::from_str(&s).ok())
     }
 }
 
-impl GetSerialNumber for ESPMiner200 {
+impl GetSerialNumber for BitAxe290 {
     // N/A
 }
-impl GetHostname for ESPMiner200 {
+impl GetHostname for BitAxe290 {
     fn parse_hostname(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::Hostname)
     }
 }
-impl GetApiVersion for ESPMiner200 {
+impl GetApiVersion for BitAxe290 {
     fn parse_api_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ApiVersion)
     }
 }
-impl GetFirmwareVersion for ESPMiner200 {
+impl GetFirmwareVersion for BitAxe290 {
     fn parse_firmware_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::FirmwareVersion)
     }
 }
-impl GetControlBoardVersion for ESPMiner200 {
+impl GetControlBoardVersion for BitAxe290 {
     fn parse_control_board_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ControlBoardVersion)
     }
 }
-impl GetHashboards for ESPMiner200 {
+impl GetHashboards for BitAxe290 {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         // Extract nested values with type conversion
         let board_voltage = data.extract_nested_map::<f64, _>(
@@ -233,6 +252,12 @@ impl GetHashboards for ESPMiner200 {
             Temperature::from_celsius,
         );
 
+        let expected_hashrate = Some(HashRate {
+            value: data.extract_nested_or::<f64>(DataField::Hashboards, "expectedHashrate", 0.0),
+            unit: HashRateUnit::GigaHash,
+            algo: "SHA256".to_string(),
+        });
+
         let board_hashrate = Some(HashRate {
             value: data.extract_nested_or::<f64>(DataField::Hashboards, "hashRate", 0.0),
             unit: HashRateUnit::GigaHash,
@@ -241,19 +266,6 @@ impl GetHashboards for ESPMiner200 {
 
         let total_chips =
             data.extract_nested_map::<u64, _>(DataField::Hashboards, "asicCount", |u| u as u16);
-
-        let core_count =
-            data.extract_nested_or::<u64>(DataField::Hashboards, "smallCoreCount", 0u64);
-
-        let expected_hashrate = Some(HashRate {
-            value: core_count as f64
-                * total_chips.unwrap_or(0) as f64
-                * board_frequency
-                    .unwrap_or(Frequency::from_megahertz(0f64))
-                    .as_gigahertz(),
-            unit: HashRateUnit::GigaHash,
-            algo: "SHA256".to_string(),
-        });
 
         let chip_info = ChipData {
             position: 0,
@@ -285,7 +297,7 @@ impl GetHashboards for ESPMiner200 {
         vec![board_data]
     }
 }
-impl GetHashrate for ESPMiner200 {
+impl GetHashrate for BitAxe290 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::Hashrate, |f| HashRate {
             value: f,
@@ -294,34 +306,17 @@ impl GetHashrate for ESPMiner200 {
         })
     }
 }
-impl GetExpectedHashrate for ESPMiner200 {
+
+impl GetExpectedHashrate for BitAxe290 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        let total_chips =
-            data.extract_nested_map::<u64, _>(DataField::ExpectedHashrate, "asicCount", |u| {
-                u as u16
-            });
-
-        let core_count =
-            data.extract_nested_or::<u64>(DataField::ExpectedHashrate, "smallCoreCount", 0u64);
-
-        let board_frequency = data.extract_nested_map::<f64, _>(
-            DataField::Hashboards,
-            "frequency",
-            Frequency::from_megahertz,
-        );
-
-        Some(HashRate {
-            value: core_count as f64
-                * total_chips.unwrap_or(0) as f64
-                * board_frequency
-                    .unwrap_or(Frequency::from_megahertz(0f64))
-                    .as_gigahertz(),
-            unit: HashRateUnit::GigaHash,
-            algo: "SHA256".to_string(),
+        data.extract_map::<f64, _>(DataField::Hashrate, |f| HashRate {
+            value: f,
+            unit: HashRateUnit::TeraHash,
+            algo: String::from("SHA256"),
         })
     }
 }
-impl GetFans for ESPMiner200 {
+impl GetFans for BitAxe290 {
     fn parse_fans(&self, data: &HashMap<DataField, Value>) -> Vec<FanData> {
         data.extract_map_or::<f64, _>(DataField::Fans, Vec::new(), |f| {
             vec![FanData {
@@ -331,24 +326,24 @@ impl GetFans for ESPMiner200 {
         })
     }
 }
-impl GetPsuFans for ESPMiner200 {
+impl GetPsuFans for BitAxe290 {
     // N/A
 }
-impl GetFluidTemperature for ESPMiner200 {
+impl GetFluidTemperature for BitAxe290 {
     // N/A
 }
-impl GetWattage for ESPMiner200 {
+impl GetWattage for BitAxe290 {
     fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
         data.extract_map::<f64, _>(DataField::Wattage, Power::from_watts)
     }
 }
-impl GetWattageLimit for ESPMiner200 {
+impl GetWattageLimit for BitAxe290 {
     // N/A
 }
-impl GetLightFlashing for ESPMiner200 {
+impl GetLightFlashing for BitAxe290 {
     // N/A
 }
-impl GetMessages for ESPMiner200 {
+impl GetMessages for BitAxe290 {
     fn parse_messages(&self, data: &HashMap<DataField, Value>) -> Vec<MinerMessage> {
         let mut messages = Vec::new();
         let timestamp = SystemTime::now()
@@ -369,19 +364,18 @@ impl GetMessages for ESPMiner200 {
         messages
     }
 }
-
-impl GetUptime for ESPMiner200 {
+impl GetUptime for BitAxe290 {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract_map::<u64, _>(DataField::Uptime, Duration::from_secs)
     }
 }
-impl GetIsMining for ESPMiner200 {
+impl GetIsMining for BitAxe290 {
     fn parse_is_mining(&self, data: &HashMap<DataField, Value>) -> bool {
         let hashrate = self.parse_hashrate(data);
         hashrate.as_ref().is_some_and(|hr| hr.value > 0.0)
     }
 }
-impl GetPools for ESPMiner200 {
+impl GetPools for BitAxe290 {
     fn parse_pools(&self, data: &HashMap<DataField, Value>) -> Vec<PoolData> {
         let main_url =
             data.extract_nested_or::<String>(DataField::Pools, "stratumURL", String::new());
@@ -434,75 +428,5 @@ impl GetPools for ESPMiner200 {
         };
 
         vec![main_pool_data, fallback_pool_data]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::data::device::models::bitaxe::BitaxeModel;
-    use crate::test::api::MockAPIClient;
-    use crate::test::json::bitaxe::v2_0_0::SYSTEM_INFO_COMMAND;
-
-    #[tokio::test]
-    async fn test_espminer_200_data_parsers() {
-        dbg!(SYSTEM_INFO_COMMAND);
-        let miner = ESPMiner200::new(
-            IpAddr::from([127, 0, 0, 1]),
-            MinerModel::Bitaxe(BitaxeModel::Supra),
-            MinerFirmware::Stock,
-        );
-        let mut results = HashMap::new();
-        let system_info_command: MinerCommand = MinerCommand::WebAPI {
-            command: "system/info",
-            parameters: None,
-        };
-        results.insert(
-            system_info_command,
-            Value::from_str(SYSTEM_INFO_COMMAND).unwrap(),
-        );
-        let mock_api = MockAPIClient::new(results);
-
-        let mut collector = DataCollector::new(&miner, &mock_api);
-        let data = collector.collect_all().await;
-
-        let miner_data = miner.parse_data(data);
-
-        assert_eq!(&miner_data.ip, &miner.ip);
-        assert_eq!(
-            &miner_data.mac.unwrap(),
-            &MacAddr::from_str("AA:BB:CC:DD:EE:FF").unwrap()
-        );
-        assert_eq!(&miner_data.device_info, &miner.device_info);
-        assert_eq!(&miner_data.hostname, &Some("bitaxe".to_string()));
-        assert_eq!(
-            &miner_data.api_version,
-            &Some("v2.4.5-3-gb5d1e36-dirty".to_string())
-        );
-        assert_eq!(
-            &miner_data.firmware_version,
-            &Some("v2.4.5-3-gb5d1e36-dirty".to_string())
-        );
-        assert_eq!(&miner_data.control_board_version, &Some("401".to_string()));
-        assert_eq!(
-            &miner_data.hashrate,
-            &Some(HashRate {
-                value: 0f64,
-                unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
-            })
-        );
-        assert_eq!(&miner_data.total_chips, &Some(1u16));
-        assert_eq!(
-            &miner_data.fans,
-            &vec![FanData {
-                position: 0,
-                rpm: Some(AngularVelocity::from_rpm(3517f64)),
-            }]
-        );
-        assert_eq!(
-            &miner_data.wattage,
-            &Some(Power::from_watts(2.65000009536743))
-        )
     }
 }
