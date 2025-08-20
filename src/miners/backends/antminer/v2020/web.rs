@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use std::{net::IpAddr, time::Duration};
 
 #[derive(Debug)]
-pub struct Antminer2022WebAPI {
+pub struct AntMinerWebAPI {
     ip: IpAddr,
     port: u16,
     client: Client,
@@ -17,7 +17,7 @@ pub struct Antminer2022WebAPI {
     password: String,
 }
 
-impl Antminer2022WebAPI {
+impl AntMinerWebAPI {
     pub fn new(ip: IpAddr) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(10))
@@ -42,11 +42,9 @@ impl Antminer2022WebAPI {
         client
     }
 
-    pub fn with_timeout(ip: IpAddr, port: Option<u16>, timeout: Duration) -> Self {
+    pub fn with_timeout(ip: IpAddr, timeout: Duration) -> Self {
         let mut client = Self::new(ip);
-        if let Some(p) = port {
-            client.port = p;
-        }
+        client.port = 80;
         client.timeout = timeout;
         client
     }
@@ -171,7 +169,7 @@ impl Antminer2022WebAPI {
 }
 
 #[async_trait]
-impl APIClient for Antminer2022WebAPI {
+impl APIClient for AntMinerWebAPI {
     async fn get_api_result(&self, command: &MinerCommand) -> Result<Value> {
         match command {
             MinerCommand::WebAPI {
@@ -187,7 +185,7 @@ impl APIClient for Antminer2022WebAPI {
 }
 
 #[async_trait]
-impl WebAPIClient for Antminer2022WebAPI {
+impl WebAPIClient for AntMinerWebAPI {
     async fn send_command(
         &self,
         command: &str,

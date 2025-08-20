@@ -9,12 +9,12 @@ use std::net::IpAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug)]
-pub struct Antminer2020RPCAPI {
+pub struct AntMinerRPCAPI {
     ip: IpAddr,
     port: u16,
 }
 
-impl Antminer2020RPCAPI {
+impl AntMinerRPCAPI {
     pub fn new(ip: IpAddr) -> Self {
         Self { ip, port: 4028 }
     }
@@ -122,7 +122,7 @@ impl Antminer2020RPCAPI {
 }
 
 #[async_trait]
-impl APIClient for Antminer2020RPCAPI {
+impl APIClient for AntMinerRPCAPI {
     async fn get_api_result(&self, command: &MinerCommand) -> Result<Value> {
         match command {
             MinerCommand::RPC {
@@ -138,7 +138,7 @@ impl APIClient for Antminer2020RPCAPI {
 }
 
 #[async_trait]
-impl RPCAPIClient for Antminer2020RPCAPI {
+impl RPCAPIClient for AntMinerRPCAPI {
     async fn send_command(
         &self,
         command: &str,

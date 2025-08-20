@@ -1,9 +1,9 @@
-pub mod Antminer2022;
+pub mod v2020;
 
 use crate::data::device::MinerModel;
 use crate::miners::backends::traits::GetMinerData;
-use Antminer2022::Antminer2022 as AntminerV3;
 use std::net::IpAddr;
+use v2020::AntMinerV2020;
 
 pub struct AntMiner;
 
@@ -13,13 +13,6 @@ impl AntMiner {
         model: MinerModel,
         version: Option<semver::Version>,
     ) -> Box<dyn GetMinerData> {
-        if let Some(version) = version {
-            match version.major {
-                2022 => Box::new(AntminerV3::new(ip, model)),
-                _ => unreachable!(),
-            }
-        } else {
-            unreachable!()
-        }
+        Box::new(AntMinerV2020::new(ip, model))
     }
 }

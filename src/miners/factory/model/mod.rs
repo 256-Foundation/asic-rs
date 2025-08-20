@@ -114,7 +114,7 @@ pub(crate) async fn get_model_antminer(ip: IpAddr) -> Option<MinerModel> {
     }
 }
 
-pub(crate) async fn get_version_antminer_stock(ip: IpAddr) -> Option<semver::Version> {
+pub(crate) async fn get_version_antminer(ip: IpAddr) -> Option<semver::Version> {
     let response: Option<Response> = Client::new()
         .get(format!("http://{ip}/cgi-bin/summary.cgi"))
         .send_with_digest_auth("root", "root")
