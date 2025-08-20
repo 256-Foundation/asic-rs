@@ -165,7 +165,7 @@ fn select_backend(
         (Some(MinerModel::AvalonMiner(_)), Some(MinerFirmware::Stock)) => {
             Some(AvalonMiner::new(ip, model?, version))
         }
-        (Some(MinerMake::AntMiner), Some(MinerFirmware::Stock)) => {
+        (Some(MinerModel::AntMiner(_)), Some(MinerFirmware::Stock)) => {
             Some(AntMiner::new(ip, model?, version))
         }
         (Some(_), Some(MinerFirmware::VNish)) => Some(Vnish::new(ip, model?, version)),
