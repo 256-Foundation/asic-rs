@@ -8,9 +8,7 @@ use crate::miners::backends::traits::{GetMinerData, MinerConstructor};
 
 pub mod v1;
 
-
 pub struct PowerPlay;
-
 
 impl MinerConstructor for PowerPlay {
     #[allow(clippy::new_ret_no_self)]
