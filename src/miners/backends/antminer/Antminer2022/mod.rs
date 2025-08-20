@@ -1,3 +1,6 @@
+mod rpc;
+mod web;
+
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -7,15 +10,13 @@ use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature};
 use serde_json::Value;
 
-use super::rpc::AntminerRPCClient;
-use super::web::AntminerWebClient;
 use crate::data::board::BoardData;
 use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerMake, MinerModel};
 use crate::data::fan::FanData;
 use crate::data::hashrate::{HashRate, HashRateUnit};
 use crate::data::message::{MessageSeverity, MinerMessage};
 use crate::data::pool::{PoolData, PoolURL};
-use crate::miners::api::{APIClient, RPCAPIClient, WebAPIClient};
+use crate::miners::api::APIClient;
 use crate::miners::backends::traits::*;
 use crate::miners::commands::MinerCommand;
 use crate::miners::data::{
@@ -23,46 +24,27 @@ use crate::miners::data::{
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use reqwest::Method;
+use rpc::Antminer2020RPCAPI;
+use web::Antminer2022WebAPI;
 
 #[derive(Debug)]
-pub struct AntminerModern {
+pub struct Antminer2022 {
     pub ip: IpAddr,
-    pub rpc_client: AntminerRPCClient,
-    pub web_client: AntminerWebClient,
+    pub rpc_client: Antminer2020RPCAPI,
+    pub web_client: Antminer2022WebAPI,
     pub device_info: DeviceInfo,
 }
 
-impl AntminerModern {
-    pub fn new(ip: IpAddr, model: MinerModel, firmware: MinerFirmware) -> Self {
-        AntminerModern {
+impl Antminer2022 {
+    pub fn new(ip: IpAddr, model: MinerModel) -> Self {
+        Antminer2022 {
             ip,
-            rpc_client: AntminerRPCClient::new(ip, Some(4028)),
-            web_client: AntminerWebClient::new(ip, Some(80)),
+            rpc_client: Antminer2020RPCAPI::new(ip),
+            web_client: Antminer2022WebAPI::new(ip),
             device_info: DeviceInfo::new(
                 MinerMake::AntMiner,
                 model,
-                firmware,
-                HashAlgorithm::SHA256,
-            ),
-        }
-    }
-
-    pub fn with_ports(
-        ip: IpAddr,
-        model: MinerModel,
-        firmware: MinerFirmware,
-        rpc_port: Option<u16>,
-        web_port: Option<u16>,
-    ) -> Self {
-        AntminerModern {
-            ip,
-            rpc_client: AntminerRPCClient::new(ip, rpc_port),
-            web_client: AntminerWebClient::new(ip, web_port),
-            device_info: DeviceInfo::new(
-                MinerMake::AntMiner,
-                model,
-                firmware,
+                MinerFirmware::Stock,
                 HashAlgorithm::SHA256,
             ),
         }
@@ -75,10 +57,10 @@ impl AntminerModern {
         username: String,
         password: String,
     ) -> Self {
-        AntminerModern {
+        Antminer2022 {
             ip,
-            rpc_client: AntminerRPCClient::new(ip, Some(4028)),
-            web_client: AntminerWebClient::with_auth(ip, Some(80), username, password),
+            rpc_client: Antminer2020RPCAPI::new(ip),
+            web_client: Antminer2022WebAPI::with_auth(ip, username, password),
             device_info: DeviceInfo::new(
                 MinerMake::AntMiner,
                 model,
@@ -103,7 +85,7 @@ impl AntminerModern {
         }
     }
 
-    fn calculate_average_temp_s21_hyd(chain: &Value) -> Option<Temperature> {
+    fn _calculate_average_temp_s21_hyd(chain: &Value) -> Option<Temperature> {
         let mut temps = Vec::new();
 
         if let Some(temp_pic) = chain.get("temp_pic").and_then(|v| v.as_array()) {
@@ -137,7 +119,7 @@ impl AntminerModern {
         }
     }
 
-    fn calculate_average_temp_pcb(chain: &Value) -> Option<Temperature> {
+    fn _calculate_average_temp_pcb(chain: &Value) -> Option<Temperature> {
         if let Some(temp_pcb) = chain.get("temp_pcb").and_then(|v| v.as_array()) {
             let temps: Vec<f64> = temp_pcb
                 .iter()
@@ -156,7 +138,7 @@ impl AntminerModern {
         }
     }
 
-    fn calculate_average_temp_chip(chain: &Value) -> Option<Temperature> {
+    fn _calculate_average_temp_chip(chain: &Value) -> Option<Temperature> {
         if let Some(temp_chip) = chain.get("temp_chip").and_then(|v| v.as_array()) {
             let temps: Vec<f64> = temp_chip
                 .iter()
@@ -177,31 +159,17 @@ impl AntminerModern {
 }
 
 #[async_trait]
-impl APIClient for AntminerModern {
+impl APIClient for Antminer2022 {
     async fn get_api_result(&self, command: &MinerCommand) -> Result<Value> {
         match command {
-            MinerCommand::RPC {
-                command,
-                parameters,
-            } => {
-                self.rpc_client
-                    .send_command(command, false, parameters.clone())
-                    .await
-            }
-            MinerCommand::WebAPI {
-                command,
-                parameters,
-            } => {
-                self.web_client
-                    .send_command(command, false, parameters.clone(), Method::GET)
-                    .await
-            }
+            MinerCommand::RPC { .. } => self.rpc_client.get_api_result(command).await,
+            MinerCommand::WebAPI { .. } => self.web_client.get_api_result(command).await,
             _ => Err(anyhow!("Unsupported command type for Antminer API")),
         }
     }
 }
 
-impl GetDataLocations for AntminerModern {
+impl GetDataLocations for Antminer2022 {
     fn get_locations(&self, data_field: DataField) -> Vec<DataLocation> {
         let version_cmd = MinerCommand::RPC {
             command: "version",
@@ -369,50 +337,50 @@ impl GetDataLocations for AntminerModern {
     }
 }
 
-impl GetIP for AntminerModern {
+impl GetIP for Antminer2022 {
     fn get_ip(&self) -> IpAddr {
         self.ip
     }
 }
 
-impl GetDeviceInfo for AntminerModern {
+impl GetDeviceInfo for Antminer2022 {
     fn get_device_info(&self) -> DeviceInfo {
         self.device_info
     }
 }
 
-impl CollectData for AntminerModern {
+impl CollectData for Antminer2022 {
     fn get_collector(&self) -> DataCollector<'_> {
         DataCollector::new(self, self)
     }
 }
 
-impl GetMAC for AntminerModern {
+impl GetMAC for Antminer2022 {
     fn parse_mac(&self, data: &HashMap<DataField, Value>) -> Option<MacAddr> {
         data.extract::<String>(DataField::Mac)
             .and_then(|s| MacAddr::from_str(&s).ok())
     }
 }
 
-impl GetHostname for AntminerModern {
+impl GetHostname for Antminer2022 {
     fn parse_hostname(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::Hostname)
     }
 }
 
-impl GetApiVersion for AntminerModern {
+impl GetApiVersion for Antminer2022 {
     fn parse_api_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ApiVersion)
     }
 }
 
-impl GetFirmwareVersion for AntminerModern {
+impl GetFirmwareVersion for Antminer2022 {
     fn parse_firmware_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::FirmwareVersion)
     }
 }
 
-impl GetHashboards for AntminerModern {
+impl GetHashboards for Antminer2022 {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
         let board_count = self.device_info.hardware.boards.unwrap_or(3);
@@ -502,7 +470,7 @@ impl GetHashboards for AntminerModern {
     }
 }
 
-impl GetHashrate for AntminerModern {
+impl GetHashrate for Antminer2022 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::Hashrate, |f| {
             HashRate {
@@ -515,7 +483,7 @@ impl GetHashrate for AntminerModern {
     }
 }
 
-impl GetExpectedHashrate for AntminerModern {
+impl GetExpectedHashrate for Antminer2022 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
         data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| {
             HashRate {
@@ -528,7 +496,7 @@ impl GetExpectedHashrate for AntminerModern {
     }
 }
 
-impl GetFans for AntminerModern {
+impl GetFans for Antminer2022 {
     fn parse_fans(&self, data: &HashMap<DataField, Value>) -> Vec<FanData> {
         let mut fans: Vec<FanData> = Vec::new();
 
@@ -550,7 +518,7 @@ impl GetFans for AntminerModern {
     }
 }
 
-impl GetLightFlashing for AntminerModern {
+impl GetLightFlashing for Antminer2022 {
     fn parse_light_flashing(&self, data: &HashMap<DataField, Value>) -> Option<bool> {
         data.extract::<bool>(DataField::LightFlashing).or_else(|| {
             data.extract::<String>(DataField::LightFlashing)
@@ -559,13 +527,13 @@ impl GetLightFlashing for AntminerModern {
     }
 }
 
-impl GetUptime for AntminerModern {
+impl GetUptime for Antminer2022 {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract_map::<u64, _>(DataField::Uptime, Duration::from_secs)
     }
 }
 
-impl GetIsMining for AntminerModern {
+impl GetIsMining for Antminer2022 {
     fn parse_is_mining(&self, data: &HashMap<DataField, Value>) -> bool {
         data.extract::<String>(DataField::IsMining)
             .map(|status| {
@@ -577,7 +545,7 @@ impl GetIsMining for AntminerModern {
     }
 }
 
-impl GetPools for AntminerModern {
+impl GetPools for Antminer2022 {
     fn parse_pools(&self, data: &HashMap<DataField, Value>) -> Vec<PoolData> {
         let mut pools: Vec<PoolData> = Vec::new();
 
@@ -622,15 +590,15 @@ impl GetPools for AntminerModern {
     }
 }
 
-impl GetSerialNumber for AntminerModern {
+impl GetSerialNumber for Antminer2022 {
     fn parse_serial_number(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::SerialNumber)
     }
 }
 
-impl GetControlBoardVersion for AntminerModern {}
+impl GetControlBoardVersion for Antminer2022 {}
 
-impl GetWattage for AntminerModern {
+impl GetWattage for Antminer2022 {
     fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
         if let Some(stats_data) = data.get(&DataField::Wattage) {
             if let Some(chain_power) = stats_data.get("chain_power")
@@ -656,9 +624,9 @@ impl GetWattage for AntminerModern {
     }
 }
 
-impl GetWattageLimit for AntminerModern {}
+impl GetWattageLimit for Antminer2022 {}
 
-impl GetFluidTemperature for AntminerModern {
+impl GetFluidTemperature for Antminer2022 {
     fn parse_fluid_temperature(&self, data: &HashMap<DataField, Value>) -> Option<Temperature> {
         // For S21+ Hyd models, use inlet/outlet temperature average
         if self.device_info.model.to_string().contains("S21+ Hyd")
@@ -692,9 +660,9 @@ impl GetFluidTemperature for AntminerModern {
     }
 }
 
-impl GetPsuFans for AntminerModern {}
+impl GetPsuFans for Antminer2022 {}
 
-impl GetMessages for AntminerModern {
+impl GetMessages for Antminer2022 {
     fn parse_messages(&self, data: &HashMap<DataField, Value>) -> Vec<MinerMessage> {
         let mut messages = Vec::new();
 
@@ -738,10 +706,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_antminer() {
-        let miner = AntminerModern::new(
+        let miner = Antminer2022::new(
             IpAddr::from([127, 0, 0, 1]),
             MinerModel::AntMiner(AntMinerModel::S19Pro),
-            MinerFirmware::Stock,
         );
 
         let mut results = HashMap::new();

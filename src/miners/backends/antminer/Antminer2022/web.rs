@@ -2,12 +2,13 @@ use crate::miners::api::{APIClient, WebAPIClient};
 use crate::miners::commands::MinerCommand;
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
+use diqwest::WithDigestAuth;
 use reqwest::{Client, Method, Response};
 use serde_json::{Value, json};
 use std::{net::IpAddr, time::Duration};
 
 #[derive(Debug)]
-pub struct AntminerWebClient {
+pub struct Antminer2022WebAPI {
     ip: IpAddr,
     port: u16,
     client: Client,
@@ -16,8 +17,8 @@ pub struct AntminerWebClient {
     password: String,
 }
 
-impl AntminerWebClient {
-    pub fn new(ip: IpAddr, port: Option<u16>) -> Self {
+impl Antminer2022WebAPI {
+    pub fn new(ip: IpAddr) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(10))
             .build()
@@ -25,7 +26,7 @@ impl AntminerWebClient {
 
         Self {
             ip,
-            port: port.unwrap_or(80),
+            port: 80,
             client,
             timeout: Duration::from_secs(5),
             username: "root".to_string(),
@@ -33,15 +34,19 @@ impl AntminerWebClient {
         }
     }
 
-    pub fn with_auth(ip: IpAddr, port: Option<u16>, username: String, password: String) -> Self {
-        let mut client = Self::new(ip, port);
+    pub fn with_auth(ip: IpAddr, username: String, password: String) -> Self {
+        let mut client = Self::new(ip);
+        client.port = 80;
         client.username = username;
         client.password = password;
         client
     }
 
     pub fn with_timeout(ip: IpAddr, port: Option<u16>, timeout: Duration) -> Self {
-        let mut client = Self::new(ip, port);
+        let mut client = Self::new(ip);
+        if let Some(p) = port {
+            client.port = p;
+        }
         client.timeout = timeout;
         client
     }
@@ -74,28 +79,26 @@ impl AntminerWebClient {
         method: &Method,
         parameters: Option<Value>,
     ) -> Result<Response> {
-        let auth = (self.username.clone(), Some(self.password.clone()));
-
-        let request_builder = match *method {
-            Method::GET => self.client.get(url).basic_auth(auth.0, auth.1),
+        let response = match *method {
+            Method::GET => self
+                .client
+                .get(url)
+                .timeout(self.timeout)
+                .send_with_digest_auth(&self.username, &self.password)
+                .await
+                .map_err(|e| anyhow!(e.to_string()))?,
             Method::POST => {
                 let data = parameters.unwrap_or_else(|| json!({}));
-                self.client.post(url).json(&data).basic_auth(auth.0, auth.1)
+                self.client
+                    .post(url)
+                    .json(&data)
+                    .timeout(self.timeout)
+                    .send_with_digest_auth(&self.username, &self.password)
+                    .await
+                    .map_err(|e| anyhow!(e.to_string()))?
             }
             _ => bail!("Unsupported method: {}", method),
         };
-
-        let request_builder = request_builder.timeout(self.timeout);
-
-        let request = request_builder
-            .build()
-            .map_err(|e| anyhow!(e.to_string()))?;
-
-        let response = self
-            .client
-            .execute(request)
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(response)
     }
@@ -168,7 +171,7 @@ impl AntminerWebClient {
 }
 
 #[async_trait]
-impl APIClient for AntminerWebClient {
+impl APIClient for Antminer2022WebAPI {
     async fn get_api_result(&self, command: &MinerCommand) -> Result<Value> {
         match command {
             MinerCommand::WebAPI {
@@ -184,7 +187,7 @@ impl APIClient for AntminerWebClient {
 }
 
 #[async_trait]
-impl WebAPIClient for AntminerWebClient {
+impl WebAPIClient for Antminer2022WebAPI {
     async fn send_command(
         &self,
         command: &str,

@@ -5,31 +5,18 @@ use crate::miners::commands::MinerCommand;
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use std::{net::IpAddr, time::Duration};
+use std::net::IpAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug)]
-pub struct AntminerRPCClient {
+pub struct Antminer2020RPCAPI {
     ip: IpAddr,
     port: u16,
-    timeout: Duration,
 }
 
-impl AntminerRPCClient {
-    pub fn new(ip: IpAddr, port: Option<u16>) -> Self {
-        Self {
-            ip,
-            port: port.unwrap_or(4028),
-            timeout: Duration::from_secs(5),
-        }
-    }
-
-    pub fn with_timeout(ip: IpAddr, port: Option<u16>, timeout: Duration) -> Self {
-        Self {
-            ip,
-            port: port.unwrap_or(4028),
-            timeout,
-        }
+impl Antminer2020RPCAPI {
+    pub fn new(ip: IpAddr) -> Self {
+        Self { ip, port: 4028 }
     }
 
     async fn send_rpc_command(
@@ -135,7 +122,7 @@ impl AntminerRPCClient {
 }
 
 #[async_trait]
-impl APIClient for AntminerRPCClient {
+impl APIClient for Antminer2020RPCAPI {
     async fn get_api_result(&self, command: &MinerCommand) -> Result<Value> {
         match command {
             MinerCommand::RPC {
@@ -151,7 +138,7 @@ impl APIClient for AntminerRPCClient {
 }
 
 #[async_trait]
-impl RPCAPIClient for AntminerRPCClient {
+impl RPCAPIClient for Antminer2020RPCAPI {
     async fn send_command(
         &self,
         command: &str,
