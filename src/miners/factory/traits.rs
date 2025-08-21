@@ -50,7 +50,7 @@ impl ModelSelection for MinerFirmware {
             MinerFirmware::BraiinsOS => model::get_model_braiins_os(ip).await,
             MinerFirmware::VNish => model::get_model_vnish(ip).await,
             MinerFirmware::EPic => model::get_model_epic(ip).await,
-            MinerFirmware::Marathon => model::get_model_antminer(ip).await,
+            MinerFirmware::Marathon => model::get_model_marathon(ip).await,
             _ => None,
         }
     }
