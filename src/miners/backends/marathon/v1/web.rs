@@ -47,10 +47,10 @@ impl MaraWebAPI {
             _ => return Err(anyhow!("Unsupported HTTP method")),
         };
 
-        if let Some(params) = parameters {
-            if method == Method::POST {
-                request_builder = request_builder.json(&params);
-            }
+        if let Some(params) = parameters
+            && method == Method::POST
+        {
+            request_builder = request_builder.json(&params);
         }
 
         let response = request_builder

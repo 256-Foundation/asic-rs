@@ -357,14 +357,14 @@ impl GetFans for MaraV1 {
             }
         }
 
-        if fans.is_empty() {
-            if let Some(expected_fans) = self.device_info.hardware.fans {
-                for i in 0..expected_fans {
-                    fans.push(FanData {
-                        position: i as i16,
-                        rpm: None,
-                    });
-                }
+        if fans.is_empty()
+            && let Some(expected_fans) = self.device_info.hardware.fans
+        {
+            for i in 0..expected_fans {
+                fans.push(FanData {
+                    position: i as i16,
+                    rpm: None,
+                });
             }
         }
 
@@ -428,11 +428,11 @@ impl GetPools for MaraV1 {
                     pool_info.get("status").and_then(|v| v.as_str()),
                     pool_info.get("priority").and_then(|v| v.as_i64()),
                     pool_info.get("index").and_then(|v| v.as_u64()),
-                ) {
-                    if status == "Alive" && (priority as i32) < highest_priority {
-                        highest_priority = priority as i32;
-                        active_pool_index = Some(index as u16);
-                    }
+                ) && status == "Alive"
+                    && (priority as i32) < highest_priority
+                {
+                    highest_priority = priority as i32;
+                    active_pool_index = Some(index as u16);
                 }
             }
 
