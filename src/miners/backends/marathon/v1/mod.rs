@@ -1,4 +1,4 @@
-use crate::data::board::BoardData;
+use crate::data::board::{BoardData, ChipData};
 use crate::data::device::MinerMake;
 use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerModel};
 use crate::data::fan::FanData;
@@ -12,13 +12,14 @@ use crate::miners::data::{
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use macaddr::MacAddr;
-use measurements::{AngularVelocity, Frequency, Power, Temperature};
+use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
+use crate::data::message::{MessageSeverity, MinerMessage};
 use web::MaraWebAPI;
 
 mod web;
@@ -72,6 +73,8 @@ impl GetDataLocations for MaraV1 {
         let network_config_cmd = cmd("network_config");
         let miner_config_cmd = cmd("miner_config");
         let locate_miner_cmd = cmd("locate_miner");
+        let details_cmd = cmd("details");
+        let messages_cmd = cmd("event_chart");
 
         match data_field {
             DataField::Mac => vec![(
@@ -123,10 +126,10 @@ impl GetDataLocations for MaraV1 {
                 },
             )],
             DataField::Hashboards => vec![(
-                hashboards_cmd,
+                details_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some(""),
+                    key: Some("/hashboard_infos"),
                     tag: None,
                 },
             )],
@@ -186,6 +189,22 @@ impl GetDataLocations for MaraV1 {
                     tag: None,
                 },
             )],
+            DataField::ExpectedHashboards => vec![(
+                hashboards_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/hashboards"),
+                    tag: None,
+                },
+            )],
+            DataField::Messages => vec![(
+                messages_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/event_flags"),
+                    tag: None,
+                },
+            )],
             _ => vec![],
         }
     }
@@ -234,6 +253,56 @@ impl GetFirmwareVersion for MaraV1 {
 
 impl GetControlBoardVersion for MaraV1 {}
 
+impl MaraV1 {
+    fn parse_chip_data(asic_infos: &Value) -> Vec<ChipData> {
+        asic_infos
+            .as_array()
+            .map(|chips| {
+                chips
+                    .iter()
+                    .filter_map(|chip| {
+                        let position = chip.get("index")?.as_u64()? as u16;
+
+                        let hashrate =
+                            chip.get("hashrate_avg")
+                                .and_then(|hr| hr.as_f64())
+                                .map(|value| HashRate {
+                                    value,
+                                    unit: HashRateUnit::GigaHash,
+                                    algo: "SHA256".to_string(),
+                                });
+
+                        let voltage = chip
+                            .get("voltage")
+                            .and_then(|v| v.as_f64())
+                            .map(Voltage::from_volts);
+
+                        let frequency = chip
+                            .get("frequency")
+                            .and_then(|f| f.as_f64())
+                            .map(Frequency::from_megahertz);
+
+                        let working = chip
+                            .get("hashrate_avg")
+                            .and_then(|hr| hr.as_f64())
+                            .map(|hr| hr > 0.0);
+
+                        Some(ChipData {
+                            position,
+                            hashrate,
+                            temperature: None,
+                            voltage,
+                            frequency,
+                            tuned: None,
+                            working,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
+
 impl GetHashboards for MaraV1 {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
         let mut hashboards: Vec<BoardData> = Vec::new();
@@ -260,23 +329,23 @@ impl GetHashboards for MaraV1 {
         }
 
         if let Some(hashboards_data) = data.get(&DataField::Hashboards)
-            && let Some(hb_array) = hashboards_data
-                .pointer("/hashboards")
-                .and_then(|v| v.as_array())
+            && let Some(hb_array) = hashboards_data.as_array()
         {
-            let freq = hashboards_data
-                .pointer("frequency_average")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0); // We only get average
+            let hashboard_temps = data
+                .get(&DataField::ExpectedHashboards)
+                .and_then(|v| v.as_array());
 
             for hb in hb_array {
                 if let Some(idx) = hb.get("index").and_then(|v| v.as_u64())
                     && let Some(hashboard) = hashboards.get_mut(idx as usize)
                 {
                     hashboard.position = idx as u8;
-                    hashboard.frequency = Some(Frequency::from_megahertz(freq));
 
-                    if let Some(hashrate) = hb.get("hashrate_average").and_then(|v| v.as_f64()) {
+                    let hb_temps = hashboard_temps
+                        .and_then(|temps| temps.get(idx as usize))
+                        .and_then(|v| v.as_object());
+
+                    if let Some(hashrate) = hb.get("hashrate_avg").and_then(|v| v.as_f64()) {
                         hashboard.hashrate = Some(HashRate {
                             value: hashrate,
                             unit: HashRateUnit::GigaHash,
@@ -284,20 +353,29 @@ impl GetHashboards for MaraV1 {
                         });
                     }
 
-                    if let Some(temp_pcb) = hb.get("temperature_pcb").and_then(|v| v.as_array()) {
-                        let temps: Vec<f64> = temp_pcb.iter().filter_map(|t| t.as_f64()).collect();
-                        if !temps.is_empty() {
-                            let avg_temp = temps.iter().sum::<f64>() / temps.len() as f64;
-                            hashboard.board_temperature = Some(Temperature::from_celsius(avg_temp));
+                    if let Some(temps_obj) = hb_temps {
+                        if let Some(temp_pcb) =
+                            temps_obj.get("temperature_pcb").and_then(|v| v.as_array())
+                        {
+                            let temps: Vec<f64> =
+                                temp_pcb.iter().filter_map(|t| t.as_f64()).collect();
+                            if !temps.is_empty() {
+                                let avg_temp = temps.iter().sum::<f64>() / temps.len() as f64;
+                                hashboard.board_temperature =
+                                    Some(Temperature::from_celsius(avg_temp));
+                            }
                         }
-                    }
 
-                    if let Some(temp_chip) = hb.get("temperature_chip").and_then(|v| v.as_array()) {
-                        let temps: Vec<f64> = temp_chip.iter().filter_map(|t| t.as_f64()).collect();
-                        if !temps.is_empty() {
-                            let avg_temp = temps.iter().sum::<f64>() / temps.len() as f64;
-                            hashboard.intake_temperature =
-                                Some(Temperature::from_celsius(avg_temp));
+                        if let Some(temp_raw) =
+                            temps_obj.get("temperature_raw").and_then(|v| v.as_array())
+                        {
+                            let temps: Vec<f64> =
+                                temp_raw.iter().filter_map(|t| t.as_f64()).collect();
+                            if !temps.is_empty() {
+                                let avg_temp = temps.iter().sum::<f64>() / temps.len() as f64;
+                                hashboard.intake_temperature =
+                                    Some(Temperature::from_celsius(avg_temp));
+                            }
                         }
                     }
 
@@ -309,7 +387,19 @@ impl GetHashboards for MaraV1 {
                         hashboard.serial_number = Some(serial.to_string());
                     }
 
+                    if let Some(voltage) = hb.get("voltage").and_then(|v| v.as_f64()) {
+                        hashboard.voltage = Some(Voltage::from_volts(voltage));
+                    }
+
+                    if let Some(frequency) = hb.get("frequency_avg").and_then(|v| v.as_f64()) {
+                        hashboard.frequency = Some(Frequency::from_megahertz(frequency));
+                    }
+
                     hashboard.active = Some(true);
+
+                    if let Some(asic_infos) = hb.get("asic_infos") {
+                        hashboard.chips = Self::parse_chip_data(asic_infos);
+                    }
                 }
             }
         }
@@ -396,8 +486,47 @@ impl GetLightFlashing for MaraV1 {
     }
 }
 
-impl GetMessages for MaraV1 {}
+impl GetMessages for MaraV1 {
+    fn parse_messages(&self, data: &HashMap<DataField, Value>) -> Vec<MinerMessage> {
+        let messages = data.get(&DataField::Messages).and_then(|v| v.as_array());
+        let mut result = vec![];
+        if let Some(m) = messages {
+            for message in m {
+                let level = if let Some(level) = message.get("level").and_then(|v| v.as_str()) {
+                    match level {
+                        "info" => MessageSeverity::Info,
+                        "warning" => MessageSeverity::Warning,
+                        "error" => MessageSeverity::Error,
+                        _ => MessageSeverity::Info,
+                    }
+                } else {
+                    MessageSeverity::Info
+                };
 
+                let message_text = message
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let timestamp = message
+                    .get("timestamp")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+
+                let m_msg = MinerMessage {
+                    timestamp: timestamp as u32,
+                    code: 0,
+                    message: message_text,
+                    severity: level,
+                };
+
+                result.push(m_msg);
+            }
+        }
+
+        result
+    }
+}
 impl GetUptime for MaraV1 {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract::<u64>(DataField::Uptime)
