@@ -125,14 +125,24 @@ impl GetDataLocations for MaraV1 {
                     tag: None,
                 },
             )],
-            DataField::Hashboards => vec![(
-                details_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/hashboard_infos"),
-                    tag: None,
-                },
-            )],
+            DataField::Hashboards => vec![
+                (
+                    details_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/hashboard_infos"),
+                        tag: Some("chip_data"),
+                    },
+                ),
+                (
+                    hashboards_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/hashboards"),
+                        tag: Some("hb_temps"),
+                    },
+                ),
+            ],
             DataField::Wattage => vec![(
                 brief_cmd,
                 DataExtractor {
@@ -186,14 +196,6 @@ impl GetDataLocations for MaraV1 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some(""),
-                    tag: None,
-                },
-            )],
-            DataField::ExpectedHashboards => vec![(
-                hashboards_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/hashboards"),
                     tag: None,
                 },
             )],
@@ -328,11 +330,14 @@ impl GetHashboards for MaraV1 {
             }
         }
 
-        if let Some(hashboards_data) = data.get(&DataField::Hashboards)
+        if let Some(hashboards_data) = data
+            .get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/chip_data"))
             && let Some(hb_array) = hashboards_data.as_array()
         {
             let hashboard_temps = data
-                .get(&DataField::ExpectedHashboards)
+                .get(&DataField::Hashboards)
+                .and_then(|v| v.pointer("/hb_temps"))
                 .and_then(|v| v.as_array());
 
             for hb in hb_array {
@@ -393,6 +398,16 @@ impl GetHashboards for MaraV1 {
 
                     if let Some(frequency) = hb.get("frequency_avg").and_then(|v| v.as_f64()) {
                         hashboard.frequency = Some(Frequency::from_megahertz(frequency));
+                    }
+
+                    if let Some(expected_hashrate) =
+                        hb.get("hashrate_ideal").and_then(|v| v.as_f64())
+                    {
+                        hashboard.expected_hashrate = Some(HashRate {
+                            value: expected_hashrate,
+                            unit: HashRateUnit::GigaHash,
+                            algo: String::from("SHA256"),
+                        });
                     }
 
                     hashboard.active = Some(true);
