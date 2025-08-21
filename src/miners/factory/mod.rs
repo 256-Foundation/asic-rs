@@ -26,6 +26,7 @@ use crate::miners::backends::antminer::AntMiner;
 use crate::miners::backends::avalonminer::AvalonMiner;
 use crate::miners::backends::bitaxe::BitAxe;
 use crate::miners::backends::epic::PowerPlay;
+use crate::miners::backends::marathon::Marathon;
 use crate::miners::backends::traits::{GetMinerData, MinerConstructor};
 use crate::miners::backends::vnish::Vnish;
 use crate::miners::backends::whatsminer::WhatsMiner;
@@ -93,7 +94,6 @@ fn parse_type_from_socket(
     response: serde_json::Value,
 ) -> Option<(Option<MinerMake>, Option<MinerFirmware>)> {
     let json_string = response.to_string().to_uppercase();
-
     match () {
         _ if json_string.contains("BOSMINER") || json_string.contains("BOSER") => {
             Some((None, Some(MinerFirmware::BraiinsOS)))
@@ -102,13 +102,19 @@ fn parse_type_from_socket(
         _ if json_string.contains("BITMICRO") || json_string.contains("BTMINER") => {
             Some((Some(MinerMake::WhatsMiner), Some(MinerFirmware::Stock)))
         }
-        _ if json_string.contains("ANTMINER") && !json_string.contains("DEVDETAILS") => {
+        _ if json_string.contains("ANTMINER")
+            && !json_string.contains("DEVDETAILS")
+            && !json_string.contains("MARAFW") =>
+        {
             Some((Some(MinerMake::AntMiner), Some(MinerFirmware::Stock)))
         }
         _ if json_string.contains("AVALON") => {
             Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
         }
         _ if json_string.contains("VNISH") => Some((None, Some(MinerFirmware::VNish))),
+        _ if json_string.contains("MARAFW") => {
+            Some((Some(MinerMake::AntMiner), Some(MinerFirmware::Marathon)))
+        }
         _ => None,
     }
 }
@@ -125,10 +131,9 @@ fn parse_type_from_web(
         Some(header) => header.to_str().unwrap(),
         None => "",
     };
-
     match () {
         _ if resp_status == 401 && auth_header.contains("realm=\"antMiner") => {
-            Some((Some(MinerMake::AntMiner), Some(MinerFirmware::Stock)))
+            Some((Some(MinerMake::AntMiner), None)) //We know its an antminer, but we get the firmware type from socket.
         }
         _ if resp_text.contains("Braiins OS") => Some((None, Some(MinerFirmware::BraiinsOS))),
         _ if resp_text.contains("Luxor Firmware") => Some((None, Some(MinerFirmware::LuxOS))),
@@ -170,6 +175,9 @@ fn select_backend(
         }
         (Some(_), Some(MinerFirmware::VNish)) => Some(Vnish::new(ip, model?, version)),
         (Some(_), Some(MinerFirmware::EPic)) => Some(PowerPlay::new(ip, model?, version)),
+        (Some(MinerModel::AntMiner(_)), Some(MinerFirmware::Marathon)) => {
+            Some(Marathon::new(ip, model?, version))
+        }
         _ => None,
     }
 }
