@@ -102,6 +102,7 @@ fn parse_type_from_socket(
         _ if json_string.contains("MARAFW") || json_string.contains("KAONSU") => {
             Some((None, Some(MinerFirmware::Marathon)))
         }
+        _ if json_string.contains("VNISH") => Some((None, Some(MinerFirmware::VNish))),
         _ if json_string.contains("BITMICRO") || json_string.contains("BTMINER") => {
             Some((Some(MinerMake::WhatsMiner), Some(MinerFirmware::Stock)))
         }
@@ -111,7 +112,6 @@ fn parse_type_from_socket(
         _ if json_string.contains("AVALON") => {
             Some((Some(MinerMake::AvalonMiner), Some(MinerFirmware::Stock)))
         }
-        _ if json_string.contains("VNISH") => Some((None, Some(MinerFirmware::VNish))),
         _ => None,
     }
 }
