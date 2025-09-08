@@ -3,7 +3,7 @@ use crate::data::serialize::serialize_macaddr;
 use crate::data::serialize::serialize_power;
 use crate::data::serialize::serialize_temperature;
 use std::{net::IpAddr, time::Duration};
-
+use std::hash::{Hash, Hasher};
 use super::{
     board::BoardData, device::DeviceInfo, fan::FanData, hashrate::HashRate, message::MinerMessage,
     pool::PoolData,
@@ -12,7 +12,7 @@ use macaddr::MacAddr;
 use measurements::{Power, Temperature};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MinerData {
     /// The schema version of this MinerData object, for use in external APIs
     pub schema_version: String,
@@ -81,3 +81,26 @@ pub struct MinerData {
     /// The current pools configured on the miner
     pub pools: Vec<PoolData>,
 }
+
+impl Hash for MinerData {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.serial_number.hash(state);
+        self.mac.hash(state);
+        self.hostname.hash(state);
+        self.timestamp.hash(state);
+        self.ip.hash(state);
+    }
+}
+
+impl PartialEq for MinerData {
+    fn eq(&self, other: &Self) -> bool {
+        self.serial_number == other.serial_number &&
+            self.mac == other.mac &&
+            self.hostname == other.hostname &&
+            self.timestamp == other.timestamp &&
+            self.ip == other.ip
+    }
+}
+
+impl Eq for MinerData {}
+
