@@ -467,14 +467,17 @@ impl GetPools for LuxMinerV1 {
             .map(|(idx, pool)| PoolData {
                 position: Some(idx as u16),
                 url: pool
-                    .get("URL")?
-                    .as_str()
+                    .get("URL")
+                    .and_then(|v| v.as_str())
                     .map(|s| PoolURL::from(s.to_string())),
-                user: pool.get("User")?.as_str().map(String::from),
-                alive: pool.get("Status")?.as_str().map(|s| s == "Alive"),
-                active: pool.get("Stratum Active")?.as_bool(),
-                accepted_shares: pool.get("Accepted")?.as_u64(),
-                rejected_shares: pool.get("Rejected")?.as_u64(),
+                user: pool.get("User").and_then(|v| v.as_str()).map(String::from),
+                alive: pool
+                    .get("Status")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s == "Alive"),
+                active: pool.get("Stratum Active").and_then(|v| v.as_bool()),
+                accepted_shares: pool.get("Accepted").and_then(|v| v.as_u64()),
+                rejected_shares: pool.get("Rejected").and_then(|v| v.as_u64()),
             })
             .collect()
     }
@@ -499,7 +502,7 @@ impl GetWattageLimit for LuxMinerV1 {
         data.get(&DataField::WattageLimit)?
             .as_array()?
             .iter()
-            .find(|prof| prof.get("Active")?.as_bool() == Some(true))
+            .find(|prof| prof.get("Active").and_then(|v| v.as_bool()) == Some(true))
             .and_then(|prof| prof.get("Power")?.as_f64())
             .map(Power::from_watts)
     }
