@@ -34,17 +34,15 @@ impl LUXMinerRPCAPI {
     }
 
     async fn auth(&self) -> Result<String> {
-        if let Ok(data) = self.session().await {
-            if let Some(session_id) = data
+        if let Ok(data) = self.session().await
+            && let Some(session_id) = data
                 .get("SESSION")
                 .and_then(|s| s.get(0))
                 .and_then(|s| s.get("SessionID"))
                 .and_then(|s| s.as_str())
-            {
-                if !session_id.is_empty() {
-                    return Ok(session_id.to_string());
-                }
-            }
+            && !session_id.is_empty()
+        {
+            return Ok(session_id.to_string());
         }
 
         let data = self.logon().await?;

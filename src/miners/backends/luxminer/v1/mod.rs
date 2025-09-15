@@ -346,7 +346,7 @@ impl GetHashboards for LuxMinerV1 {
             for idx in 1..=board_count {
                 let board_idx = (idx - 1) as usize;
                 if let Some(hashrate) = stats_data
-                    .get(&format!("chain_rate{}", idx))
+                    .get(format!("chain_rate{}", idx))
                     .and_then(|v| v.as_f64())
                     .map(|f| {
                         HashRate {
