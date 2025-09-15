@@ -252,6 +252,14 @@ impl GetDataLocations for LuxMinerV1 {
                     tag: None,
                 },
             )],
+            DataField::ControlBoardVersion => vec![(
+                config_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/CONFIG/0/ControlBoardType"),
+                    tag: None,
+                },
+            )],
             _ => vec![],
         }
     }
@@ -554,7 +562,11 @@ impl GetSerialNumber for LuxMinerV1 {
     }
 }
 
-impl GetControlBoardVersion for LuxMinerV1 {}
+impl GetControlBoardVersion for LuxMinerV1 {
+    fn parse_control_board_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
+        data.extract::<String>(DataField::ControlBoardVersion)
+    }
+}
 
 impl GetWattage for LuxMinerV1 {
     fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
