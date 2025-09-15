@@ -13,13 +13,12 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature};
+use rpc::LUXMinerRPCAPI;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
-
-use rpc::LUXMinerRPCAPI;
 
 mod rpc;
 
@@ -108,7 +107,17 @@ impl GetDataLocations for LuxMinerV1 {
         };
 
         let profiles_cmd = MinerCommand::RPC {
-            command: "profiles",
+            command: "profileget",
+            parameters: Some(Value::String("default".to_string())),
+        };
+
+        let temps_cmd = MinerCommand::RPC {
+            command: "temps",
+            parameters: None,
+        };
+
+        let devs_cmd = MinerCommand::RPC {
+            command: "devs",
             parameters: None,
         };
 
@@ -240,7 +249,7 @@ impl GetDataLocations for LuxMinerV1 {
                 profiles_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/PROFILES"),
+                    key: Some("/PROFILE/0/Watts"),
                     tag: None,
                 },
             )],
@@ -248,7 +257,7 @@ impl GetDataLocations for LuxMinerV1 {
                 config_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/CONFIG/0/serial_no"),
+                    key: Some("/CONFIG/0/SerialNumber"),
                     tag: None,
                 },
             )],
@@ -265,6 +274,22 @@ impl GetDataLocations for LuxMinerV1 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/CONFIG/0/ControlBoardType"),
+                    tag: None,
+                },
+            )],
+            DataField::Hashrate => vec![(
+                stats_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/STATS/1/GHS 5s"),
+                    tag: None,
+                },
+            )],
+            DataField::ExpectedHashrate => vec![(
+                devs_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/DEVS"),
                     tag: None,
                 },
             )],
@@ -488,14 +513,30 @@ impl GetHashrate for LuxMinerV1 {
 
 impl GetExpectedHashrate for LuxMinerV1 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| {
+        let data = data
+            .get(&DataField::ExpectedHashrate)
+            .and_then(|v| v.as_array())?;
+        let expected_boards = self.device_info.hardware.boards.unwrap_or(3);
+
+        let mut expected_hashrate = 0.0;
+
+        for idx in 0..expected_boards {
+            if let Some(hashrate) = data[idx as usize]
+                .get("Nominal MHS")
+                .and_then(|v| v.as_f64())
+            {
+                expected_hashrate += hashrate;
+            }
+        }
+
+        Some(
             HashRate {
-                value: f,
-                unit: HashRateUnit::GigaHash,
+                value: expected_hashrate,
+                unit: HashRateUnit::MegaHash,
                 algo: String::from("SHA256"),
             }
-            .as_unit(HashRateUnit::TeraHash)
-        })
+            .as_unit(HashRateUnit::TeraHash),
+        )
     }
 }
 
@@ -584,12 +625,7 @@ impl GetWattage for LuxMinerV1 {
 
 impl GetWattageLimit for LuxMinerV1 {
     fn parse_wattage_limit(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
-        data.get(&DataField::WattageLimit)?
-            .as_array()?
-            .iter()
-            .find(|prof| prof.get("Active").and_then(|v| v.as_bool()) == Some(true))
-            .and_then(|prof| prof.get("Power")?.as_f64())
-            .map(Power::from_watts)
+        data.extract_map::<f64, _>(DataField::WattageLimit, Power::from_watts)
     }
 }
 
