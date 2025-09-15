@@ -121,6 +121,14 @@ impl GetDataLocations for LuxMinerV1 {
                     tag: None,
                 },
             )],
+            DataField::Fans => vec![(
+                fans_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/FANS"),
+                    tag: None,
+                },
+            )],
             DataField::ApiVersion => vec![(
                 version_cmd,
                 DataExtractor {

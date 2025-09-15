@@ -88,36 +88,6 @@ impl LUXMinerRPCAPI {
         }
     }
 
-    pub async fn auth(&mut self) -> Result<String> {
-        // Try to get existing session first
-        if let Ok(data) = self.session().await {
-            if let Some(session_id) = data
-                .get("SESSION")
-                .and_then(|s| s.get(0))
-                .and_then(|s| s.get("SessionID"))
-                .and_then(|s| s.as_str())
-            {
-                if !session_id.is_empty() {
-                    self.session_token = Some(session_id.to_string());
-                    return Ok(session_id.to_string());
-                }
-            }
-        }
-
-        let data = self.logon().await?;
-        if let Some(session_id) = data
-            .get("SESSION")
-            .and_then(|s| s.get(0))
-            .and_then(|s| s.get("SessionID"))
-            .and_then(|s| s.as_str())
-        {
-            self.session_token = Some(session_id.to_string());
-            Ok(session_id.to_string())
-        } else {
-            Err(anyhow!("Failed to get session ID from logon response"))
-        }
-    }
-
     // Basic commands
     pub async fn summary(&self) -> Result<Value> {
         self.send_rpc_command("summary", false, None).await
