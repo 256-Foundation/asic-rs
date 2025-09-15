@@ -2,6 +2,7 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::net::IpAddr;
+use std::pin::Pin;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::miners::api::rpc::errors::RPCError;
@@ -25,59 +26,63 @@ impl LUXMinerRPCAPI {
         }
     }
 
-    async fn send_rpc_command(
-        &self,
-        command: &str,
+    fn send_rpc_command<'a>(
+        &'a self,
+        command: &'a str,
         privileged: bool,
         parameters: Option<Value>,
-    ) -> Result<Value> {
-        let mut stream = tokio::net::TcpStream::connect((self.ip, self.port))
-            .await
-            .map_err(|_| RPCError::ConnectionFailed)?;
+    ) -> Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut stream = tokio::net::TcpStream::connect((self.ip, self.port))
+                .await
+                .map_err(|_| RPCError::ConnectionFailed)?;
 
-        let mut request = json!({
-            "command": command
-        });
+            let mut request = json!({
+                "command": command
+            });
 
-        // Add session token for privileged commands
-        if privileged {
-            if let Some(token) = &self.session_token {
-                if let Some(params) = parameters {
-                    request["parameter"] = json!(format!("{},{}", token, params));
+            // Add session token for privileged commands
+            if privileged {
+                if let Ok(token) = &self.auth().await {
+                    if let Some(params) = parameters {
+                        request["parameter"] = json!(format!("{},{}", token, params));
+                    } else {
+                        request["parameter"] = Value::String(token.clone());
+                    }
                 } else {
-                    request["parameter"] = Value::String(token.clone());
+                    return Err(anyhow!(
+                        "Unable to get session token for privileged command"
+                    ));
                 }
-            } else {
-                return Err(anyhow!("No session token available for privileged command"));
-            }
-        } else if let Some(params) = parameters {
-            request["parameter"] = params;
-        }
-
-        let json_str = request.to_string();
-        let message = format!("{}\n", json_str);
-
-        stream.write_all(message.as_bytes()).await?;
-
-        let mut response = String::new();
-        let mut buffer = [0; 8192];
-
-        loop {
-            let bytes_read = stream.read(&mut buffer).await?;
-            if bytes_read == 0 {
-                break;
+            } else if let Some(params) = parameters {
+                request["parameter"] = params;
             }
 
-            let chunk = String::from_utf8_lossy(&buffer[..bytes_read]);
-            response.push_str(&chunk);
+            let json_str = request.to_string();
+            let message = format!("{}\n", json_str);
 
-            if response.contains('\0') || response.ends_with('\n') {
-                break;
+            stream.write_all(message.as_bytes()).await?;
+
+            let mut response = String::new();
+            let mut buffer = [0; 8192];
+
+            loop {
+                let bytes_read = stream.read(&mut buffer).await?;
+                if bytes_read == 0 {
+                    break;
+                }
+
+                let chunk = String::from_utf8_lossy(&buffer[..bytes_read]);
+                response.push_str(&chunk);
+
+                if response.contains('\0') || response.ends_with('\n') {
+                    break;
+                }
             }
-        }
 
-        let clean_response = response.trim_end_matches('\0').trim_end_matches('\n');
-        self.parse_rpc_result(clean_response)
+            let clean_response = response.trim_end_matches('\0').trim_end_matches('\n');
+            self.parse_rpc_result(clean_response)
+        })
     }
 
     fn parse_rpc_result(&self, response: &str) -> Result<Value> {
@@ -85,6 +90,33 @@ impl LUXMinerRPCAPI {
         match status.into_result() {
             Ok(_) => Ok(serde_json::from_str(response)?),
             Err(e) => Err(e)?,
+        }
+    }
+
+    pub async fn auth(&self) -> Result<String> {
+        if let Ok(data) = self.session().await {
+            if let Some(session_id) = data
+                .get("SESSION")
+                .and_then(|s| s.get(0))
+                .and_then(|s| s.get("SessionID"))
+                .and_then(|s| s.as_str())
+            {
+                if !session_id.is_empty() {
+                    return Ok(session_id.to_string());
+                }
+            }
+        }
+
+        let data = self.logon().await?;
+        if let Some(session_id) = data
+            .get("SESSION")
+            .and_then(|s| s.get(0))
+            .and_then(|s| s.get("SessionID"))
+            .and_then(|s| s.as_str())
+        {
+            Ok(session_id.to_string())
+        } else {
+            Err(anyhow!("Failed to get session ID from logon response"))
         }
     }
 
