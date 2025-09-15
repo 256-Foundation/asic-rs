@@ -104,7 +104,6 @@ impl LUXMinerRPCAPI {
             }
         }
 
-        // Create new session if none exists
         let data = self.logon().await?;
         if let Some(session_id) = data
             .get("SESSION")

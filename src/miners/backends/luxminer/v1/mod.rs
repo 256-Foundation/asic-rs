@@ -1,14 +1,4 @@
-use anyhow::{Result, anyhow};
-use async_trait::async_trait;
-use macaddr::MacAddr;
-use measurements::{AngularVelocity, Frequency, Power, Temperature};
-use serde_json::Value;
-use std::collections::HashMap;
-use std::net::IpAddr;
-use std::str::FromStr;
-use std::time::Duration;
-
-use crate::data::board::BoardData;
+use crate::data::board::{BoardData, ChipData};
 use crate::data::device::{DeviceInfo, HashAlgorithm, MinerFirmware, MinerMake, MinerModel};
 use crate::data::fan::FanData;
 use crate::data::hashrate::{HashRate, HashRateUnit};
@@ -19,6 +9,15 @@ use crate::miners::commands::MinerCommand;
 use crate::miners::data::{
     DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_pointer,
 };
+use anyhow::{Result, anyhow};
+use async_trait::async_trait;
+use macaddr::MacAddr;
+use measurements::{AngularVelocity, Frequency, Power, Temperature};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::net::IpAddr;
+use std::str::FromStr;
+use std::time::Duration;
 
 use rpc::LUXMinerRPCAPI;
 
@@ -142,42 +141,53 @@ impl GetDataLocations for LuxMinerV1 {
                 config_cmd,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/CONFIG/0/hostname"), // May need adjustment based on actual LuxOS response
+                    key: Some("/CONFIG/0/Hostname"),
                     tag: None,
                 },
             )],
-            DataField::Hashrate => vec![(
-                summary_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/SUMMARY/0/GHS 5s"),
-                    tag: None,
-                },
-            )],
-            DataField::ExpectedHashrate => vec![(
-                stats_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/STATS/1/total_rateideal"),
-                    tag: None,
-                },
-            )],
-            DataField::Fans => vec![(
-                fans_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/FANS"),
-                    tag: None,
-                },
-            )],
-            DataField::Hashboards => vec![(
-                stats_cmd,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/STATS/1"),
-                    tag: None,
-                },
-            )],
+            DataField::Hashboards => vec![
+                (
+                    MinerCommand::RPC {
+                        command: "healthchipget",
+                        parameters: Some(Value::String("0".to_string())),
+                    },
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/CHIPS"),
+                        tag: Some("CHIPS_0"),
+                    },
+                ),
+                (
+                    MinerCommand::RPC {
+                        command: "healthchipget",
+                        parameters: Some(Value::String("1".to_string())),
+                    },
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/CHIPS"),
+                        tag: Some("CHIPS_1"),
+                    },
+                ),
+                (
+                    MinerCommand::RPC {
+                        command: "healthchipget",
+                        parameters: Some(Value::String("2".to_string())),
+                    },
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/CHIPS"),
+                        tag: Some("CHIPS_2"),
+                    },
+                ),
+                (
+                    stats_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/STATS/1"),
+                        tag: Some("STATS"),
+                    },
+                ),
+            ],
             DataField::LightFlashing => vec![(
                 config_cmd,
                 DataExtractor {
@@ -292,11 +302,10 @@ impl GetFirmwareVersion for LuxMinerV1 {
 
 impl GetHashboards for LuxMinerV1 {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
-        let mut hashboards: Vec<BoardData> = Vec::new();
+        let mut boards: Vec<BoardData> = Vec::new();
         let board_count = self.device_info.hardware.boards.unwrap_or(3);
-
         for idx in 0..board_count {
-            hashboards.push(BoardData {
+            boards.push(BoardData {
                 hashrate: None,
                 position: idx,
                 expected_hashrate: None,
@@ -314,16 +323,14 @@ impl GetHashboards for LuxMinerV1 {
             });
         }
 
-        if let Some(stats_data) = data.get(&DataField::Hashboards) {
+        if let Some(stats_data) = data
+            .get(&DataField::Hashboards)
+            .and_then(|v| v.get("STATS"))
+        {
             for idx in 1..=board_count {
                 let board_idx = (idx - 1) as usize;
-                if board_idx >= hashboards.len() {
-                    break;
-                }
-
-                // Parse chain rate
                 if let Some(hashrate) = stats_data
-                    .get(format!("chain_rate{}", idx))
+                    .get(&format!("chain_rate{}", idx))
                     .and_then(|v| v.as_f64())
                     .map(|f| {
                         HashRate {
@@ -334,61 +341,119 @@ impl GetHashboards for LuxMinerV1 {
                         .as_unit(HashRateUnit::TeraHash)
                     })
                 {
-                    hashboards[board_idx].hashrate = Some(hashrate);
+                    boards[board_idx].hashrate = Some(hashrate);
                 }
 
-                // Parse working chips
-                if let Some(working_chips) = stats_data
-                    .get(format!("chain_acn{}", idx))
-                    .and_then(|v| v.as_u64())
-                    .map(|u| u as u16)
-                {
-                    hashboards[board_idx].working_chips = Some(working_chips);
-                }
-
-                // Parse board temperature - LuxOS format
                 if let Some(board_temp) = stats_data
                     .get(format!("temp_pcb{}", idx))
                     .and_then(|v| v.as_str())
                     .and_then(Self::parse_temp_string)
                 {
-                    hashboards[board_idx].board_temperature = Some(board_temp);
+                    boards[board_idx].board_temperature = Some(board_temp);
                 }
 
-                // Parse chip temperature
                 if let Some(chip_temp) = stats_data
                     .get(format!("temp_chip{}", idx))
                     .and_then(|v| v.as_str())
                     .and_then(Self::parse_temp_string)
                 {
-                    hashboards[board_idx].intake_temperature = Some(chip_temp);
+                    boards[board_idx].intake_temperature = Some(chip_temp);
                 }
 
-                // Parse frequency if available
                 if let Some(frequency) = stats_data
                     .get(format!("freq{}", idx))
                     .and_then(|v| v.as_u64())
                     .map(|f| Frequency::from_megahertz(f as f64))
                 {
-                    hashboards[board_idx].frequency = Some(frequency);
+                    boards[board_idx].frequency = Some(frequency);
                 }
-
-                let has_hashrate = hashboards[board_idx]
-                    .hashrate
-                    .as_ref()
-                    .map(|h| h.value > 0.0)
-                    .unwrap_or(false);
-                let has_chips = hashboards[board_idx]
-                    .working_chips
-                    .map(|chips| chips > 0)
-                    .unwrap_or(false);
-
-                hashboards[board_idx].active = Some(has_hashrate || has_chips);
-                hashboards[board_idx].tuned = Some(has_hashrate || has_chips);
             }
         }
 
-        hashboards
+        if let Some(chips_data) = data.get(&DataField::Hashboards) {
+            for (idx, tag) in (0..3).map(|i| (i, format!("CHIPS_{}", i))) {
+                if let Some(arr) = chips_data.get(&tag).and_then(|v| v.as_array()) {
+                    boards[idx].chips = arr
+                        .iter()
+                        .filter_map(|v| v.as_object())
+                        .map(|o| ChipData {
+                            position: o.get("Chip").and_then(|v| v.as_u64()).unwrap() as u16,
+                            temperature: o
+                                .get("Temp")
+                                .and_then(|v| v.as_f64())
+                                .map(Temperature::from_celsius),
+                            hashrate: o.get("GHS 1m").and_then(|v| v.as_f64()).map(|hr| HashRate {
+                                value: hr,
+                                unit: HashRateUnit::GigaHash,
+                                algo: "SHA256".into(),
+                            }),
+                            frequency: o
+                                .get("Frequency")
+                                .and_then(|v| v.as_f64())
+                                .map(Frequency::from_megahertz),
+                            tuned: o.get("Healthy").and_then(|v| v.as_str()).map(|s| s == "Y"),
+                            working: o.get("Healthy").and_then(|v| v.as_str()).map(|s| s == "Y"),
+                            voltage: None,
+                        })
+                        .collect();
+                }
+            }
+        }
+
+        for b in &mut boards {
+            if !b.chips.is_empty() {
+                b.working_chips = Some(
+                    b.chips
+                        .iter()
+                        .filter(|c| c.working.unwrap_or(false))
+                        .count() as u16,
+                );
+                let total_hr: f64 = b
+                    .chips
+                    .iter()
+                    .filter_map(|c| c.hashrate.as_ref())
+                    .map(|h| h.value)
+                    .sum();
+                if total_hr > 0.0 {
+                    b.hashrate = Some(
+                        HashRate {
+                            value: total_hr,
+                            unit: HashRateUnit::GigaHash,
+                            algo: "SHA256".into(),
+                        }
+                        .as_unit(HashRateUnit::TeraHash),
+                    );
+                }
+                let temps: Vec<f64> = b
+                    .chips
+                    .iter()
+                    .filter_map(|c| c.temperature.as_ref())
+                    .map(|t| t.as_celsius())
+                    .collect();
+                if !temps.is_empty() {
+                    b.intake_temperature = Some(Temperature::from_celsius(
+                        temps.iter().sum::<f64>() / temps.len() as f64,
+                    ));
+                }
+                let freqs: Vec<f64> = b
+                    .chips
+                    .iter()
+                    .filter_map(|c| c.frequency.as_ref())
+                    .map(|f| f.as_megahertz())
+                    .collect();
+                if !freqs.is_empty() {
+                    b.frequency = Some(Frequency::from_megahertz(
+                        freqs.iter().sum::<f64>() / freqs.len() as f64,
+                    ));
+                }
+                let active = b.working_chips.unwrap_or(0) > 0
+                    || b.hashrate.as_ref().map(|h| h.value > 0.0).unwrap_or(false);
+                b.active = Some(active);
+                b.tuned = Some(active);
+            }
+        }
+
+        boards
     }
 }
 
