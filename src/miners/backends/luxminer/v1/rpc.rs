@@ -2,7 +2,6 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::net::IpAddr;
-use std::pin::Pin;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::miners::api::rpc::errors::RPCError;
@@ -26,65 +25,6 @@ impl LUXMinerRPCAPI {
         }
     }
 
-    fn send_rpc_command<'a>(
-        &'a self,
-        command: &'a str,
-        privileged: bool,
-        parameters: Option<Value>,
-    ) -> Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>> {
-        Box::pin(async move {
-            let mut stream = tokio::net::TcpStream::connect((self.ip, self.port))
-                .await
-                .map_err(|_| RPCError::ConnectionFailed)?;
-
-            let mut request = json!({
-                "command": command
-            });
-
-            // Add session token for privileged commands
-            if privileged {
-                if let Ok(token) = &self.auth().await {
-                    if let Some(params) = parameters {
-                        request["parameter"] = json!(format!("{},{}", token, params));
-                    } else {
-                        request["parameter"] = Value::String(token.clone());
-                    }
-                } else {
-                    return Err(anyhow!(
-                        "Unable to get session token for privileged command"
-                    ));
-                }
-            } else if let Some(params) = parameters {
-                request["parameter"] = params;
-            }
-
-            let json_str = request.to_string();
-            let message = format!("{}\n", json_str);
-
-            stream.write_all(message.as_bytes()).await?;
-
-            let mut response = String::new();
-            let mut buffer = [0; 8192];
-
-            loop {
-                let bytes_read = stream.read(&mut buffer).await?;
-                if bytes_read == 0 {
-                    break;
-                }
-
-                let chunk = String::from_utf8_lossy(&buffer[..bytes_read]);
-                response.push_str(&chunk);
-
-                if response.contains('\0') || response.ends_with('\n') {
-                    break;
-                }
-            }
-
-            let clean_response = response.trim_end_matches('\0').trim_end_matches('\n');
-            self.parse_rpc_result(clean_response)
-        })
-    }
-
     fn parse_rpc_result(&self, response: &str) -> Result<Value> {
         let status = RPCCommandStatus::from_luxminer(response)?;
         match status.into_result() {
@@ -93,7 +33,7 @@ impl LUXMinerRPCAPI {
         }
     }
 
-    pub async fn auth(&self) -> Result<String> {
+    async fn auth(&self) -> Result<String> {
         if let Ok(data) = self.session().await {
             if let Some(session_id) = data
                 .get("SESSION")
@@ -122,97 +62,97 @@ impl LUXMinerRPCAPI {
 
     // Basic commands
     pub async fn summary(&self) -> Result<Value> {
-        self.send_rpc_command("summary", false, None).await
+        self.send_command("summary", false, None).await
     }
 
     pub async fn stats(&self) -> Result<Value> {
-        self.send_rpc_command("stats", false, None).await
+        self.send_command("stats", false, None).await
     }
 
     pub async fn version(&self) -> Result<Value> {
-        self.send_rpc_command("version", false, None).await
+        self.send_command("version", false, None).await
     }
 
     pub async fn config(&self) -> Result<Value> {
-        self.send_rpc_command("config", false, None).await
+        self.send_command("config", false, None).await
     }
 
     pub async fn pools(&self) -> Result<Value> {
-        self.send_rpc_command("pools", false, None).await
+        self.send_command("pools", false, None).await
     }
 
     pub async fn devs(&self) -> Result<Value> {
-        self.send_rpc_command("devs", false, None).await
+        self.send_command("devs", false, None).await
     }
 
     pub async fn fans(&self) -> Result<Value> {
-        self.send_rpc_command("fans", false, None).await
+        self.send_command("fans", false, None).await
     }
 
     pub async fn temps(&self) -> Result<Value> {
-        self.send_rpc_command("temps", false, None).await
+        self.send_command("temps", false, None).await
     }
 
     pub async fn power(&self) -> Result<Value> {
-        self.send_rpc_command("power", false, None).await
+        self.send_command("power", false, None).await
     }
 
     pub async fn coin(&self) -> Result<Value> {
-        self.send_rpc_command("coin", false, None).await
+        self.send_command("coin", false, None).await
     }
 
     pub async fn profiles(&self) -> Result<Value> {
-        self.send_rpc_command("profiles", false, None).await
+        self.send_command("profiles", false, None).await
     }
 
     pub async fn tempctrl(&self) -> Result<Value> {
-        self.send_rpc_command("tempctrl", false, None).await
+        self.send_command("tempctrl", false, None).await
     }
 
     pub async fn groups(&self) -> Result<Value> {
-        self.send_rpc_command("groups", false, None).await
+        self.send_command("groups", false, None).await
     }
 
     pub async fn limits(&self) -> Result<Value> {
-        self.send_rpc_command("limits", false, None).await
+        self.send_command("limits", false, None).await
     }
 
     // Session management
     pub async fn session(&self) -> Result<Value> {
-        self.send_rpc_command("session", false, None).await
+        self.send_command("session", false, None).await
     }
 
     pub async fn logon(&self) -> Result<Value> {
-        self.send_rpc_command("logon", false, None).await
+        self.send_command("logon", false, None).await
     }
 
     pub async fn logoff(&mut self) -> Result<Value> {
-        let result = self.send_rpc_command("logoff", true, None).await;
+        let result = self.send_command("logoff", true, None).await;
         self.session_token = None;
         result
     }
 
     // Privileged commands
     pub async fn reboot_device(&self) -> Result<Value> {
-        self.send_rpc_command("rebootdevice", true, None).await
+        self.send_command("rebootdevice", true, None).await
     }
 
     pub async fn reset_miner(&self) -> Result<Value> {
-        self.send_rpc_command("resetminer", true, None).await
+        self.send_command("resetminer", true, None).await
     }
 
     pub async fn sleep(&self) -> Result<Value> {
-        self.send_rpc_command("curtail", true, Some(Value::String("sleep".to_string())))
+        self.send_command("curtail", true, Some(Value::String("sleep".to_string())))
             .await
     }
 
     pub async fn wakeup(&self) -> Result<Value> {
-        self.send_rpc_command("curtail", true, Some(Value::String("wakeup".to_string())))
+        self.send_command("curtail", true, Some(Value::String("wakeup".to_string())))
             .await
     }
 
     pub async fn ledset(&self, color: &str, state: &str) -> Result<Value> {
-        self.send_rpc_command(
+        self.send_command(
             "ledset",
             true,
             Some(Value::String(format!("{},{}", color, state))),
@@ -221,7 +161,7 @@ impl LUXMinerRPCAPI {
     }
 
     pub async fn profileset(&self, profile: &str) -> Result<Value> {
-        self.send_rpc_command("profileset", true, Some(Value::String(profile.to_string())))
+        self.send_command("profileset", true, Some(Value::String(profile.to_string())))
             .await
     }
 
@@ -238,13 +178,13 @@ impl LUXMinerRPCAPI {
             return Err(anyhow!("At least one parameter required for fanset"));
         }
 
-        self.send_rpc_command("fanset", true, Some(Value::String(params.join(","))))
+        self.send_command("fanset", true, Some(Value::String(params.join(","))))
             .await
     }
 
     // ATM (Advanced Thermal Management) commands
     pub async fn atm(&self) -> Result<Value> {
-        self.send_rpc_command("atm", false, None).await
+        self.send_command("atm", false, None).await
     }
 
     pub async fn atmset(
@@ -281,7 +221,7 @@ impl LUXMinerRPCAPI {
             return Err(anyhow!("At least one parameter required for atmset"));
         }
 
-        self.send_rpc_command("atmset", true, Some(Value::String(params.join(","))))
+        self.send_command("atmset", true, Some(Value::String(params.join(","))))
             .await
     }
 
@@ -298,12 +238,12 @@ impl LUXMinerRPCAPI {
             params.push(group_id);
         }
 
-        self.send_rpc_command("addpool", false, Some(Value::String(params.join(","))))
+        self.send_command("addpool", false, Some(Value::String(params.join(","))))
             .await
     }
 
     pub async fn removepool(&self, pool_id: i32) -> Result<Value> {
-        self.send_rpc_command(
+        self.send_command(
             "removepool",
             false,
             Some(Value::String(pool_id.to_string())),
@@ -312,7 +252,7 @@ impl LUXMinerRPCAPI {
     }
 
     pub async fn switchpool(&self, pool_id: i32) -> Result<Value> {
-        self.send_rpc_command(
+        self.send_command(
             "switchpool",
             false,
             Some(Value::String(pool_id.to_string())),
@@ -321,7 +261,7 @@ impl LUXMinerRPCAPI {
     }
 
     pub async fn enablepool(&self, pool_id: i32) -> Result<Value> {
-        self.send_rpc_command(
+        self.send_command(
             "enablepool",
             false,
             Some(Value::String(pool_id.to_string())),
@@ -330,7 +270,7 @@ impl LUXMinerRPCAPI {
     }
 
     pub async fn disablepool(&self, pool_id: i32) -> Result<Value> {
-        self.send_rpc_command(
+        self.send_command(
             "disablepool",
             false,
             Some(Value::String(pool_id.to_string())),
@@ -396,7 +336,7 @@ impl LUXMinerRPCAPI {
                 }
                 _ => {
                     // For unknown commands, try to send directly
-                    if let Ok(result) = self.send_rpc_command(command, false, None).await {
+                    if let Ok(result) = self.send_command(command, false, None).await {
                         results[command] = result;
                     }
                 }
@@ -414,30 +354,69 @@ impl APIClient for LUXMinerRPCAPI {
             MinerCommand::RPC {
                 command,
                 parameters,
-            } => match command.as_ref() {
-                "summary" => self.summary().await,
-                "stats" => self.stats().await,
-                "version" => self.version().await,
-                "config" => self.config().await,
-                "pools" => self.pools().await,
-                "devs" => self.devs().await,
-                "fans" => self.fans().await,
-                "temps" => self.temps().await,
-                "power" => self.power().await,
-                "coin" => self.coin().await,
-                "profiles" => self.profiles().await,
-                "tempctrl" => self.tempctrl().await,
-                "groups" => self.groups().await,
-                "limits" => self.limits().await,
-                "session" => self.session().await,
-                "logon" => self.logon().await,
-                "atm" => self.atm().await,
-                _ => {
-                    self.send_rpc_command(command, false, parameters.clone())
-                        .await
-                }
-            },
+            } => self
+                .send_command(command, false, parameters.clone())
+                .await
+                .map_err(|e| anyhow!(e.to_string())),
             _ => Err(anyhow!("Unsupported command type for LuxMiner RPC API")),
         }
+    }
+}
+
+#[async_trait]
+impl RPCAPIClient for LUXMinerRPCAPI {
+    async fn send_command(
+        &self,
+        command: &str,
+        privileged: bool,
+        parameters: Option<Value>,
+    ) -> Result<Value> {
+        let mut stream = tokio::net::TcpStream::connect((self.ip, self.port))
+            .await
+            .map_err(|_| RPCError::ConnectionFailed)?;
+
+        let mut request = json!({
+            "command": command
+        });
+
+        // Add session token for privileged commands
+        if privileged {
+            if let Ok(token) = &self.auth().await {
+                if let Some(params) = parameters {
+                    request["parameter"] = json!(format!("{},{}", token, params));
+                } else {
+                    request["parameter"] = Value::String(token.clone());
+                }
+            } else {
+                return Err(anyhow!("No session token available for privileged command"));
+            }
+        } else if let Some(params) = parameters {
+            request["parameter"] = params;
+        }
+
+        let json_str = request.to_string();
+        let message = format!("{}\n", json_str);
+
+        stream.write_all(message.as_bytes()).await?;
+
+        let mut response = String::new();
+        let mut buffer = [0; 8192];
+
+        loop {
+            let bytes_read = stream.read(&mut buffer).await?;
+            if bytes_read == 0 {
+                break;
+            }
+
+            let chunk = String::from_utf8_lossy(&buffer[..bytes_read]);
+            response.push_str(&chunk);
+
+            if response.contains('\0') || response.ends_with('\n') {
+                break;
+            }
+        }
+
+        let clean_response = response.trim_end_matches('\0').trim_end_matches('\n');
+        self.parse_rpc_result(clean_response)
     }
 }
