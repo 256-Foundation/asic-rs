@@ -15,7 +15,6 @@ use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
 use rpc::LUXMinerRPCAPI;
 use serde_json::Value;
-use serde_json::error::Category::Data;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -444,20 +443,18 @@ impl GetFluidTemperature for LuxMinerV1 {
         let mut outlet_temps = Vec::new();
 
         for temp_data in temps {
-            if let Some(field) = &inlet_field {
-                if let Some(temp) = temp_data.get(field).and_then(|v| v.as_f64()) {
-                    if temp > 0.0 {
-                        inlet_temps.push(temp);
-                    }
-                }
+            if let Some(field) = &inlet_field
+                && let Some(temp) = temp_data.get(field).and_then(|v| v.as_f64())
+                && temp > 0.0
+            {
+                inlet_temps.push(temp);
             }
 
-            if let Some(field) = &outlet_field {
-                if let Some(temp) = temp_data.get(field).and_then(|v| v.as_f64()) {
-                    if temp > 0.0 {
-                        outlet_temps.push(temp);
-                    }
-                }
+            if let Some(field) = &outlet_field
+                && let Some(temp) = temp_data.get(field).and_then(|v| v.as_f64())
+                && temp > 0.0
+            {
+                outlet_temps.push(temp);
             }
         }
 
@@ -591,12 +588,11 @@ impl GetHashboards for LuxMinerV1 {
         if let Some(voltage_data) = data.get(&DataField::Hashboards) {
             for (idx, tag) in (0..3).map(|i| (i, format!("/VOLTAGE_{}/0", i))) {
                 if let Some(voltage_object) = voltage_data.pointer(&tag).and_then(|v| v.as_object())
+                    && let Some(voltage) = voltage_object.get("Voltage").and_then(|v| v.as_f64())
                 {
-                    if let Some(voltage) = voltage_object.get("Voltage").and_then(|v| v.as_f64()) {
-                        boards[idx].voltage = match voltage {
-                            0.0 => None,
-                            _ => Some(Voltage::from_volts(voltage)),
-                        }
+                    boards[idx].voltage = match voltage {
+                        0.0 => None,
+                        _ => Some(Voltage::from_volts(voltage)),
                     }
                 }
             }
