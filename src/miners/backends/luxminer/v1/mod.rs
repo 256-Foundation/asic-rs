@@ -164,105 +164,115 @@ impl GetDataLocations for LuxMinerV1 {
                 },
             )],
             DataField::Hashboards => vec![
+                /*      (
+                         MinerCommand::RPC {
+                             command: "healthchipget",
+                             parameters: Some(Value::String("0".to_string())),
+                         },
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some("/CHIPS"),
+                             tag: Some("CHIPS_0"),
+                         },
+                     ),
+                     (
+                         MinerCommand::RPC {
+                             command: "healthchipget",
+                             parameters: Some(Value::String("1".to_string())),
+                         },
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some("/CHIPS"),
+                             tag: Some("CHIPS_1"),
+                         },
+                     ),
+                     (
+                         MinerCommand::RPC {
+                             command: "healthchipget",
+                             parameters: Some(Value::String("2".to_string())),
+                         },
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some("/CHIPS"),
+                             tag: Some("CHIPS_2"),
+                         },
+                     ),
+                     (
+                         stats_cmd,
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some("/STATS/1"),
+                             tag: Some("STATS"),
+                         },
+                     ),
+                     (
+                         temps_cmd.clone(),
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some(""),
+                             tag: None,
+                         },
+                     ),
+                     (
+                         MinerCommand::RPC {
+                             command: "voltageget",
+                             parameters: Some(Value::String("0,true".to_string())),
+                         },
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some("/VOLTAGE"),
+                             tag: Some("VOLTAGE_0"),
+                         },
+                     ),
+                     (
+                         MinerCommand::RPC {
+                             command: "voltageget",
+                             parameters: Some(Value::String("1,true".to_string())),
+                         },
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some("/VOLTAGE"),
+                             tag: Some("VOLTAGE_1"),
+                         },
+                     ),
+                     (
+                         MinerCommand::RPC {
+                             command: "voltageget",
+                             parameters: Some(Value::String("2,true".to_string())),
+                         },
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some("/VOLTAGE"),
+                             tag: Some("VOLTAGE_2"),
+                         },
+                     ),
+                     (
+                         MinerCommand::RPC {
+                             command: "voltageget",
+                             parameters: Some(Value::String("0".to_string())),
+                         },
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some("/VOLTAGE"),
+                             tag: Some("VOLTAGE_PSU"),
+                         },
+                     ),
+                     (
+                         temps_cmd,
+                         DataExtractor {
+                             func: get_by_pointer,
+                             key: Some(""),
+                             tag: Some("TEMPS"),
+                         },
+                     ),
+
+                */
                 (
-                    MinerCommand::RPC {
-                        command: "healthchipget",
-                        parameters: Some(Value::String("0".to_string())),
-                    },
+                    devs_cmd,
                     DataExtractor {
                         func: get_by_pointer,
-                        key: Some("/CHIPS"),
-                        tag: Some("CHIPS_0"),
-                    },
-                ),
-                (
-                    MinerCommand::RPC {
-                        command: "healthchipget",
-                        parameters: Some(Value::String("1".to_string())),
-                    },
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/CHIPS"),
-                        tag: Some("CHIPS_1"),
-                    },
-                ),
-                (
-                    MinerCommand::RPC {
-                        command: "healthchipget",
-                        parameters: Some(Value::String("2".to_string())),
-                    },
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/CHIPS"),
-                        tag: Some("CHIPS_2"),
-                    },
-                ),
-                (
-                    stats_cmd,
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/STATS/1"),
-                        tag: Some("STATS"),
-                    },
-                ),
-                (
-                    temps_cmd.clone(),
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some(""),
-                        tag: None,
-                    },
-                ),
-                (
-                    MinerCommand::RPC {
-                        command: "voltageget",
-                        parameters: Some(Value::String("0,true".to_string())),
-                    },
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/VOLTAGE"),
-                        tag: Some("VOLTAGE_0"),
-                    },
-                ),
-                (
-                    MinerCommand::RPC {
-                        command: "voltageget",
-                        parameters: Some(Value::String("1,true".to_string())),
-                    },
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/VOLTAGE"),
-                        tag: Some("VOLTAGE_1"),
-                    },
-                ),
-                (
-                    MinerCommand::RPC {
-                        command: "voltageget",
-                        parameters: Some(Value::String("2,true".to_string())),
-                    },
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/VOLTAGE"),
-                        tag: Some("VOLTAGE_2"),
-                    },
-                ),
-                (
-                    MinerCommand::RPC {
-                        command: "voltageget",
-                        parameters: Some(Value::String("0".to_string())),
-                    },
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some("/VOLTAGE"),
-                        tag: Some("VOLTAGE_PSU"),
-                    },
-                ),
-                (
-                    temps_cmd,
-                    DataExtractor {
-                        func: get_by_pointer,
-                        key: Some(""),
-                        tag: Some("TEMPS"),
+                        key: Some("/DEVS"),
+                        tag: Some("DEVS"),
                     },
                 ),
             ],
@@ -499,6 +509,36 @@ impl GetHashboards for LuxMinerV1 {
                 tuned: Some(false),
                 active: Some(false),
             });
+        }
+
+        if let Some(devs_data) = data
+            .get(&DataField::Hashboards)
+            .and_then(|v| v.as_object())
+            .and_then(|obj| obj.get("DEVS"))
+            .and_then(|v| v.as_array())
+        {
+            for (idx, dev) in devs_data.iter().enumerate() {
+                if let Some(dev_object) = dev.as_object() {
+                    if let Some(serial_number) =
+                        dev_object.get("SerialNumber").and_then(|v| v.as_str())
+                    {
+                        boards[idx].serial_number = Some(serial_number.to_string());
+                    }
+
+                    if let Some(expected_hashrate) =
+                        dev_object.get("Nominal MHS").and_then(|v| v.as_f64())
+                    {
+                        boards[idx].expected_hashrate = Some(
+                            HashRate {
+                                value: expected_hashrate,
+                                unit: HashRateUnit::MegaHash,
+                                algo: String::from("SHA256"),
+                            }
+                            .as_unit(HashRateUnit::TeraHash),
+                        );
+                    }
+                }
+            }
         }
 
         if let Some(stats_data) = data
