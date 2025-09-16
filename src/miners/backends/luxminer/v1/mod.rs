@@ -12,9 +12,10 @@ use crate::miners::data::{
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use macaddr::MacAddr;
-use measurements::{AngularVelocity, Frequency, Power, Temperature};
+use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
 use rpc::LUXMinerRPCAPI;
 use serde_json::Value;
+use serde_json::error::Category::Data;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -204,6 +205,66 @@ impl GetDataLocations for LuxMinerV1 {
                         tag: Some("STATS"),
                     },
                 ),
+                (
+                    temps_cmd.clone(),
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: None,
+                    },
+                ),
+                (
+                    MinerCommand::RPC {
+                        command: "voltageget",
+                        parameters: Some(Value::String("0,true".to_string())),
+                    },
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/VOLTAGE"),
+                        tag: Some("VOLTAGE_0"),
+                    },
+                ),
+                (
+                    MinerCommand::RPC {
+                        command: "voltageget",
+                        parameters: Some(Value::String("1,true".to_string())),
+                    },
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/VOLTAGE"),
+                        tag: Some("VOLTAGE_1"),
+                    },
+                ),
+                (
+                    MinerCommand::RPC {
+                        command: "voltageget",
+                        parameters: Some(Value::String("2,true".to_string())),
+                    },
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/VOLTAGE"),
+                        tag: Some("VOLTAGE_2"),
+                    },
+                ),
+                (
+                    MinerCommand::RPC {
+                        command: "voltageget",
+                        parameters: Some(Value::String("0".to_string())),
+                    },
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/VOLTAGE"),
+                        tag: Some("VOLTAGE_PSU"),
+                    },
+                ),
+                (
+                    temps_cmd,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: Some("TEMPS"),
+                    },
+                ),
             ],
             DataField::LightFlashing => vec![(
                 config_cmd,
@@ -293,6 +354,14 @@ impl GetDataLocations for LuxMinerV1 {
                     tag: None,
                 },
             )],
+            DataField::FluidTemperature => vec![(
+                temps_cmd,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some(""),
+                    tag: None,
+                },
+            )],
             _ => vec![],
         }
     }
@@ -332,6 +401,74 @@ impl GetHostname for LuxMinerV1 {
 impl GetApiVersion for LuxMinerV1 {
     fn parse_api_version(&self, data: &HashMap<DataField, Value>) -> Option<String> {
         data.extract::<String>(DataField::ApiVersion)
+    }
+}
+
+impl GetFluidTemperature for LuxMinerV1 {
+    fn parse_fluid_temperature(&self, data: &HashMap<DataField, Value>) -> Option<Temperature> {
+        let temps_response = data.get(&DataField::FluidTemperature)?;
+
+        let metadata = temps_response.get("METADATA")?.as_array()?;
+
+        let mut inlet_field = None;
+        let mut outlet_field = None;
+
+        for item in metadata {
+            if let Some(label) = item.get("Label").and_then(|v| v.as_str()) {
+                for (key, _) in item.as_object()? {
+                    if key != "Label" {
+                        match label {
+                            "Water Inlet" => inlet_field = Some(key.clone()),
+                            "Water Outlet" => outlet_field = Some(key.clone()),
+                            _ => {}
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        let temps = temps_response.get("TEMPS")?.as_array()?;
+
+        let mut inlet_temps = Vec::new();
+        let mut outlet_temps = Vec::new();
+
+        for temp_data in temps {
+            if let Some(field) = &inlet_field {
+                if let Some(temp) = temp_data.get(field).and_then(|v| v.as_f64()) {
+                    if temp > 0.0 {
+                        inlet_temps.push(temp);
+                    }
+                }
+            }
+
+            if let Some(field) = &outlet_field {
+                if let Some(temp) = temp_data.get(field).and_then(|v| v.as_f64()) {
+                    if temp > 0.0 {
+                        outlet_temps.push(temp);
+                    }
+                }
+            }
+        }
+
+        let avg_inlet = if !inlet_temps.is_empty() {
+            Some(inlet_temps.iter().sum::<f64>() / inlet_temps.len() as f64)
+        } else {
+            None
+        };
+
+        let avg_outlet = if !outlet_temps.is_empty() {
+            Some(outlet_temps.iter().sum::<f64>() / outlet_temps.len() as f64)
+        } else {
+            None
+        };
+
+        match (avg_inlet, avg_outlet) {
+            (Some(inlet), Some(outlet)) => Some(Temperature::from_celsius((inlet + outlet) / 2.0)),
+            (Some(inlet), None) => Some(Temperature::from_celsius(inlet)),
+            (None, Some(outlet)) => Some(Temperature::from_celsius(outlet)),
+            (None, None) => None,
+        }
     }
 }
 
@@ -407,6 +544,20 @@ impl GetHashboards for LuxMinerV1 {
                     .map(|f| Frequency::from_megahertz(f as f64))
                 {
                     boards[board_idx].frequency = Some(frequency);
+                }
+            }
+        }
+
+        if let Some(voltage_data) = data.get(&DataField::Hashboards) {
+            for (idx, tag) in (0..3).map(|i| (i, format!("/VOLTAGE_{}/0", i))) {
+                if let Some(voltage_object) = voltage_data.pointer(&tag).and_then(|v| v.as_object())
+                {
+                    if let Some(voltage) = voltage_object.get("Voltage").and_then(|v| v.as_f64()) {
+                        boards[idx].voltage = match voltage {
+                            0.0 => None,
+                            _ => Some(Voltage::from_volts(voltage)),
+                        }
+                    }
                 }
             }
         }
@@ -628,8 +779,6 @@ impl GetWattageLimit for LuxMinerV1 {
         data.extract_map::<f64, _>(DataField::WattageLimit, Power::from_watts)
     }
 }
-
-impl GetFluidTemperature for LuxMinerV1 {}
 
 impl GetPsuFans for LuxMinerV1 {}
 
