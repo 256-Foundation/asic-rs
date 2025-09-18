@@ -586,43 +586,42 @@ impl GetHashboards for LuxMinerV1 {
         if let Some(temps_object) = data
             .get(&DataField::Hashboards)
             .and_then(|v| v.pointer("/TEMPS"))
+            && let Some(temps_array) = temps_object.get("TEMPS").and_then(|v| v.as_array())
         {
-            if let Some(temps_array) = temps_object.get("TEMPS").and_then(|v| v.as_array()) {
-                for temp_entry in temps_array {
-                    if let Some(board_id) = temp_entry.get("ID").and_then(|v| v.as_u64()) {
-                        let board_idx = board_id as usize;
-                        if board_idx < boards.len() {
-                            let exhaust_temps: Vec<f64> = vec![
-                                temp_entry.get("TopLeft").and_then(|v| v.as_f64()),
-                                temp_entry.get("BottomLeft").and_then(|v| v.as_f64()),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .filter(|&t| t > 0.0)
-                            .collect();
+            for temp_entry in temps_array {
+                if let Some(board_id) = temp_entry.get("ID").and_then(|v| v.as_u64()) {
+                    let board_idx = board_id as usize;
+                    if board_idx < boards.len() {
+                        let exhaust_temps: Vec<f64> = vec![
+                            temp_entry.get("TopLeft").and_then(|v| v.as_f64()),
+                            temp_entry.get("BottomLeft").and_then(|v| v.as_f64()),
+                        ]
+                        .into_iter()
+                        .flatten()
+                        .filter(|&t| t > 0.0)
+                        .collect();
 
-                            if !exhaust_temps.is_empty() {
-                                let avg_exhaust =
-                                    exhaust_temps.iter().sum::<f64>() / exhaust_temps.len() as f64;
-                                boards[board_idx].outlet_temperature =
-                                    Some(Temperature::from_celsius(avg_exhaust));
-                            }
+                        if !exhaust_temps.is_empty() {
+                            let avg_exhaust =
+                                exhaust_temps.iter().sum::<f64>() / exhaust_temps.len() as f64;
+                            boards[board_idx].outlet_temperature =
+                                Some(Temperature::from_celsius(avg_exhaust));
+                        }
 
-                            let intake_temps: Vec<f64> = vec![
-                                temp_entry.get("TopRight").and_then(|v| v.as_f64()),
-                                temp_entry.get("BottomRight").and_then(|v| v.as_f64()),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .filter(|&t| t > 0.0)
-                            .collect();
+                        let intake_temps: Vec<f64> = vec![
+                            temp_entry.get("TopRight").and_then(|v| v.as_f64()),
+                            temp_entry.get("BottomRight").and_then(|v| v.as_f64()),
+                        ]
+                        .into_iter()
+                        .flatten()
+                        .filter(|&t| t > 0.0)
+                        .collect();
 
-                            if !intake_temps.is_empty() {
-                                let avg_intake =
-                                    intake_temps.iter().sum::<f64>() / intake_temps.len() as f64;
-                                boards[board_idx].intake_temperature =
-                                    Some(Temperature::from_celsius(avg_intake));
-                            }
+                        if !intake_temps.is_empty() {
+                            let avg_intake =
+                                intake_temps.iter().sum::<f64>() / intake_temps.len() as f64;
+                            boards[board_idx].intake_temperature =
+                                Some(Temperature::from_celsius(avg_intake));
                         }
                     }
                 }
@@ -636,9 +635,9 @@ impl GetHashboards for LuxMinerV1 {
                 {
                     boards[idx].voltage = match voltage {
                         0.0 => voltage_data
-                            .pointer(&"/VOLTAGE_PSU/0/Voltage")
+                            .pointer("/VOLTAGE_PSU/0/Voltage")
                             .and_then(|v| v.as_f64())
-                            .and_then(|v| Some(Voltage::from_volts(v))), // If we cant read from each board, try the PSU
+                            .map(Voltage::from_volts), // If we cant read from each board, try the PSU
                         _ => Some(Voltage::from_volts(voltage)),
                     }
                 }
