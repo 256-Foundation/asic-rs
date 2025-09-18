@@ -826,7 +826,10 @@ impl GetPools for LuxMinerV1 {
 
 impl GetSerialNumber for LuxMinerV1 {
     fn parse_serial_number(&self, data: &HashMap<DataField, Value>) -> Option<String> {
-        data.extract::<String>(DataField::SerialNumber)
+        match data.extract::<String>(DataField::SerialNumber) {
+            Some(s) if !s.is_empty() => Some(s),
+            _ => None,
+        }
     }
 }
 
