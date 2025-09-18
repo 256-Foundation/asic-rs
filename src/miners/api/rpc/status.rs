@@ -1,4 +1,5 @@
 use crate::miners::api::rpc::errors::RPCError;
+use serde_json::Value;
 
 pub enum RPCCommandStatus {
     Success,
@@ -29,16 +30,20 @@ impl RPCCommandStatus {
     }
 
     pub fn from_luxminer(response: &str) -> Result<Self, RPCError> {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(response)
-            && let Some(status_array) = json.get("STATUS").and_then(|s| s.as_array())
-            && let Some(status_obj) = status_array.first()
-            && let Some(status) = status_obj.get("STATUS").and_then(|s| s.as_str())
-        {
-            let message = status_obj.get("Msg").and_then(|m| m.as_str());
-            return Ok(Self::from_str(status, message));
-        }
-        Err(RPCError::StatusCheckFailed(
-            "Failed to parse status from LuxMiner response".to_string(),
-        ))
+        let json: Value = serde_json::from_str(response)
+            .map_err(|_| RPCError::StatusCheckFailed("Invalid JSON response".to_string()))?;
+
+        let status = json
+            .pointer("/STATUS/0/STATUS")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                RPCError::StatusCheckFailed(
+                    "Failed to parse status from LuxMiner response".to_string(),
+                )
+            })?;
+
+        let message = json.pointer("/STATUS/0/Msg").and_then(|v| v.as_str());
+
+        Ok(Self::from_str(status, message))
     }
 }

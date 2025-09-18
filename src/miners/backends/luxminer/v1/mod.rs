@@ -583,13 +583,62 @@ impl GetHashboards for LuxMinerV1 {
             }
         }
 
+        if let Some(temps_object) = data
+            .get(&DataField::Hashboards)
+            .and_then(|v| v.pointer("/TEMPS"))
+        {
+            if let Some(temps_array) = temps_object.get("TEMPS").and_then(|v| v.as_array()) {
+                for temp_entry in temps_array {
+                    if let Some(board_id) = temp_entry.get("ID").and_then(|v| v.as_u64()) {
+                        let board_idx = board_id as usize;
+                        if board_idx < boards.len() {
+                            let exhaust_temps: Vec<f64> = vec![
+                                temp_entry.get("TopLeft").and_then(|v| v.as_f64()),
+                                temp_entry.get("BottomLeft").and_then(|v| v.as_f64()),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .filter(|&t| t > 0.0)
+                            .collect();
+
+                            if !exhaust_temps.is_empty() {
+                                let avg_exhaust =
+                                    exhaust_temps.iter().sum::<f64>() / exhaust_temps.len() as f64;
+                                boards[board_idx].outlet_temperature =
+                                    Some(Temperature::from_celsius(avg_exhaust));
+                            }
+
+                            let intake_temps: Vec<f64> = vec![
+                                temp_entry.get("TopRight").and_then(|v| v.as_f64()),
+                                temp_entry.get("BottomRight").and_then(|v| v.as_f64()),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .filter(|&t| t > 0.0)
+                            .collect();
+
+                            if !intake_temps.is_empty() {
+                                let avg_intake =
+                                    intake_temps.iter().sum::<f64>() / intake_temps.len() as f64;
+                                boards[board_idx].intake_temperature =
+                                    Some(Temperature::from_celsius(avg_intake));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if let Some(voltage_data) = data.get(&DataField::Hashboards) {
             for (idx, tag) in (0..3).map(|i| (i, format!("/VOLTAGE_{}/0", i))) {
                 if let Some(voltage_object) = voltage_data.pointer(&tag).and_then(|v| v.as_object())
                     && let Some(voltage) = voltage_object.get("Voltage").and_then(|v| v.as_f64())
                 {
                     boards[idx].voltage = match voltage {
-                        0.0 => None,
+                        0.0 => voltage_data
+                            .pointer(&"/VOLTAGE_PSU/0/Voltage")
+                            .and_then(|v| v.as_f64())
+                            .and_then(|v| Some(Voltage::from_volts(v))), // If we cant read from each board, try the PSU
                         _ => Some(Voltage::from_volts(voltage)),
                     }
                 }
@@ -604,10 +653,7 @@ impl GetHashboards for LuxMinerV1 {
                         .filter_map(|v| v.as_object())
                         .map(|o| ChipData {
                             position: o.get("Chip").and_then(|v| v.as_u64()).unwrap() as u16,
-                            temperature: o
-                                .get("Temp")
-                                .and_then(|v| v.as_f64())
-                                .map(Temperature::from_celsius),
+                            temperature: None,
                             hashrate: o.get("GHS 1m").and_then(|v| v.as_f64()).map(|hr| HashRate {
                                 value: hr,
                                 unit: HashRateUnit::GigaHash,
@@ -649,17 +695,6 @@ impl GetHashboards for LuxMinerV1 {
                         }
                         .as_unit(HashRateUnit::TeraHash),
                     );
-                }
-                let temps: Vec<f64> = b
-                    .chips
-                    .iter()
-                    .filter_map(|c| c.temperature.as_ref())
-                    .map(|t| t.as_celsius())
-                    .collect();
-                if !temps.is_empty() {
-                    b.intake_temperature = Some(Temperature::from_celsius(
-                        temps.iter().sum::<f64>() / temps.len() as f64,
-                    ));
                 }
                 let freqs: Vec<f64> = b
                     .chips
