@@ -207,13 +207,18 @@ impl Default for MinerFactory {
 
 impl MinerFactory {
     pub async fn scan_miner(&self, ip: IpAddr) -> Result<Option<Box<dyn Miner>>> {
-        // Quick port check first to avoid wasting time on dead IPs
-        if (1..self.connectivity_retries).next().is_some() {
-            if self.check_port && !check_port_open(ip, 80, self.connectivity_timeout).await {
-                return Ok(None);
-            } else {
-                return self.get_miner(ip).await;
+        for attempt in 0..self.connectivity_retries {
+            if self.check_port
+                && !(check_port_open(ip, 80, self.connectivity_timeout).await
+                    && check_port_open(ip, 4028, self.connectivity_timeout).await)
+            {
+                if attempt == self.connectivity_retries - 1 {
+                    return Ok(None);
+                }
+                tokio::time::sleep(Duration::from_millis(100 * (attempt + 1) as u64)).await; //Backoff
+                continue;
             }
+            return self.get_miner(ip).await;
         }
         Ok(None)
     }
