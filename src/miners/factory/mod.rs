@@ -288,8 +288,7 @@ impl MinerFactory {
 
         match miner_info {
             Some((Some(make), Some(MinerFirmware::Stock))) => {
-                let model = make.get_model(ip).await;
-                let version = make.get_version(ip).await;
+                let (model, version) = tokio::join!(make.get_model(ip), make.get_version(ip));
 
                 Ok(select_backend(
                     ip,
@@ -299,8 +298,8 @@ impl MinerFactory {
                 ))
             }
             Some((_, Some(firmware))) => {
-                let model = firmware.get_model(ip).await;
-                let version = firmware.get_version(ip).await;
+                let (model, version) =
+                    tokio::join!(firmware.get_model(ip), firmware.get_version(ip));
 
                 if let Some(model) = model {
                     return Ok(select_backend(ip, Some(model), Some(firmware), version));
@@ -309,8 +308,7 @@ impl MinerFactory {
                 Ok(select_backend(ip, model, Some(firmware), version))
             }
             Some((Some(make), firmware)) => {
-                let model = make.get_model(ip).await;
-                let version = make.get_version(ip).await;
+                let (model, version) = tokio::join!(make.get_model(ip), make.get_version(ip));
 
                 Ok(select_backend(ip, model, firmware, version))
             }
