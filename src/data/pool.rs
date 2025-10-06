@@ -1,8 +1,7 @@
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
-use std::fmt::{Display, Formatter};
-
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 use url::Url;
 
 #[cfg_attr(feature = "python", pyclass(str, module = "asic_rs"))]

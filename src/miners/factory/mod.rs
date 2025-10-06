@@ -101,7 +101,10 @@ fn parse_type_from_socket(
             Some((None, Some(MinerFirmware::BraiinsOS)))
         }
         _ if json_string.contains("LUXMINER") => Some((None, Some(MinerFirmware::LuxOS))),
-        _ if json_string.contains("MARAFW") || json_string.contains("KAONSU") => {
+        _ if json_string.contains("MARAFW")
+            || json_string.contains("KAONSU")
+            || json_string.contains("MaraFW") =>
+        {
             Some((None, Some(MinerFirmware::Marathon)))
         }
         _ if json_string.contains("VNISH") => Some((None, Some(MinerFirmware::VNish))),
