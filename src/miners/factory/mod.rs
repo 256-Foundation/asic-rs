@@ -34,6 +34,8 @@ use crate::miners::backends::vnish::Vnish;
 use crate::miners::backends::whatsminer::WhatsMiner;
 use crate::miners::factory::traits::VersionSelection;
 use std::net::SocketAddr;
+use std::pin::Pin;
+use std::sync::Arc;
 use traits::{DiscoveryCommands, ModelSelection};
 
 const IDENTIFICATION_TIMEOUT: Duration = Duration::from_secs(10);
@@ -43,11 +45,10 @@ const CONNECTIVITY_RETRIES: u32 = 3;
 fn calculate_optimal_concurrency(ip_count: usize) -> usize {
     // Adaptive concurrency based on scale
     match ip_count {
-        0..=100 => 100,      // Small networks - conservative
-        101..=1000 => 250,   // Medium networks - moderate
-        1001..=5000 => 500,  // Large networks - aggressive
-        5001..=10000 => 750, // Very large networks - high throughput
-        _ => 1000,           // Massive mining operations - maximum throughput
+        0..=1000 => 1000,     // Medium networks - moderate
+        1001..=5000 => 2500,  // Large networks - aggressive
+        5001..=10000 => 5000, // Very large networks - high throughput
+        _ => 10000,           // Massive mining operations - maximum throughput
     }
 }
 
@@ -188,6 +189,7 @@ fn select_backend(
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct MinerFactory {
     search_makes: Option<Vec<MinerMake>>,
     search_firmwares: Option<Vec<MinerFirmware>>,
@@ -209,9 +211,23 @@ impl MinerFactory {
     pub async fn scan_miner(&self, ip: IpAddr) -> Result<Option<Box<dyn Miner>>> {
         // Quick port check first to avoid wasting time on dead IPs
         if (1..self.connectivity_retries).next().is_some() {
-            if self.check_port && !check_port_open(ip, 80, self.connectivity_timeout).await {
-                return Ok(None);
-            } else {
+            if !self.check_port {
+                return self.get_miner(ip).await;
+            }
+            // Check for web UI
+            if check_port_open(ip, 80, self.connectivity_timeout).await {
+                return self.get_miner(ip).await;
+            }
+            // Check for CGMiner RPC API
+            if check_port_open(ip, 4028, self.connectivity_timeout).await {
+                return self.get_miner(ip).await;
+            }
+            // Check for alternate CGMiner RPC API
+            if check_port_open(ip, 4029, self.connectivity_timeout).await {
+                return self.get_miner(ip).await;
+            }
+            // Check for whatsminer tool API
+            if check_port_open(ip, 8889, self.connectivity_timeout).await {
                 return self.get_miner(ip).await;
             }
         }
@@ -343,7 +359,7 @@ impl MinerFactory {
         self
     }
 
-    fn update_adaptive_concurrency(&mut self) {
+    pub fn update_adaptive_concurrency(&mut self) {
         if self.concurrent.is_none() {
             self.concurrent = Some(calculate_optimal_concurrency(self.ips.len()));
         }
@@ -433,19 +449,27 @@ impl MinerFactory {
     }
 
     // Subnet handlers
-    /// Set IPs from a subnet
+    /// Create a new `MinerFactory` with a subnet
+    pub fn from_subnet(subnet: &str) -> Result<Self> {
+        Self::new().with_subnet(subnet)
+    }
+
+    /// Add a subnet to the IP range
     pub fn with_subnet(mut self, subnet: &str) -> Result<Self> {
         let ips = self.hosts_from_subnet(subnet)?;
-        self.ips = ips;
+        self.ips.extend(ips);
         self.shuffle_ips();
         Ok(self)
     }
+
+    /// Set the subnet range to use, removing all other IPs
     pub fn set_subnet(&mut self, subnet: &str) -> Result<&Self> {
         let ips = self.hosts_from_subnet(subnet)?;
         self.ips = ips;
         self.shuffle_ips();
         Ok(self)
     }
+
     fn hosts_from_subnet(&self, subnet: &str) -> Result<Vec<IpAddr>> {
         let network = IpNet::from_str(subnet)?;
         Ok(network.hosts().collect())
@@ -458,7 +482,12 @@ impl MinerFactory {
     }
 
     // Octet handlers
-    /// Set IPs from octet ranges
+    /// Create a new `MinerFactory` with an octet range
+    pub fn from_octets(octet1: &str, octet2: &str, octet3: &str, octet4: &str) -> Result<Self> {
+        Self::new().with_octets(octet1, octet2, octet3, octet4)
+    }
+
+    /// Add an octet range to the IP range
     pub fn with_octets(
         mut self,
         octet1: &str,
@@ -467,11 +496,12 @@ impl MinerFactory {
         octet4: &str,
     ) -> Result<Self> {
         let ips = self.hosts_from_octets(octet1, octet2, octet3, octet4)?;
-        self.ips = ips;
+        self.ips.extend(ips);
         self.shuffle_ips();
-        self.update_adaptive_concurrency();
         Ok(self)
     }
+
+    /// Set the octet range to use, removing all other IPs
     pub fn set_octets(
         &mut self,
         octet1: &str,
@@ -482,9 +512,9 @@ impl MinerFactory {
         let ips = self.hosts_from_octets(octet1, octet2, octet3, octet4)?;
         self.ips = ips;
         self.shuffle_ips();
-        self.update_adaptive_concurrency();
         Ok(self)
     }
+
     fn hosts_from_octets(
         &self,
         octet1: &str,
@@ -505,9 +535,29 @@ impl MinerFactory {
         ))
     }
 
-    // Range handler
-    /// Set IPs from a range string in the format "10.1-199.0.1-199"
-    pub fn with_range(self, range_str: &str) -> Result<Self> {
+    // Range handlers
+    /// Create a new `MinerFactory` with a range string in the format "10.1-199.0.1-199"
+    pub fn from_range(range_str: &str) -> Result<Self> {
+        Self::new().with_range(range_str)
+    }
+
+    /// Add a range string in the format "10.1-199.0.1-199"
+    pub fn with_range(mut self, range_str: &str) -> Result<Self> {
+        let ips = self.hosts_from_range(range_str)?;
+        self.ips.extend(ips);
+        self.shuffle_ips();
+        Ok(self)
+    }
+
+    /// Set the range string in the format "10.1-199.0.1-199", replacing all other IPs
+    pub fn set_range(&mut self, range_str: &str) -> Result<&Self> {
+        let ips = self.hosts_from_range(range_str)?;
+        self.ips = ips;
+        self.shuffle_ips();
+        Ok(self)
+    }
+
+    fn hosts_from_range(&self, range_str: &str) -> Result<Vec<IpAddr>> {
         let parts: Vec<&str> = range_str.split('.').collect();
         if parts.len() != 4 {
             return Err(anyhow::anyhow!(
@@ -515,7 +565,17 @@ impl MinerFactory {
             ));
         }
 
-        self.with_octets(parts[0], parts[1], parts[2], parts[3])
+        let octet1_range = parse_octet_range(parts[0])?;
+        let octet2_range = parse_octet_range(parts[1])?;
+        let octet3_range = parse_octet_range(parts[2])?;
+        let octet4_range = parse_octet_range(parts[3])?;
+
+        Ok(generate_ips_from_ranges(
+            &octet1_range,
+            &octet2_range,
+            &octet3_range,
+            &octet4_range,
+        ))
     }
 
     /// Return current scan IPs
@@ -555,51 +615,47 @@ impl MinerFactory {
         Ok(miners)
     }
 
-    pub fn scan_stream(&self) -> Result<impl Stream<Item = Box<dyn Miner>>> {
-        if self.ips.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No IPs to scan. Use with_subnet, with_octets, or with_range to set IPs."
-            ));
-        }
-
+    pub fn scan_stream(&self) -> Pin<Box<impl Stream<Item = Box<dyn Miner>> + Send + use<>>> {
         let concurrency = self
             .concurrent
             .unwrap_or(calculate_optimal_concurrency(self.ips.len()));
 
-        let stream = stream::iter(
-            self.ips
-                .iter()
-                .copied()
-                .map(move |ip| async move { self.scan_miner(ip).await.ok().flatten() }),
-        )
-        .buffer_unordered(concurrency)
-        .filter_map(|miner_opt| async move { miner_opt });
+        let factory = Arc::new(self.clone());
+        let ips: Arc<[IpAddr]> = Arc::from(self.ips.as_slice());
 
-        Ok(Box::pin(stream))
+        let ip_count = ips.len();
+        let stream = stream::iter(0..ip_count)
+            .map(move |i| {
+                let factory = Arc::clone(&factory);
+                let ips = Arc::clone(&ips);
+                async move { factory.scan_miner(ips[i]).await.ok().flatten() }
+            })
+            .buffer_unordered(concurrency)
+            .filter_map(|miner_opt| async move { miner_opt });
+
+        Box::pin(stream)
     }
 
     pub fn scan_stream_with_ip(
         &self,
-    ) -> Result<impl Stream<Item = (IpAddr, Option<Box<dyn Miner>>)>> {
-        if self.ips.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No IPs to scan. Use with_subnet, with_octets, or with_range to set IPs."
-            ));
-        }
-
+    ) -> Pin<Box<impl Stream<Item = (IpAddr, Option<Box<dyn Miner>>)> + Send + use<>>> {
         let concurrency = self
             .concurrent
             .unwrap_or(calculate_optimal_concurrency(self.ips.len()));
 
-        let stream = stream::iter(
-            self.ips
-                .iter()
-                .copied()
-                .map(move |ip| async move { (ip, self.scan_miner(ip).await.ok().flatten()) }),
-        )
-        .buffer_unordered(concurrency);
+        let factory = Arc::new(self.clone());
+        let ips: Arc<[IpAddr]> = Arc::from(self.ips.as_slice());
 
-        Ok(Box::pin(stream))
+        let ip_count = ips.len();
+        let stream = stream::iter(0..ip_count)
+            .map(move |i| {
+                let factory = Arc::clone(&factory);
+                let ips = Arc::clone(&ips);
+                async move { (ips[i], factory.scan_miner(ips[i]).await.ok().flatten()) }
+            })
+            .buffer_unordered(concurrency);
+
+        Box::pin(stream)
     }
 
     /// Scan for miners by specific octets
