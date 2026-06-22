@@ -1053,3 +1053,5 @@ mod tests {
         Ok(())
     }
 }
+
+impl SupportsPresets for AvalonQMiner {}

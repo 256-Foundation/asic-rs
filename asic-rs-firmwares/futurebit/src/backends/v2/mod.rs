@@ -935,3 +935,5 @@ mod tests {
         );
     }
 }
+
+impl SupportsPresets for ApolloV2 {}

@@ -581,3 +581,4 @@ impl SupportsFanConfig for Bitaxe290 {
 impl SupportsTemperatureConfig for Bitaxe290 {}
 impl GetTuningPercent for Bitaxe290 {}
 impl SetTuningPercent for Bitaxe290 {}
+impl SupportsPresets for Bitaxe290 {}
