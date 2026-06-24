@@ -27,6 +27,29 @@ pub(crate) fn power_target_capabilities(power_target: &Value) -> TuningCapabilit
     }
 }
 
+/// Parse a BOS version string (e.g. `bos.info.version.full`) into semver.
+///
+/// BOS versions are CalVer-ish (`26.04`, `2026-04-1`): take the last dotted
+/// segment, strip leading zeros per component, and pad to `major.minor.patch`.
+pub(crate) fn parse_bos_version(full: &str) -> Option<semver::Version> {
+    let version_str = full.split('-').rev().find(|s| s.contains('.'))?;
+    let normalized = version_str
+        .split('.')
+        .map(|part| part.trim_start_matches('0').to_string())
+        .map(|part| if part.is_empty() { "0".to_string() } else { part })
+        .collect::<Vec<_>>()
+        .join(".");
+    let padded = match version_str.split('.').count() {
+        2 => format!("{normalized}.0"),
+        _ => normalized,
+    };
+    semver::Version::parse(&padded).ok()
+}
+
+pub(crate) fn parse_configured_tuning_target(value: &Value) -> Option<TuningTarget> {
+    parse_tagged_tuning_target(value, "configured")
+}
+
 /// Build [`TuningCapabilities`] from a BOS+ REST `tuner_constraints` object
 /// (`power_target` as `PowerConstraints` in watts, `hashrate_target` as
 /// `HashrateConstraints` in TH/s). Used by the REST BraiinsOS backends

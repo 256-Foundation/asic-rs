@@ -11,7 +11,7 @@ use asic_rs_core::{
         board::BoardData,
         device::{HashAlgorithm, MinerHardware},
         fan::FanData,
-        firmware::{FirmwareImage, FirmwareUpdate},
+        firmware::{FirmwareImage, FirmwareStats},
         hashrate::HashRate,
         message::MinerMessage,
         miner::{MinerData, TuningTarget},
@@ -292,7 +292,7 @@ impl Miner {
     pub fn check_firmware_update<'a>(
         &self,
         py: Python<'a>,
-    ) -> PyResult<PyAwaitable<Option<FirmwareUpdate>>> {
+    ) -> PyResult<PyAwaitable<Option<FirmwareStats>>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;

@@ -25,7 +25,7 @@ use crate::{
         command::MinerCommand,
         device::DeviceInfo,
         fan::FanData,
-        firmware::{FirmwareImage, FirmwareUpdate},
+        firmware::{FirmwareImage, FirmwareStats},
         hashrate::{HashRate, HashRateUnit},
         message::MinerMessage,
         miner::{MinerData, TuningTarget},
@@ -939,7 +939,7 @@ pub trait UpgradeFirmware {
     /// This is an on-demand call (it typically queries the vendor's release
     /// server), not part of the regular telemetry poll. Defaults to
     /// unsupported.
-    async fn check_firmware_update(&self) -> anyhow::Result<FirmwareUpdate> {
+    async fn check_firmware_update(&self) -> anyhow::Result<FirmwareStats> {
         anyhow::bail!("Checking for firmware updates is not supported on this platform");
     }
 
