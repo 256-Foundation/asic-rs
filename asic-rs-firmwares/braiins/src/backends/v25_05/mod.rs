@@ -1012,6 +1012,8 @@ impl SupportsTemperatureConfig for BraiinsV2505 {}
 impl GetTuningPercent for BraiinsV2505 {}
 impl SetTuningPercent for BraiinsV2505 {}
 
+impl SupportsPresets for BraiinsV2505 {}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -1195,5 +1197,3 @@ mod tests {
         assert!(miner_data.expected_hashrate.is_some());
     }
 }
-
-impl SupportsPresets for BraiinsV2505 {}

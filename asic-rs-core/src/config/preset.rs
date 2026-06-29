@@ -8,7 +8,13 @@ use serde::{Deserialize, Serialize};
 /// as input from Python, so it is a plain `pyclass` rather than a pydantic model.
 #[cfg_attr(
     feature = "python",
-    pyclass(name = "PresetInfo", frozen, get_all, skip_from_py_object, module = "asic_rs")
+    pyclass(
+        name = "PresetInfo",
+        frozen,
+        get_all,
+        skip_from_py_object,
+        module = "asic_rs"
+    )
 )]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PresetInfo {

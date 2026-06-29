@@ -598,6 +598,8 @@ impl SupportsTemperatureConfig for Bitaxe200 {}
 impl GetTuningPercent for Bitaxe200 {}
 impl SetTuningPercent for Bitaxe200 {}
 
+impl SupportsPresets for Bitaxe200 {}
+
 #[cfg(test)]
 mod tests {
     use asic_rs_core::test::api::MockAPIClient;
@@ -714,5 +716,3 @@ mod tests {
         )
     }
 }
-
-impl SupportsPresets for Bitaxe200 {}

@@ -848,6 +848,8 @@ impl SupportsTemperatureConfig for SealMinerV2025 {}
 impl GetTuningPercent for SealMinerV2025 {}
 impl SetTuningPercent for SealMinerV2025 {}
 
+impl SupportsPresets for SealMinerV2025 {}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -974,5 +976,3 @@ mod tests {
         assert_eq!(miner_data.pools[0].len(), 1);
     }
 }
-
-impl SupportsPresets for SealMinerV2025 {}

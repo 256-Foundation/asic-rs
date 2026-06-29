@@ -971,12 +971,7 @@ impl SupportsPresets for VnishV130 {
         let list = presets
             .as_array()
             .cloned()
-            .or_else(|| {
-                presets
-                    .get("presets")
-                    .and_then(|p| p.as_array())
-                    .cloned()
-            })
+            .or_else(|| presets.get("presets").and_then(|p| p.as_array()).cloned())
             .unwrap_or_default();
         list.iter()
             .filter_map(|p| {

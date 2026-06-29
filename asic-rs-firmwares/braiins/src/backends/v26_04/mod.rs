@@ -898,6 +898,8 @@ impl SupportsTemperatureConfig for BraiinsV2604 {}
 impl GetTuningPercent for BraiinsV2604 {}
 impl SetTuningPercent for BraiinsV2604 {}
 
+impl SupportsPresets for BraiinsV2604 {}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -1076,5 +1078,3 @@ mod tests {
         );
     }
 }
-
-impl SupportsPresets for BraiinsV2604 {}

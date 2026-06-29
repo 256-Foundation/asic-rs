@@ -1333,6 +1333,8 @@ impl SupportsTemperatureConfig for AntMinerV2020 {}
 impl GetTuningPercent for AntMinerV2020 {}
 impl SetTuningPercent for AntMinerV2020 {}
 
+impl SupportsPresets for AntMinerV2020 {}
+
 #[cfg(test)]
 mod tests {
     use asic_rs_core::data::device::HashAlgorithm;
@@ -1549,5 +1551,3 @@ mod tests {
         Ok(())
     }
 }
-
-impl SupportsPresets for AntMinerV2020 {}

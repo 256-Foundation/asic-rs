@@ -1634,6 +1634,8 @@ impl SupportsTemperatureConfig for PowerPlayV1 {}
 impl GetTuningPercent for PowerPlayV1 {}
 impl SetTuningPercent for PowerPlayV1 {}
 
+impl SupportsPresets for PowerPlayV1 {}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -2148,5 +2150,3 @@ mod tests {
         Ok(())
     }
 }
-
-impl SupportsPresets for PowerPlayV1 {}
