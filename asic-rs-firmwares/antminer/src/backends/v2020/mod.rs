@@ -150,9 +150,11 @@ fn miner_conf_with_pools(miner_conf: &Value, pools: Vec<Value>) -> Value {
 }
 
 fn miner_conf_with_miner_mode(miner_conf: &Value, mode: MinerMode) -> Option<Value> {
-    let mode_key = miner_mode_config_key(miner_conf)?;
+    miner_mode_config_key(miner_conf)?;
     let mut payload = browser_miner_conf_payload(miner_conf);
-    payload.insert(mode_key.to_string(), Value::from(mode.as_web_value()));
+    let mode = Value::from(mode.as_web_value());
+    payload.insert("miner-mode".to_string(), mode.clone());
+    payload.insert("bitmain-work-mode".to_string(), mode);
     Some(Value::Object(payload))
 }
 

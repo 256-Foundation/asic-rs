@@ -945,18 +945,13 @@ impl Pause for AntMinerV202307 {
     async fn pause(&self, at_time: Option<Duration>) -> anyhow::Result<bool> {
         let pre = self.web.get_miner_conf().await?;
 
-        if pre.get("miner-mode").is_some() {
+        if miner_mode_config_key(&pre).is_some() {
             return Ok(self
                 .web
-                .set_miner_conf(json!({"miner-mode": MinerMode::Sleep.to_string()}))
-                .await
-                .is_ok());
-        }
-
-        if pre.get("bitmain-work-mode").is_some() {
-            return Ok(self
-                .web
-                .set_miner_conf(json!({"bitmain-work-mode": MinerMode::Sleep.to_string()}))
+                .set_miner_conf(json!({
+                    "miner-mode": MinerMode::Sleep.to_string(),
+                    "bitmain-work-mode": MinerMode::Sleep.to_string(),
+                }))
                 .await
                 .is_ok());
         }
@@ -974,18 +969,13 @@ impl Resume for AntMinerV202307 {
     async fn resume(&self, at_time: Option<Duration>) -> anyhow::Result<bool> {
         let pre = self.web.get_miner_conf().await?;
 
-        if pre.get("miner-mode").is_some() {
+        if miner_mode_config_key(&pre).is_some() {
             return Ok(self
                 .web
-                .set_miner_conf(json!({"miner-mode": MinerMode::Normal.to_string()}))
-                .await
-                .is_ok());
-        }
-
-        if pre.get("bitmain-work-mode").is_some() {
-            return Ok(self
-                .web
-                .set_miner_conf(json!({"bitmain-work-mode": MinerMode::Normal.to_string()}))
+                .set_miner_conf(json!({
+                    "miner-mode": MinerMode::Normal.to_string(),
+                    "bitmain-work-mode": MinerMode::Normal.to_string(),
+                }))
                 .await
                 .is_ok());
         }
@@ -1104,12 +1094,15 @@ impl SupportsTuningConfig for AntMinerV202307 {
         };
 
         let pre = self.web.get_miner_conf().await?;
-        let Some(mode_key) = miner_mode_config_key(&pre) else {
+        if miner_mode_config_key(&pre).is_none() {
             anyhow::bail!("No Antminer mining mode field found in miner config")
         };
 
         self.web
-            .set_miner_conf(json!({ mode_key: mode.to_string() }))
+            .set_miner_conf(json!({
+                "miner-mode": mode.to_string(),
+                "bitmain-work-mode": mode.to_string(),
+            }))
             .await?;
         Ok(true)
     }
