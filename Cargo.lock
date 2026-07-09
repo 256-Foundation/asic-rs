@@ -63,6 +63,7 @@ dependencies = [
  "asic-rs-firmwares-avalonminer",
  "asic-rs-firmwares-bitaxe",
  "asic-rs-firmwares-braiins",
+ "asic-rs-firmwares-elphapex",
  "asic-rs-firmwares-epic",
  "asic-rs-firmwares-futurebit",
  "asic-rs-firmwares-luxminer",
@@ -78,6 +79,7 @@ dependencies = [
  "asic-rs-makes-avalon",
  "asic-rs-makes-bitaxe",
  "asic-rs-makes-braiins",
+ "asic-rs-makes-elphapex",
  "asic-rs-makes-epic",
  "asic-rs-makes-futurebit",
  "asic-rs-makes-marathon",
@@ -210,6 +212,25 @@ dependencies = [
  "asic-rs-makes-braiins",
  "async-trait",
  "chrono",
+ "macaddr",
+ "measurements",
+ "once_cell",
+ "pyo3",
+ "reqwest",
+ "semver",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "asic-rs-firmwares-elphapex"
+version = "0.7.2"
+dependencies = [
+ "anyhow",
+ "asic-rs-core",
+ "asic-rs-makes-elphapex",
+ "async-trait",
+ "diqwest",
  "macaddr",
  "measurements",
  "once_cell",
@@ -460,6 +481,17 @@ dependencies = [
 
 [[package]]
 name = "asic-rs-makes-braiins"
+version = "0.7.2"
+dependencies = [
+ "asic-rs-core",
+ "pyo3",
+ "serde",
+ "serde_json",
+ "strum",
+]
+
+[[package]]
+name = "asic-rs-makes-elphapex"
 version = "0.7.2"
 dependencies = [
  "asic-rs-core",

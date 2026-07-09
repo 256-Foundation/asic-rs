@@ -164,6 +164,11 @@ pub fn default_firmware_registry() -> Vec<Arc<dyn FirmwareEntry>> {
         asic_rs_firmwares_volcminer::firmware::VolcMinerStockFirmware::default(),
     ));
 
+    #[cfg(feature = "elphapex")]
+    registry.push(Arc::new(
+        asic_rs_firmwares_elphapex::firmware::ElphapexStockFirmware::default(),
+    ));
+
     #[cfg(feature = "epic")]
     registry.push(Arc::new(
         asic_rs_firmwares_epic::firmware::EPicFirmware::default(),

@@ -1,0 +1,22 @@
+{
+  "mac": "54:78:c9:dd:4c:cc",
+  "wifi_list": [
+    {
+      "conn": 0,
+      "id": 4,
+      "mgmt": "WPA",
+      "psk": "",
+      "sig": 2,
+      "ssid": "TEST-2.4G"
+    },
+    {
+      "conn": 0,
+      "id": 5,
+      "mgmt": "WPA",
+      "psk": "",
+      "sig": 2,
+      "ssid": "ChinaNet-MVxV"
+    }
+  ],
+  "wlanport": "wlan0"
+}

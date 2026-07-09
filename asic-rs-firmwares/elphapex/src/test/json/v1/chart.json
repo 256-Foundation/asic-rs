@@ -1,0 +1,44 @@
+{
+  "INFO": {
+    "CompileTime": "",
+    "dev_sn": "13HY24B056N300037C11B",
+    "hw_version": "DG-Home1_HW_V1.0",
+    "miner_version": "DG-Home1_V1.0.5",
+    "type": "DG-Home1"
+  },
+  "RATE": [
+    {
+      "series": [
+        {
+          "data": [
+            0
+          ],
+          "name": "miner.ttyS5"
+        },
+        {
+          "data": [],
+          "name": ""
+        },
+        {
+          "data": [],
+          "name": ""
+        },
+        {
+          "data": [],
+          "name": ""
+        }
+      ],
+      "unit": "MH/s",
+      "xAxis": [
+        "15min"
+      ]
+    }
+  ],
+  "STATUS": {
+    "Msg": "rate",
+    "STATUS": "S",
+    "api_version": "1.0.0",
+    "timestamp": 1742263815,
+    "when": 924247
+  }
+}

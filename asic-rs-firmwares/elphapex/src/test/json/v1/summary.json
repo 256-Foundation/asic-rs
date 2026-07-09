@@ -1,0 +1,55 @@
+{
+  "INFO": {
+    "CompileTime": "",
+    "dev_sn": "13HY24B056N300037C11B",
+    "hw_version": "DG-Home1_HW_V1.0",
+    "miner_version": "DG-Home1_V1.0.5",
+    "type": "DG-Home1"
+  },
+  "STATUS": {
+    "Msg": "summary",
+    "STATUS": "S",
+    "api_version": "1.0.0",
+    "timestamp": 1742264393,
+    "when": 924825
+  },
+  "SUMMARY": [
+    {
+      "bestshare": 0,
+      "elapsed": 0,
+      "hw_all": 0,
+      "rate_15m": 0,
+      "rate_30m": 0,
+      "rate_5s": 0,
+      "rate_avg": 0,
+      "rate_ideal": 3003.75,
+      "rate_unit": "MH/s",
+      "status": [
+        {
+          "code": 0,
+          "msg": "",
+          "status": "",
+          "type": "rate"
+        },
+        {
+          "code": 0,
+          "msg": "",
+          "status": "",
+          "type": "network"
+        },
+        {
+          "code": 0,
+          "msg": "",
+          "status": "s",
+          "type": "fans"
+        },
+        {
+          "code": 0,
+          "msg": "",
+          "status": "s",
+          "type": "temp"
+        }
+      ]
+    }
+  ]
+}

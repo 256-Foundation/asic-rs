@@ -1,0 +1,75 @@
+{
+  "Device Rejected%": 0,
+  "Device Total Rejected": 0,
+  "Device Total Work": 0,
+  "INFO": {
+    "CompileTime": "",
+    "dev_sn": "13HY24B056N300037C11B",
+    "hw_version": "DG-Home1_HW_V1.0",
+    "miner_version": "DG-Home1_V1.0.5",
+    "type": "DG-Home1"
+  },
+  "POOLS": [
+    {
+      "accepted": 0,
+      "diff": "",
+      "diff1": 0,
+      "diffa": 0,
+      "diffr": 0,
+      "diffs": 0,
+      "getworks": 0,
+      "index": 0,
+      "lsdiff": 0,
+      "lstime": "",
+      "priority": 0,
+      "rejected": 0,
+      "stale": 0,
+      "status": "Unreachable",
+      "url": "stratum+tcp://pool.invalid:3333",
+      "user": "worker"
+    },
+    {
+      "accepted": 0,
+      "diff": "",
+      "diff1": 0,
+      "diffa": 0,
+      "diffr": 0,
+      "diffs": 0,
+      "getworks": 0,
+      "index": 1,
+      "lsdiff": 0,
+      "lstime": "",
+      "priority": 1,
+      "rejected": 0,
+      "stale": 0,
+      "status": "Unreachable",
+      "url": "stratum+tcp://backup.invalid:3333",
+      "user": "worker"
+    },
+    {
+      "accepted": 0,
+      "diff": "",
+      "diff1": 0,
+      "diffa": 0,
+      "diffr": 0,
+      "diffs": 0,
+      "getworks": 0,
+      "index": 2,
+      "lsdiff": 0,
+      "lstime": "",
+      "priority": 2,
+      "rejected": 0,
+      "stale": 0,
+      "status": "Unreachable",
+      "url": "stratum+tcp://tertiary.invalid:3333",
+      "user": "worker"
+    }
+  ],
+  "STATUS": {
+    "Msg": "pools",
+    "STATUS": "S",
+    "api_version": "1.0.0",
+    "timestamp": 1742264097,
+    "when": 924529
+  }
+}

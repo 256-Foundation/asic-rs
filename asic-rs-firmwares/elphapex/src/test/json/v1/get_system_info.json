@@ -1,0 +1,16 @@
+{
+  "Algorithm": "Scrypt",
+  "dnsservers": "",
+  "firmware_type": "Release",
+  "gateway": "",
+  "hostname": "DG-Home1",
+  "ipaddress": "10.10.10.172",
+  "macaddr": "b8:4c:87:e0:66:b2",
+  "minertype": "DG-Home1",
+  "netdevice": "eth0",
+  "netmask": "255.255.255.0",
+  "nettype": "DHCP",
+  "system_filesystem_version": "DG-Home1_V1.0.5",
+  "system_kernel_version": "4.4.194 #1 SMP Wed Feb 26 11:19:53 CST 2025",
+  "system_mode": "GNU/Linux"
+}

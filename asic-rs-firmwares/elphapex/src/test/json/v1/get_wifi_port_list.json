@@ -1,0 +1,9 @@
+{
+  "port_list": [
+    {
+      "mac": "54:78:c9:dd:4c:cc",
+      "state": true,
+      "wlanport": "wlan0"
+    }
+  ]
+}

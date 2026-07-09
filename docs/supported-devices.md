@@ -20,6 +20,7 @@ Legend:
 | AvalonMiner Stock | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-check-check: | :lucide-check-check: | :lucide-list-todo: | :lucide-check-check: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: |
 | Bitaxe Stock | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: |
 | Braiins | :lucide-check-check: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-check-check: | :lucide-check-check: | :lucide-check-check: | :lucide-check-check: | :lucide-x: | :lucide-check-check: | :lucide-list-todo: | :lucide-check-check: |
+| Elphapex Stock | :lucide-check-check: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-check-check: | :lucide-x: | :lucide-check-check: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: |
 | FutureBit Stock | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: |
 | LuxOS | :lucide-check-check: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-check-check: | :lucide-x: | :lucide-check-check: | :lucide-check-check: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: |
 | Marathon | :lucide-check-check: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-check-check: | :lucide-x: | :lucide-x: | :lucide-x: | :lucide-x: |
@@ -173,6 +174,13 @@ Legend:
 	??? note "BMM family (2 models)"
 		 - [x] `BRAIINS MINI MINER BMM 100`
 		 - [x] `BRAIINS MINI MINER BMM 101`
+??? quote "Elphapex (3 models across 2 families)"
+
+	??? note "DG1 family (2 models)"
+		 - [x] `DG1`
+		 - [x] `DG1+` (also: `DG1Plus`)
+	??? note "HOME1 family (1 model)"
+		 - [x] `DG-Home1`
 ??? quote "ePIC (2 models across 2 families)"
 
 	??? note "5xx family (1 model)"

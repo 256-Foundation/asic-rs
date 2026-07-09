@@ -1,0 +1,163 @@
+{
+  "INFO": {
+    "CompileTime": "",
+    "dev_sn": "13HY24B056N300037C11B",
+    "hw_version": "DG-Home1_HW_V1.0",
+    "miner_version": "DG-Home1_V1.0.5",
+    "type": "DG-Home1"
+  },
+  "STATS": [
+    {
+      "chain": [
+        {
+          "asic": "ooooooooo oooooooo oooooooo oooooooo oooo",
+          "asic_num": 0,
+          "failrate": 0,
+          "freq_avg": 0,
+          "hashrate": 0,
+          "hw": 0,
+          "index": 0,
+          "rate_15m": 0,
+          "rate_ideal": 0,
+          "rate_real": 0,
+          "sn": "",
+          "temp_chip": [
+            "",
+            "",
+            "",
+            ""
+          ],
+          "temp_pcb": [
+            47,
+            46,
+            67,
+            66
+          ],
+          "temp_pic": [
+            47,
+            46,
+            67,
+            66
+          ]
+        },
+        {
+          "asic": "ooooooooo oooooooo oooooooo oooooooo oooo",
+          "asic_num": 0,
+          "failrate": 0,
+          "freq_avg": 0,
+          "hashrate": 0,
+          "hw": 0,
+          "index": 1,
+          "rate_15m": 0,
+          "rate_ideal": 0,
+          "rate_real": 0,
+          "sn": "",
+          "temp_chip": [
+            "",
+            "",
+            "",
+            ""
+          ],
+          "temp_pcb": [
+            47,
+            46,
+            67,
+            66
+          ],
+          "temp_pic": [
+            47,
+            46,
+            67,
+            66
+          ]
+        },
+        {
+          "asic": "ooooooooo oooooooo oooooooo oooooooo oooo",
+          "asic_num": 0,
+          "failrate": 0,
+          "freq_avg": 0,
+          "hashrate": 0,
+          "hw": 0,
+          "index": 2,
+          "rate_15m": 0,
+          "rate_ideal": 0,
+          "rate_real": 0,
+          "sn": "",
+          "temp_chip": [
+            "",
+            "",
+            "",
+            ""
+          ],
+          "temp_pcb": [
+            47,
+            46,
+            67,
+            66
+          ],
+          "temp_pic": [
+            47,
+            46,
+            67,
+            66
+          ]
+        },
+        {
+          "asic": "ooooooooo oooooooo oooooooo oooooooo oooo",
+          "asic_num": 120,
+          "eeprom_loaded": true,
+          "failrate": 0,
+          "freq_avg": 89000,
+          "hashrate": 0,
+          "hw": 120,
+          "index": 3,
+          "rate_15m": 0,
+          "rate_ideal": 3003.75,
+          "rate_real": 0,
+          "sn": "10HY24B046N300036H10JC53",
+          "temp_chip": [
+            "25687",
+            "25562",
+            "25437",
+            "25500"
+          ],
+          "temp_pcb": [
+            47,
+            46,
+            67,
+            66
+          ],
+          "temp_pic": [
+            47,
+            46,
+            67,
+            66
+          ]
+        }
+      ],
+      "chain_num": 4,
+      "elapsed": 0,
+      "fan": [
+        "420",
+        "420",
+        "420",
+        "1020"
+      ],
+      "fan_num": 4,
+      "hwp_total": 0.1155,
+      "rate_15m": 0,
+      "rate_30m": 0,
+      "rate_5s": 0,
+      "rate_avg": 0,
+      "rate_ideal": 3003.75,
+      "rate_unit": "MH/s"
+    }
+  ],
+  "STATUS": {
+    "Msg": "stats",
+    "STATUS": "S",
+    "api_version": "1.0.0",
+    "timestamp": 1742264353,
+    "when": 924785
+  }
+}
