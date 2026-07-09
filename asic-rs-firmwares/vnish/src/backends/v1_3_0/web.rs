@@ -294,7 +294,7 @@ impl VnishWebAPI {
         let response = self.execute_request(&url, &Method::GET, None).await?;
         let status = response.status();
         if !status.is_success() {
-            return Err(VnishError::HttpError(status.as_u16()))?;
+            Err(VnishError::HttpError(status.as_u16()))?;
         }
 
         response
