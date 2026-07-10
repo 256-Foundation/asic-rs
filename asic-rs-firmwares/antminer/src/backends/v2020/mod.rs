@@ -1045,7 +1045,11 @@ impl Pause for AntMinerV2020 {
             return Ok(false);
         };
 
-        self.web.set_miner_conf(miner_conf).await?;
+        let response = self.web.set_miner_conf(miner_conf).await?;
+        if response.get("stats").and_then(Value::as_str) != Some("success") {
+            return Ok(false);
+        }
+
         let post = self.web.get_miner_conf().await?;
         Ok(miner_conf_mode_matches(&post, MinerMode::Sleep))
     }
@@ -1063,7 +1067,11 @@ impl Resume for AntMinerV2020 {
             return Ok(false);
         };
 
-        self.web.set_miner_conf(miner_conf).await?;
+        let response = self.web.set_miner_conf(miner_conf).await?;
+        if response.get("stats").and_then(Value::as_str) != Some("success") {
+            return Ok(false);
+        }
+
         let post = self.web.get_miner_conf().await?;
         Ok(miner_conf_mode_matches(&post, MinerMode::Normal))
     }

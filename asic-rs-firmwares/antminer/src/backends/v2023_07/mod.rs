@@ -66,6 +66,31 @@ impl Display for MinerMode {
     }
 }
 
+impl MinerMode {
+    fn as_web_value(&self) -> u8 {
+        match self {
+            MinerMode::Sleep => 1,
+            MinerMode::Low => 3,
+            MinerMode::Normal => 0,
+            MinerMode::High => 2,
+        }
+    }
+}
+
+fn miner_conf_mode_matches(conf: &Value, mode: MinerMode) -> bool {
+    let expected = mode.to_string();
+    ["miner-mode", "bitmain-work-mode"]
+        .iter()
+        .filter_map(|key| conf.get(key))
+        .any(|value| {
+            value
+                .as_str()
+                .map(|mode| mode == expected)
+                .or_else(|| value.as_i64().map(|mode| mode.to_string() == expected))
+                .unwrap_or(false)
+        })
+}
+
 fn miner_mode_config_key(miner_conf: &Value) -> Option<&'static str> {
     if miner_conf.get("miner-mode").is_some() {
         Some("miner-mode")
@@ -635,6 +660,7 @@ impl GetIsMining for AntMinerV202307 {
                     && status_lower != "idle"
                     && status_lower != "sleep"
                     && status_lower != "1"
+                    && status_lower != "5"
             })
             .unwrap_or(true)
     }
@@ -946,14 +972,20 @@ impl Pause for AntMinerV202307 {
         let pre = self.web.get_miner_conf().await?;
 
         if miner_mode_config_key(&pre).is_some() {
-            return Ok(self
+            let mode = MinerMode::Sleep.as_web_value();
+            let response = self
                 .web
                 .set_miner_conf(json!({
-                    "miner-mode": MinerMode::Sleep.to_string(),
-                    "bitmain-work-mode": MinerMode::Sleep.to_string(),
+                    "miner-mode": mode,
+                    "bitmain-work-mode": mode,
                 }))
-                .await
-                .is_ok());
+                .await?;
+            if response.get("stats").and_then(Value::as_str) != Some("success") {
+                return Ok(false);
+            }
+
+            let post = self.web.get_miner_conf().await?;
+            return Ok(miner_conf_mode_matches(&post, MinerMode::Sleep));
         }
 
         Ok(false)
@@ -970,14 +1002,20 @@ impl Resume for AntMinerV202307 {
         let pre = self.web.get_miner_conf().await?;
 
         if miner_mode_config_key(&pre).is_some() {
-            return Ok(self
+            let mode = MinerMode::Normal.as_web_value();
+            let response = self
                 .web
                 .set_miner_conf(json!({
-                    "miner-mode": MinerMode::Normal.to_string(),
-                    "bitmain-work-mode": MinerMode::Normal.to_string(),
+                    "miner-mode": mode,
+                    "bitmain-work-mode": mode,
                 }))
-                .await
-                .is_ok());
+                .await?;
+            if response.get("stats").and_then(Value::as_str) != Some("success") {
+                return Ok(false);
+            }
+
+            let post = self.web.get_miner_conf().await?;
+            return Ok(miner_conf_mode_matches(&post, MinerMode::Normal));
         }
 
         Ok(false)
