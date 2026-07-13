@@ -90,17 +90,17 @@ impl WebAPIClient for BitaxeWebAPI {
                             Ok(json_data) => return Ok(json_data),
                             Err(e) => {
                                 if attempt == self.retries {
-                                    return Err(BitaxeError::ParseError(e.to_string()))?;
+                                    Err(BitaxeError::ParseError(e.to_string()))?;
                                 }
                             }
                         }
                     } else if attempt == self.retries {
-                        return Err(BitaxeError::HttpError(response.status().as_u16()))?;
+                        Err(BitaxeError::HttpError(response.status().as_u16()))?;
                     }
                 }
                 Err(e) => {
                     if attempt == self.retries {
-                        return Err(e)?;
+                        Err(e)?;
                     }
                 }
             }
