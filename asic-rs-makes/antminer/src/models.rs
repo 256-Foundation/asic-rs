@@ -13,6 +13,8 @@ pub enum AntMinerModel {
     HS3,
     #[serde(alias = "ANTMINER L3+")]
     L3Plus,
+    #[serde(alias = "ANTMINER L3++")]
+    L3PlusPlus,
     #[serde(alias = "ANTMINER KA3")]
     KA3,
     #[serde(alias = "ANTMINER KS3")]
