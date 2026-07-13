@@ -59,7 +59,7 @@ impl DiscoveryCommands for WhatsMinerFirmware {
 
 #[async_trait]
 impl MinerFirmware for WhatsMinerFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let use_v3 = if let Some(data) = util::send_rpc_command(&ip, "get_version").await {
             data["Msg"]["fw_ver"]
                 .as_str()

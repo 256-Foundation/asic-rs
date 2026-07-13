@@ -80,7 +80,7 @@ impl DiscoveryCommands for BraiinsFirmware {
 
 #[async_trait]
 impl MinerFirmware for BraiinsFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         if let Some(json_data) =
             util::send_graphql_command(&ip, "{ bosminer { info { modelName } } }").await
             && let Some(model_str) = json_data["data"]["bosminer"]["info"]["modelName"].as_str()

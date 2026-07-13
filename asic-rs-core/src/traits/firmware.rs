@@ -9,6 +9,6 @@ use crate::{
 
 #[async_trait]
 pub trait MinerFirmware: ToString + DiscoveryCommands {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError>;
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError>;
     async fn get_version(ip: IpAddr) -> Option<semver::Version>;
 }

@@ -57,7 +57,7 @@ fn parse_semver_like(version_str: &str) -> Option<semver::Version> {
 
 #[async_trait]
 impl MinerFirmware for AuradineFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let data = util::send_rpc_command(&ip, "devdetails")
             .await
             .ok_or(ModelSelectionError::NoModelResponse)?;

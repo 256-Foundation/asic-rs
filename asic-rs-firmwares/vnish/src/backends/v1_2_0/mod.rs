@@ -25,6 +25,7 @@ use asic_rs_makes_antminer::hardware::AntMinerControlBoard;
 use async_trait::async_trait;
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
+use semver::Version;
 use serde_json::{Value, json};
 use web::VnishWebAPI;
 
@@ -1012,6 +1013,14 @@ impl HasDefaultAuth for VnishV120 {
 impl HasAuth for VnishV120 {
     fn set_auth(&mut self, auth: MinerAuth) {
         self.web.set_auth(auth);
+    }
+}
+
+impl Validate for VnishV120 {
+    type Firmware = VnishFirmware;
+
+    fn validate(version: Option<&semver::Version>) -> bool {
+        version.is_some_and(|v| *v < Version::new(1, 3, 0))
     }
 }
 

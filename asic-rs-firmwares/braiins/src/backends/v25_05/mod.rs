@@ -25,6 +25,7 @@ use asic_rs_core::{
 use async_trait::async_trait;
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
+use semver::Version;
 use serde_json::{Value, json};
 
 use crate::{
@@ -983,6 +984,14 @@ impl HasAuth for BraiinsV2505 {
     fn set_auth(&mut self, auth: MinerAuth) {
         self.web.set_auth(auth.clone());
         self.graphql.set_auth(auth);
+    }
+}
+
+impl Validate for BraiinsV2505 {
+    type Firmware = BraiinsFirmware;
+
+    fn validate(version: Option<&semver::Version>) -> bool {
+        version.is_some_and(|v| *v >= Version::new(25, 5, 0) && *v < Version::new(25, 7, 0))
     }
 }
 

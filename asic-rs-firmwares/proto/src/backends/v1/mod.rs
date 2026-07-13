@@ -1006,6 +1006,10 @@ impl HasAuth for ProtoV1 {
     }
 }
 
+impl Validate for ProtoV1 {
+    type Firmware = ProtoFirmware;
+}
+
 impl SupportsTemperatureConfig for ProtoV1 {}
 impl GetTuningPercent for ProtoV1 {}
 impl SetTuningPercent for ProtoV1 {}

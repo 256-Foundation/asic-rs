@@ -608,6 +608,18 @@ impl Miner {
             Ok(data.ok())
         })
     }
+    /// Re-run this miner backend's discovery checks against the same IP.
+    ///
+    /// Returns `False` when the device is offline, no longer responds as the
+    /// same firmware/model, or would no longer be valid for this backend.
+    pub fn revalidate<'a>(&self, py: Python<'a>) -> PyResult<PyAwaitable<Option<bool>>> {
+        let inner = Arc::clone(&self.inner);
+        future_into_py(py, async move {
+            let inner = inner.read().await;
+            let data = inner.revalidate().await;
+            Ok(data.ok())
+        })
+    }
     /// Factory reset the miner.
     ///
     /// Returns `None` if factory reset is unsupported or rejected by the backend.

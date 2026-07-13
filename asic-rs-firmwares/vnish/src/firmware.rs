@@ -35,7 +35,7 @@ impl DiscoveryCommands for VnishFirmware {
 
 #[async_trait]
 impl MinerFirmware for VnishFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let (text, _, _) = util::send_web_command(&ip, "/api/v1/info")
             .await
             .ok_or(ModelSelectionError::NoModelResponse)?;

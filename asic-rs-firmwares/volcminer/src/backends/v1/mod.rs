@@ -806,6 +806,10 @@ impl HasAuth for VolcMinerV1 {
     }
 }
 
+impl Validate for VolcMinerV1 {
+    type Firmware = VolcMinerStockFirmware;
+}
+
 #[async_trait]
 impl SupportsTuningConfig for VolcMinerV1 {}
 

@@ -31,6 +31,7 @@ use async_trait::async_trait;
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature};
 use rpc::AntMinerRPCAPI;
+use semver::Version;
 use serde_json::{Value, json};
 use web::AntMinerWebAPI;
 
@@ -1081,6 +1082,14 @@ impl HasDefaultAuth for AntMinerV202307 {
 impl HasAuth for AntMinerV202307 {
     fn set_auth(&mut self, auth: MinerAuth) {
         self.web.set_auth(auth);
+    }
+}
+
+impl Validate for AntMinerV202307 {
+    type Firmware = AntMinerStockFirmware;
+
+    fn validate(version: Option<&semver::Version>) -> bool {
+        version.is_some_and(|v| *v >= Version::new(2023, 7, 0))
     }
 }
 

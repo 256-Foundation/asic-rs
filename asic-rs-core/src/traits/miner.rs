@@ -31,6 +31,7 @@ use crate::{
         miner::{MinerData, TuningTarget},
         pool::PoolGroupData,
     },
+    traits::firmware::MinerFirmware,
     traits::model::MinerModel,
     util::unix_timestamp_secs,
 };
@@ -42,15 +43,29 @@ pub trait MinerConstructor {
     fn new(ip: IpAddr, model: impl MinerModel, version: Option<semver::Version>) -> Box<dyn Miner>;
 }
 
+#[async_trait]
 pub trait Miner:
     GetMinerData + HasMinerControl + SupportsConfigs + UpgradeFirmware + HasAuth + HasDefaultAuth
 {
+    async fn revalidate(&self) -> anyhow::Result<bool>;
 }
 
+#[async_trait]
 impl<
-    T: GetMinerData + HasMinerControl + SupportsConfigs + UpgradeFirmware + HasAuth + HasDefaultAuth,
+    T: GetMinerData
+        + HasMinerControl
+        + SupportsConfigs
+        + UpgradeFirmware
+        + Validate
+        + HasAuth
+        + HasDefaultAuth,
 > Miner for T
 {
+    // Needs to be implemented here because otherwise Miner becomes
+    // dyn incompatible.
+    async fn revalidate(&self) -> anyhow::Result<bool> {
+        <Self as Validate>::revalidate(self).await
+    }
 }
 
 pub trait HasMinerControl:
@@ -382,6 +397,48 @@ pub trait GraphQLClient: APIClient {
         _privileged: bool,
         parameters: Option<Value>,
     ) -> anyhow::Result<Value>;
+}
+
+#[async_trait]
+pub trait Validate: GetIP + GetDeviceInfo + Send + Sync {
+    type Firmware: MinerFirmware + Default + Send + Sync + 'static;
+
+    fn validate(_version: Option<&semver::Version>) -> bool
+    where
+        Self: Sized,
+    {
+        true
+    }
+
+    /// Re-run this backend's firmware discovery checks against the miner IP.
+    ///
+    /// Returns `true` when the device still identifies as the same make, model,
+    /// firmware family, and backend version range. Returns `false` for offline
+    /// devices, unsupported responses, or devices that would no longer be valid
+    /// for this backend.
+    async fn revalidate(&self) -> anyhow::Result<bool>
+    where
+        Self: Sized,
+    {
+        let expected = self.get_device_info();
+
+        let Ok(model) = <Self::Firmware as MinerFirmware>::get_model(self.get_ip()).await else {
+            return Ok(false);
+        };
+
+        if model.make_name() != expected.make {
+            return Ok(false);
+        }
+        if model.to_string() != expected.model {
+            return Ok(false);
+        }
+        if Self::Firmware::default().to_string() != expected.firmware {
+            return Ok(false);
+        }
+
+        let version = <Self::Firmware as MinerFirmware>::get_version(self.get_ip()).await;
+        Ok(Self::validate(version.as_ref()))
+    }
 }
 
 // Data traits

@@ -31,6 +31,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature};
 pub(crate) use rpc::WhatsMinerRPCAPI;
+use semver::Version;
 use serde_json::{Value, json};
 
 use crate::backends::v2::rpc::WhatsMinerRPCAPI as WhatsMinerV2RPC;
@@ -803,6 +804,14 @@ impl HasAuth for WhatsMinerV3 {
         self.rpc.set_auth(MinerAuth::new("super", auth.password()));
         self.v2_rpc
             .set_auth(MinerAuth::new("admin", auth.password()));
+    }
+}
+
+impl Validate for WhatsMinerV3 {
+    type Firmware = WhatsMinerFirmware;
+
+    fn validate(version: Option<&semver::Version>) -> bool {
+        version.is_some_and(|v| *v >= Version::new(2024, 11, 0))
     }
 }
 

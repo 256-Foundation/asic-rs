@@ -35,7 +35,7 @@ impl DiscoveryCommands for NerdAxeFirmware {
 
 #[async_trait]
 impl MinerFirmware for NerdAxeFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let (text, _, _) = util::send_web_command(&ip, "/api/system/info")
             .await
             .ok_or(ModelSelectionError::NoModelResponse)?;
