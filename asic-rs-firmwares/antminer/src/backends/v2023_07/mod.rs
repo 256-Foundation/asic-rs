@@ -101,6 +101,56 @@ fn miner_mode_config_key(miner_conf: &Value) -> Option<&'static str> {
     }
 }
 
+fn browser_miner_conf_payload(miner_conf: &Value) -> serde_json::Map<String, Value> {
+    let mut payload = serde_json::Map::new();
+    payload.insert(
+        "bitmain-fan-ctrl".to_string(),
+        miner_conf
+            .get("bitmain-fan-ctrl")
+            .cloned()
+            .unwrap_or(Value::Bool(false)),
+    );
+    payload.insert(
+        "bitmain-fan-pwm".to_string(),
+        miner_conf
+            .get("bitmain-fan-pwm")
+            .cloned()
+            .unwrap_or(Value::String("100".to_string())),
+    );
+
+    if let Some(mode_key) = miner_mode_config_key(miner_conf)
+        && let Some(mode) = miner_conf.get(mode_key)
+    {
+        payload.insert(mode_key.to_string(), mode.clone());
+    }
+    payload.insert(
+        "freq-level".to_string(),
+        miner_conf
+            .get("freq-level")
+            .or_else(|| miner_conf.get("bitmain-freq-level"))
+            .cloned()
+            .unwrap_or(Value::String("100".to_string())),
+    );
+    payload.insert(
+        "pools".to_string(),
+        miner_conf
+            .get("pools")
+            .cloned()
+            .unwrap_or_else(|| Value::Array(Vec::new())),
+    );
+
+    payload
+}
+
+fn miner_conf_with_miner_mode(miner_conf: &Value, mode: MinerMode) -> Option<Value> {
+    miner_mode_config_key(miner_conf)?;
+    let mut payload = browser_miner_conf_payload(miner_conf);
+    let mode = Value::from(mode.as_web_value());
+    payload.insert("miner-mode".to_string(), mode.clone());
+    payload.insert("bitmain-work-mode".to_string(), mode);
+    Some(Value::Object(payload))
+}
+
 fn miner_mode_from_value(mode: &Value) -> Option<MiningMode> {
     let mode = mode
         .as_str()
@@ -970,25 +1020,17 @@ impl Pause for AntMinerV202307 {
     #[allow(unused_variables)]
     async fn pause(&self, at_time: Option<Duration>) -> anyhow::Result<bool> {
         let pre = self.web.get_miner_conf().await?;
+        let Some(miner_conf) = miner_conf_with_miner_mode(&pre, MinerMode::Sleep) else {
+            return Ok(false);
+        };
 
-        if miner_mode_config_key(&pre).is_some() {
-            let mode = MinerMode::Sleep.as_web_value();
-            let response = self
-                .web
-                .set_miner_conf(json!({
-                    "miner-mode": mode,
-                    "bitmain-work-mode": mode,
-                }))
-                .await?;
-            if response.get("stats").and_then(Value::as_str) != Some("success") {
-                return Ok(false);
-            }
-
-            let post = self.web.get_miner_conf().await?;
-            return Ok(miner_conf_mode_matches(&post, MinerMode::Sleep));
+        let response = self.web.set_miner_conf(miner_conf).await?;
+        if response.get("stats").and_then(Value::as_str) != Some("success") {
+            return Ok(false);
         }
 
-        Ok(false)
+        let post = self.web.get_miner_conf().await?;
+        Ok(miner_conf_mode_matches(&post, MinerMode::Sleep))
     }
 }
 
@@ -1000,25 +1042,17 @@ impl Resume for AntMinerV202307 {
     #[allow(unused_variables)]
     async fn resume(&self, at_time: Option<Duration>) -> anyhow::Result<bool> {
         let pre = self.web.get_miner_conf().await?;
+        let Some(miner_conf) = miner_conf_with_miner_mode(&pre, MinerMode::Normal) else {
+            return Ok(false);
+        };
 
-        if miner_mode_config_key(&pre).is_some() {
-            let mode = MinerMode::Normal.as_web_value();
-            let response = self
-                .web
-                .set_miner_conf(json!({
-                    "miner-mode": mode,
-                    "bitmain-work-mode": mode,
-                }))
-                .await?;
-            if response.get("stats").and_then(Value::as_str) != Some("success") {
-                return Ok(false);
-            }
-
-            let post = self.web.get_miner_conf().await?;
-            return Ok(miner_conf_mode_matches(&post, MinerMode::Normal));
+        let response = self.web.set_miner_conf(miner_conf).await?;
+        if response.get("stats").and_then(Value::as_str) != Some("success") {
+            return Ok(false);
         }
 
-        Ok(false)
+        let post = self.web.get_miner_conf().await?;
+        Ok(miner_conf_mode_matches(&post, MinerMode::Normal))
     }
 }
 
