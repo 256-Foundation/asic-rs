@@ -78,20 +78,6 @@ impl MinerMode {
     }
 }
 
-fn miner_conf_mode_matches(conf: &Value, mode: MinerMode) -> bool {
-    let expected = mode.to_string();
-    ["miner-mode", "bitmain-work-mode"]
-        .iter()
-        .filter_map(|key| conf.get(key))
-        .any(|value| {
-            value
-                .as_str()
-                .map(|mode| mode == expected)
-                .or_else(|| value.as_i64().map(|mode| mode.to_string() == expected))
-                .unwrap_or(false)
-        })
-}
-
 fn miner_mode_config_key(miner_conf: &Value) -> Option<&'static str> {
     if miner_conf.get("miner-mode").is_some() {
         Some("miner-mode")
@@ -1050,8 +1036,10 @@ impl Pause for AntMinerV2020 {
             return Ok(false);
         }
 
-        let post = self.web.get_miner_conf().await?;
-        Ok(miner_conf_mode_matches(&post, MinerMode::Sleep))
+        // set_miner_conf.cgi writes the config before starting a miner
+        // reload/restart in the background; an immediate follow-up read can
+        // race the device becoming temporarily unavailable.
+        Ok(true)
     }
 }
 
@@ -1072,8 +1060,7 @@ impl Resume for AntMinerV2020 {
             return Ok(false);
         }
 
-        let post = self.web.get_miner_conf().await?;
-        Ok(miner_conf_mode_matches(&post, MinerMode::Normal))
+        Ok(true)
     }
 }
 
@@ -1262,6 +1249,43 @@ mod tests {
     use crate::test::json::v2020::{
         AM_DEVS, AM_POOLS, AM_STATS, AM_SUMMARY, AM_SYSTEM_INFO, AM_VERSION,
     };
+
+    #[test]
+    fn set_miner_conf_payload_matches_cgi_contract_for_pause_resume() {
+        let pre = json!({
+            "pools": [
+                {"url": "stratum+tcp://pool1.example:3333", "user": "worker.1", "pass": "x"},
+                {"url": "stratum+tcp://pool2.example:3333", "user": "worker.2", "pass": "x"},
+                {"url": "stratum+tcp://pool3.example:3333", "user": "worker.3", "pass": "x"}
+            ],
+            "bitmain-fan-ctrl": true,
+            "bitmain-fan-pwm": "70",
+            "bitmain-work-mode": "0",
+            "bitmain-freq-level": "100",
+            "api-listen": true
+        });
+
+        assert_eq!(
+            miner_conf_with_miner_mode(&pre, MinerMode::Sleep).unwrap(),
+            json!({
+                "pools": [
+                    {"url": "stratum+tcp://pool1.example:3333", "user": "worker.1", "pass": "x"},
+                    {"url": "stratum+tcp://pool2.example:3333", "user": "worker.2", "pass": "x"},
+                    {"url": "stratum+tcp://pool3.example:3333", "user": "worker.3", "pass": "x"}
+                ],
+                "bitmain-fan-ctrl": true,
+                "bitmain-fan-pwm": "70",
+                "freq-level": "100",
+                "miner-mode": 1,
+                "bitmain-work-mode": 1
+            })
+        );
+
+        assert_eq!(
+            miner_conf_with_miner_mode(&pre, MinerMode::Normal).unwrap()["miner-mode"],
+            json!(0)
+        );
+    }
 
     #[tokio::test]
     async fn test_antminer() {

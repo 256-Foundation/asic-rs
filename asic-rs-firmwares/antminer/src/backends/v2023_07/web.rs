@@ -90,10 +90,22 @@ impl AntMinerWebAPI {
         parameters: Option<Value>,
         method: Method,
     ) -> Result<Value> {
+        self.send_web_command_with_timeout(command, _privileged, parameters, method, self.timeout)
+            .await
+    }
+
+    async fn send_web_command_with_timeout(
+        &self,
+        command: &str,
+        _privileged: bool,
+        parameters: Option<Value>,
+        method: Method,
+        timeout: Duration,
+    ) -> Result<Value> {
         let url = format!("http://{}:{}/cgi-bin/{}.cgi", self.ip, self.port, command);
 
         let response = self
-            .execute_web_request(&url, &method, parameters.clone())
+            .execute_web_request(&url, &method, parameters.clone(), timeout)
             .await?;
 
         let status = response.status();
@@ -112,7 +124,9 @@ impl AntMinerWebAPI {
         method: Method,
     ) -> Result<String> {
         let url = format!("http://{}:{}/cgi-bin/{}.cgi", self.ip, self.port, command);
-        let response = self.execute_web_request(&url, &method, parameters).await?;
+        let response = self
+            .execute_web_request(&url, &method, parameters, self.timeout)
+            .await?;
 
         let status = response.status();
         if !status.is_success() {
@@ -129,7 +143,9 @@ impl AntMinerWebAPI {
         method: Method,
     ) -> Result<bool> {
         let url = format!("http://{}:{}/cgi-bin/{}.cgi", self.ip, self.port, command);
-        let response = self.execute_web_request(&url, &method, parameters).await?;
+        let response = self
+            .execute_web_request(&url, &method, parameters, self.timeout)
+            .await?;
 
         let status = response.status();
         if status.is_success() {
@@ -144,13 +160,14 @@ impl AntMinerWebAPI {
         url: &str,
         method: &Method,
         parameters: Option<Value>,
+        timeout: Duration,
     ) -> Result<Response> {
         let client = self.client()?;
 
         let response = match *method {
             Method::GET => client
                 .get(url)
-                .timeout(self.timeout)
+                .timeout(timeout)
                 .send_digest_auth((self.auth.username(), self.auth.password()))
                 .await
                 .map_err(|e| anyhow!(e.to_string()))?,
@@ -159,7 +176,7 @@ impl AntMinerWebAPI {
                 client
                     .post(url)
                     .json(&data)
-                    .timeout(self.timeout)
+                    .timeout(timeout)
                     .send_digest_auth((self.auth.username(), self.auth.password()))
                     .await
                     .map_err(|e| anyhow!(e.to_string()))?
@@ -176,8 +193,14 @@ impl AntMinerWebAPI {
     }
 
     pub async fn set_miner_conf(&self, conf: Value) -> Result<Value> {
-        self.send_web_command("set_miner_conf", false, Some(conf), Method::POST)
-            .await
+        self.send_web_command_with_timeout(
+            "set_miner_conf",
+            false,
+            Some(conf),
+            Method::POST,
+            self.timeout.max(Duration::from_secs(30)),
+        )
+        .await
     }
 
     pub async fn blink(&self, blink: bool) -> Result<Value> {
