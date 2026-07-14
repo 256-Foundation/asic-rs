@@ -24,6 +24,7 @@ use asic_rs_core::{
         fan::FanData,
         hashrate::{HashRate, HashRateUnit},
         message::{MessageSeverity, MinerComponent, MinerMessage},
+        miner::{MiningMode, TuningTarget},
         pool::{PoolData, PoolGroupData, PoolURL},
     },
     traits::{miner::*, model::MinerModel},
@@ -31,7 +32,7 @@ use asic_rs_core::{
 use asic_rs_makes_elphapex::hardware::ElphapexControlBoard;
 use async_trait::async_trait;
 use macaddr::MacAddr;
-use measurements::{AngularVelocity, Frequency, Temperature};
+use measurements::{AngularVelocity, Frequency, Power, Temperature};
 use serde_json::Value;
 
 use crate::firmware::ElphapexStockFirmware;
@@ -129,6 +130,34 @@ impl ElphapexV1 {
             readings.iter().sum::<f64>() / readings.len() as f64,
         ))
     }
+
+    fn minimum_chip_temperature(values: &Value) -> Option<Temperature> {
+        values
+            .as_array()?
+            .iter()
+            .filter_map(|value| match value {
+                Value::String(value) if !value.is_empty() => {
+                    value.parse::<f64>().ok().map(|temp| temp / 1000.0)
+                }
+                Value::Number(_) => value.as_f64().map(|temp| temp / 1000.0),
+                _ => None,
+            })
+            .min_by(f64::total_cmp)
+            .map(Temperature::from_celsius)
+    }
+
+    fn parse_work_mode(value: &Value) -> Option<MiningMode> {
+        let mode = value
+            .as_i64()
+            .or_else(|| value.as_str().and_then(|mode| mode.parse::<i64>().ok()))?;
+
+        match mode {
+            0 => Some(MiningMode::Normal),
+            2 => Some(MiningMode::High),
+            3 => Some(MiningMode::Low),
+            _ => None,
+        }
+    }
 }
 
 #[async_trait]
@@ -195,6 +224,10 @@ impl GetDataLocations for ElphapexV1 {
         };
         const WEB_MINER_CONF: MinerCommand = MinerCommand::WebAPI {
             command: "get_miner_conf",
+            parameters: None,
+        };
+        const WEB_POWER: MinerCommand = MinerCommand::WebAPI {
+            command: "get_power",
             parameters: None,
         };
 
@@ -303,6 +336,30 @@ impl GetDataLocations for ElphapexV1 {
                     tag: None,
                 },
             )],
+            DataField::Wattage => vec![(
+                WEB_POWER,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/power_output"),
+                    tag: None,
+                },
+            )],
+            DataField::TuningPercent => vec![(
+                WEB_MINER_CONF,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/fc-freq-level"),
+                    tag: None,
+                },
+            )],
+            DataField::TuningTarget => vec![(
+                WEB_MINER_CONF,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some(""),
+                    tag: None,
+                },
+            )],
             DataField::Pools => vec![(
                 WEB_POOLS,
                 DataExtractor {
@@ -380,7 +437,11 @@ impl GetControlBoardVersion for ElphapexV1 {
         data: &HashMap<DataField, Value>,
     ) -> Option<MinerControlBoard> {
         data.extract::<String>(DataField::ControlBoardVersion)
-            .and_then(|version| ElphapexControlBoard::parse(&version).map(Into::into))
+            .map(|version| {
+                ElphapexControlBoard::parse(&version)
+                    .map(Into::into)
+                    .unwrap_or_else(|| MinerControlBoard::unknown(version))
+            })
     }
 }
 
@@ -449,11 +510,26 @@ impl GetHashboards for ElphapexV1 {
                     unit,
                     algo: "Scrypt".to_string(),
                 });
+            board.expected_hashrate =
+                chain
+                    .get("rate_ideal")
+                    .and_then(Self::parse_f64)
+                    .map(|rate| HashRate {
+                        value: rate,
+                        unit,
+                        algo: "Scrypt".to_string(),
+                    });
             board.working_chips = chain
                 .get("asic_num")
                 .and_then(Self::parse_u64)
                 .and_then(|chips| u16::try_from(chips).ok());
-            board.board_temperature = chain.get("temp_pcb").and_then(Self::average_temperature);
+            board.board_temperature = chain
+                .get("temp_pcb")
+                .or_else(|| chain.get("temp_pic"))
+                .and_then(Self::average_temperature);
+            board.inlet_chip_temperature = chain
+                .get("temp_chip")
+                .and_then(Self::minimum_chip_temperature);
             board.outlet_chip_temperature = chain
                 .get("temp_chip")
                 .and_then(Self::average_chip_temperature);
@@ -563,10 +639,36 @@ impl GetFans for ElphapexV1 {
 
 impl GetPsuFans for ElphapexV1 {}
 impl GetFluidTemperature for ElphapexV1 {}
-impl GetWattage for ElphapexV1 {}
-impl GetTuningPercent for ElphapexV1 {}
-impl GetTuningTarget for ElphapexV1 {}
-impl GetScaledTuningTarget for ElphapexV1 {}
+impl GetWattage for ElphapexV1 {
+    fn parse_wattage(&self, data: &HashMap<DataField, Value>) -> Option<Power> {
+        data.get(&DataField::Wattage)
+            .and_then(Self::parse_f64)
+            .map(Power::from_watts)
+    }
+}
+
+impl GetTuningPercent for ElphapexV1 {
+    fn parse_tuning_percent(&self, data: &HashMap<DataField, Value>) -> Option<u8> {
+        data.get(&DataField::TuningPercent)
+            .and_then(Self::parse_u64)
+            .and_then(|percent| u8::try_from(percent).ok())
+    }
+}
+
+impl GetTuningTarget for ElphapexV1 {
+    fn parse_tuning_target(&self, data: &HashMap<DataField, Value>) -> Option<TuningTarget> {
+        data.get(&DataField::TuningTarget)
+            .and_then(|config| config.get("fc-work-mode"))
+            .and_then(Self::parse_work_mode)
+            .map(TuningTarget::MiningMode)
+    }
+}
+
+impl GetScaledTuningTarget for ElphapexV1 {
+    fn parse_scaled_tuning_target(&self, data: &HashMap<DataField, Value>) -> Option<TuningTarget> {
+        self.parse_tuning_target(data)
+    }
+}
 impl GetTuningCapabilities for ElphapexV1 {}
 
 impl GetLightFlashing for ElphapexV1 {
@@ -946,6 +1048,10 @@ mod tests {
         command: "get_miner_conf",
         parameters: None,
     };
+    const WEB_POWER: MinerCommand = MinerCommand::WebAPI {
+        command: "get_power",
+        parameters: None,
+    };
 
     fn fixture_json(data: &str) -> anyhow::Result<Value> {
         serde_json::from_str(data).context("fixture JSON is invalid")
@@ -972,6 +1078,7 @@ mod tests {
         results.insert(WEB_POOLS, fixture_json(v1::POOLS)?);
         results.insert(WEB_BLINK, fixture_json(v1::GET_BLINK_STATUS)?);
         results.insert(WEB_MINER_CONF, fixture_json(v1::GET_MINER_CONF)?);
+        results.insert(WEB_POWER, fixture_json(v1::GET_POWER)?);
 
         let mock_api = MockAPIClient::new(results);
         let mut collector = DataCollector::new_with_client(&miner, &mock_api);
@@ -1001,6 +1108,21 @@ mod tests {
             miner_data.expected_hashrate.as_ref().map(|h| h.value),
             Some(3003.75)
         );
+        assert_eq!(miner_data.wattage, Some(Power::from_watts(25.0)));
+        assert_eq!(miner_data.tuning_percent, Some(100));
+        assert_eq!(
+            miner_data.tuning_target,
+            Some(TuningTarget::MiningMode(MiningMode::Normal))
+        );
+        assert_eq!(miner_data.scaled_tuning_target, miner_data.tuning_target);
+        assert_eq!(
+            miner_data.average_temperature.map(|temp| temp.as_celsius()),
+            Some(56.5)
+        );
+        assert_eq!(
+            miner_data.efficiency, None,
+            "zero hashrate fixture cannot produce efficiency"
+        );
         assert_eq!(miner_data.uptime, Some(Duration::from_secs(0)));
         assert!(miner_data.is_mining);
         assert_eq!(miner_data.fans.len(), 4);
@@ -1009,10 +1131,22 @@ mod tests {
         assert_eq!(miner_data.hashboards.len(), 4);
         assert_eq!(miner_data.hashboards[0].expected_chips, Some(120));
         assert_eq!(miner_data.hashboards[3].expected_chips, Some(120));
+        assert_eq!(
+            miner_data.hashboards[3]
+                .expected_hashrate
+                .as_ref()
+                .map(|h| h.value),
+            Some(3003.75)
+        );
         assert_eq!(miner_data.hashboards[0].working_chips, Some(0));
         assert_eq!(miner_data.hashboards[0].active, Some(false));
         assert_eq!(miner_data.hashboards[3].working_chips, Some(120));
         assert_eq!(miner_data.hashboards[3].active, Some(true));
+        let inlet_chip_temp = miner_data.hashboards[3]
+            .inlet_chip_temperature
+            .map(|temp| temp.as_celsius())
+            .context("missing inlet chip temperature")?;
+        assert!((inlet_chip_temp - 25.437).abs() < 1e-9);
         assert_eq!(
             miner_data.hashboards[3].serial_number.as_deref(),
             Some("10HY24B046N300036H10JC53")
