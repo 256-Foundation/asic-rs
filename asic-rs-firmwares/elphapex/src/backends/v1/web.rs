@@ -18,6 +18,7 @@ pub struct ElphapexWebAPI {
     port: u16,
     client: OnceCell<Client>,
     timeout: Duration,
+    retries: u32,
     auth: MinerAuth,
 }
 
@@ -28,8 +29,14 @@ impl ElphapexWebAPI {
             port: 80,
             client: OnceCell::new(),
             timeout: Duration::from_secs(10),
+            retries: 3,
             auth,
         }
+    }
+
+    pub fn with_retries(mut self, retries: u32) -> Self {
+        self.retries = retries;
+        self
     }
 
     pub fn set_auth(&mut self, auth: MinerAuth) {
@@ -94,7 +101,27 @@ impl ElphapexWebAPI {
         method: Method,
     ) -> Result<Value> {
         let url = format!("http://{}:{}/cgi-bin/{}.cgi", self.ip, self.port, command);
-        let response = self.execute_web_request(&url, &method, parameters).await?;
+
+        let mut last_error = None;
+        for _ in 0..=self.retries {
+            match self.request_json(&url, &method, parameters.clone()).await {
+                Ok(json) => return Ok(json),
+                Err(error) => {
+                    last_error = Some(error);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| anyhow!("Elphapex web API retries exceeded")))
+    }
+
+    async fn request_json(
+        &self,
+        url: &str,
+        method: &Method,
+        parameters: Option<Value>,
+    ) -> Result<Value> {
+        let response = self.execute_web_request(url, method, parameters).await?;
         let status = response.status();
         if !status.is_success() {
             bail!("HTTP request failed with status code {}", status);

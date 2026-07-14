@@ -40,7 +40,7 @@ impl From<ElphapexModel> for MinerHardware {
             },
             ElphapexModel::DG1Plus => Self {
                 fans: Some(4),
-                boards: Some(vec![Some(204); 4]),
+                boards: Some(vec![Some(210); 4]),
             },
             ElphapexModel::DG1Home => Self {
                 fans: Some(4),
