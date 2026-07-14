@@ -188,7 +188,7 @@ impl PowerPlayWebAPI {
         let response = self.execute_request(&url, &Method::GET, None).await?;
         let status = response.status();
         if !status.is_success() {
-            return Err(PowerPlayError::HttpError(status.as_u16()))?;
+            Err(PowerPlayError::HttpError(status.as_u16()))?;
         }
 
         response

@@ -33,7 +33,7 @@ Legend:
 
 ## Exact Supported Models
 
-??? quote "AntMiner (55 models across 22 families)"
+??? quote "AntMiner (56 models across 22 families)"
 
 	??? note "D3 family (1 model)"
 		 - [x] `ANTMINER D3`
@@ -56,8 +56,9 @@ Legend:
 	??? note "KS5 family (2 models)"
 		 - [x] `ANTMINER KS5`
 		 - [x] `ANTMINER KS5 PRO`
-	??? note "L3 family (1 model)"
+	??? note "L3 family (2 models)"
 		 - [x] `ANTMINER L3+`
+		 - [x] `ANTMINER L3++`
 	??? note "L7 family (1 model)"
 		 - [x] `ANTMINER L7`
 	??? note "L9 family (1 model)"

@@ -56,17 +56,17 @@ impl WebAPIClient for NerdAxeWebAPI {
                             Ok(json_data) => return Ok(json_data),
                             Err(e) => {
                                 if attempt == self.retries {
-                                    return Err(NerdAxeError::ParseError(e.to_string()))?;
+                                    Err(NerdAxeError::ParseError(e.to_string()))?;
                                 }
                             }
                         }
                     } else if attempt == self.retries {
-                        return Err(NerdAxeError::HttpError(response.status().as_u16()))?;
+                        Err(NerdAxeError::HttpError(response.status().as_u16()))?;
                     }
                 }
                 Err(e) => {
                     if attempt == self.retries {
-                        return Err(e)?;
+                        Err(e)?;
                     }
                 }
             }
