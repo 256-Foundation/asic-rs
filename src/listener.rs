@@ -50,7 +50,7 @@ impl MinerListener {
     /// ```
     pub async fn listen(
         &self,
-    ) -> Pin<Box<dyn Stream<Item = anyhow::Result<Option<Box<dyn Miner>>>> + '_>> {
+    ) -> Pin<Box<dyn Stream<Item = anyhow::Result<Option<Box<dyn Miner>>>> + Send + '_>> {
         let am_stream = self.antminer_listener.listen().await;
         let wm_stream = self.whatsminer_listener.listen().await;
 
@@ -60,7 +60,7 @@ impl MinerListener {
     }
     pub async fn listen_ip_only(
         &self,
-    ) -> Pin<Box<dyn Stream<Item = anyhow::Result<Option<IpAddr>>> + '_>> {
+    ) -> Pin<Box<dyn Stream<Item = anyhow::Result<Option<IpAddr>>> + Send + '_>> {
         let am_stream = self.antminer_listener.listen_ip_only().await;
         let wm_stream = self.whatsminer_listener.listen_ip_only().await;
 
@@ -79,7 +79,7 @@ impl AntMinerListener {
 
     pub(crate) async fn listen(
         &self,
-    ) -> impl Stream<Item = anyhow::Result<Option<Box<dyn Miner>>>> {
+    ) -> impl Stream<Item = anyhow::Result<Option<Box<dyn Miner>>>> + Send {
         stream! {
             let factory = MinerFactory::new();
             let sock = match UdpSocket::bind("0.0.0.0:14235").await {
@@ -105,7 +105,7 @@ impl AntMinerListener {
     }
     pub(crate) async fn listen_ip_only(
         &self,
-    ) -> impl Stream<Item = anyhow::Result<Option<IpAddr>>> {
+    ) -> impl Stream<Item = anyhow::Result<Option<IpAddr>>> + Send {
         stream! {
             let sock = match UdpSocket::bind("0.0.0.0:14235").await {
                 Ok(s) => s,
@@ -139,7 +139,7 @@ impl WhatsMinerListener {
 
     pub(crate) async fn listen(
         &self,
-    ) -> impl Stream<Item = anyhow::Result<Option<Box<dyn Miner>>>> {
+    ) -> impl Stream<Item = anyhow::Result<Option<Box<dyn Miner>>>> + Send {
         stream! {
             let factory = MinerFactory::new();
             let sock = match UdpSocket::bind("0.0.0.0:8888").await {
@@ -165,7 +165,7 @@ impl WhatsMinerListener {
     }
     pub(crate) async fn listen_ip_only(
         &self,
-    ) -> impl Stream<Item = anyhow::Result<Option<IpAddr>>> {
+    ) -> impl Stream<Item = anyhow::Result<Option<IpAddr>>> + Send {
         stream! {
             let sock = match UdpSocket::bind("0.0.0.0:8888").await {
                 Ok(s) => s,

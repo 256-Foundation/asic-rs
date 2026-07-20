@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
 mod factory;
+mod listener;
 mod miner;
 mod typing;
 
@@ -25,6 +26,8 @@ mod asic_rs {
 
     #[pymodule_export]
     use super::factory::MinerFactory;
+    #[pymodule_export]
+    use super::listener::MinerListener;
     #[pymodule_export]
     use super::miner::Miner;
     #[pymodule_export]
