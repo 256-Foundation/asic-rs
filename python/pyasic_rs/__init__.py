@@ -15,6 +15,7 @@ from .config import (
     TuningConfig,
 )
 from .factory import MinerFactory
+from .listener import MinerListener
 from .miner import Miner
 from .data import TuningTarget
 
@@ -23,6 +24,7 @@ __all__ = [
     "FanMode",
     "Miner",
     "MinerFactory",
+    "MinerListener",
     "Pool",
     "PoolGroup",
     "ScalingConfig",
