@@ -1,0 +1,26 @@
+{
+  "algo": "ltc",
+  "fc-fan-ctrl": false,
+  "fc-fan-pwm": "20",
+  "fc-freq": "1850",
+  "fc-freq-level": "100",
+  "fc-voltage": "1470",
+  "fc-work-mode": 0,
+  "pools": [
+    {
+      "pass": "x",
+      "url": "stratum+tcp://pool.invalid:3333",
+      "user": "worker"
+    },
+    {
+      "pass": "x",
+      "url": "stratum+tcp://backup.invalid:3333",
+      "user": "worker"
+    },
+    {
+      "pass": "x",
+      "url": "stratum+tcp://tertiary.invalid:3333",
+      "user": "worker"
+    }
+  ]
+}

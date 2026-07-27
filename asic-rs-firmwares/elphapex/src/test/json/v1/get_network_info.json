@@ -1,0 +1,13 @@
+{
+  "conf_dnsservers": "",
+  "conf_gateway": "",
+  "conf_hostname": "DG-Home1",
+  "conf_ipaddress": "",
+  "conf_netmask": "",
+  "conf_nettype": "DHCP",
+  "ipaddress": "192.168.6.25",
+  "macaddr": "b8:4c:87:e0:66:b2",
+  "netdevice": "eth0",
+  "netmask": "255.255.255.0",
+  "nettype": "DHCP"
+}

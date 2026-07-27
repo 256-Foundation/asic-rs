@@ -14,6 +14,8 @@ pub use asic_rs_firmwares_avalonminer as avalonminer;
 pub use asic_rs_firmwares_bitaxe as bitaxe;
 #[cfg(feature = "braiins")]
 pub use asic_rs_firmwares_braiins as braiins;
+#[cfg(feature = "elphapex")]
+pub use asic_rs_firmwares_elphapex as elphapex;
 #[cfg(feature = "epic")]
 pub use asic_rs_firmwares_epic as epic;
 #[cfg(feature = "futurebit")]
