@@ -34,10 +34,10 @@
   "stratumPort": 3333,
   "stratumURL": "btc.example.pool",
   "stratumUser": "asic-rs.test",
-  "temp": 27,
+  "temp": 59.875,
   "uptimeSeconds": 4,
   "version": "v2.4.5-3-gb5d1e36-dirty",
   "voltage": 5175,
-  "vrTemp": 0,
+  "vrTemp": 78,
   "wifiStatus": "Connected!"
 }
