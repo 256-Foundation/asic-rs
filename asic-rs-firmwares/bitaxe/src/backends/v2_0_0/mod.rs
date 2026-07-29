@@ -280,12 +280,24 @@ impl GetHashboards for Bitaxe200 {
                 }
                 .as_unit(HashRateUnit::default())
             });
+        // `vrTemp` is the VR/board sensor; `temp` is the ASIC chip sensor.
+        let chip_temp = api_data
+            .get("temp")
+            .and_then(|v| v.as_f64())
+            .filter(|t| *t > -50.0)
+            .or_else(|| {
+                chip_data
+                    .and_then(|c| c.get("temp"))
+                    .and_then(|v| v.as_f64())
+                    .filter(|t| *t > -50.0)
+            })
+            .map(Temperature::from_celsius);
         board.board_temperature = api_data
             .get("vrTemp")
             .and_then(|v| v.as_f64())
             .map(Temperature::from_celsius);
-        board.inlet_chip_temperature = board.board_temperature;
-        board.outlet_chip_temperature = board.board_temperature;
+        board.inlet_chip_temperature = chip_temp;
+        board.outlet_chip_temperature = chip_temp;
         board.working_chips = api_data
             .get("asicCount")
             .and_then(|v| v.as_u64())
@@ -298,13 +310,10 @@ impl GetHashboards for Bitaxe200 {
             .get("frequency")
             .and_then(|v| v.as_f64())
             .map(Frequency::from_megahertz);
-        if let Some(chip_data) = chip_data {
+        if chip_data.is_some() {
             board.chips = vec![ChipData {
                 position: 0,
-                temperature: chip_data
-                    .get("temp")
-                    .and_then(|v| v.as_f64())
-                    .map(Temperature::from_celsius),
+                temperature: chip_temp,
                 voltage: board.voltage,
                 frequency: board.frequency,
                 tuned: Some(true),
@@ -608,6 +617,24 @@ mod tests {
         let hashboards_without_chips = miner.parse_hashboards(&data);
         assert!(hashboards_without_chips[0].chips.is_empty());
         assert_eq!(hashboards_without_chips[0].working_chips, Some(1));
+        assert_eq!(
+            hashboards_without_chips[0]
+                .board_temperature
+                .map(|t| t.as_celsius()),
+            Some(78.0)
+        );
+        assert_eq!(
+            hashboards_without_chips[0]
+                .inlet_chip_temperature
+                .map(|t| t.as_celsius()),
+            Some(59.875)
+        );
+        assert_eq!(
+            hashboards_without_chips[0]
+                .outlet_chip_temperature
+                .map(|t| t.as_celsius()),
+            Some(59.875)
+        );
 
         let mut collector = DataCollector::new_with_client(&miner, &mock_api);
         let data = collector
@@ -622,6 +649,12 @@ mod tests {
         assert_eq!(
             hashboards_without_chips[0].working_chips,
             hashboards_with_chips[0].working_chips
+        );
+        assert_eq!(
+            hashboards_with_chips[0].chips[0]
+                .temperature
+                .map(|t| t.as_celsius()),
+            Some(59.875)
         );
 
         let mut collector = DataCollector::new_with_client(&miner, &mock_api);
