@@ -8,13 +8,19 @@ differences.
 
 `MinerFactory` owns the scan range and discovery tuning.
 
+Network scans first probe common miner ports concurrently, retry nonresponsive
+addresses at a lower concurrency, and only then run firmware identification.
+`with_concurrent_limit` controls identification; the connectivity stages can be
+tuned independently with the `with_connectivity_*` methods. TCP-negative hosts
+receive fallback identification unless `with_strict_port_check(true)` is set.
+
 === "Rust"
 
     ```rust
     let factory = MinerFactory::from_subnet("192.168.1.0/24")?
-        .with_concurrent_limit(2500)
-        .with_connectivity_timeout_secs(1)
-        .with_identification_timeout_secs(10);
+        .with_concurrent_limit(32)
+        .with_connectivity_timeout_millis(500)
+        .with_identification_timeout_secs(3);
     ```
 
 === "Python"
@@ -22,9 +28,9 @@ differences.
     ```python
     factory = (
         MinerFactory.from_subnet("192.168.1.0/24")
-        .with_concurrent_limit(2500)
-        .with_connectivity_timeout_secs(1)
-        .with_identification_timeout_secs(10)
+        .with_concurrent_limit(32)
+        .with_connectivity_timeout_millis(500)
+        .with_identification_timeout_secs(3)
     )
     ```
 
