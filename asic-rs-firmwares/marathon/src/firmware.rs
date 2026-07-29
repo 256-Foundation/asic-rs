@@ -35,7 +35,7 @@ impl DiscoveryCommands for MarathonFirmware {
 
 #[async_trait]
 impl MinerFirmware for MarathonFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let data = util::send_rpc_command(&ip, "version")
             .await
             .ok_or(ModelSelectionError::NoModelResponse)?;

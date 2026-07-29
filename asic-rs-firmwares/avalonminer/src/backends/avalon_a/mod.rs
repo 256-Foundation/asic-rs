@@ -981,6 +981,10 @@ impl UpgradeFirmware for AvalonAMiner {
 impl HasAuth for AvalonAMiner {}
 impl HasDefaultAuth for AvalonAMiner {}
 
+impl Validate for AvalonAMiner {
+    type Firmware = AvalonStockFirmware;
+}
+
 #[async_trait]
 impl SupportsTuningConfig for AvalonAMiner {
     fn supports_tuning_config(&self) -> bool {

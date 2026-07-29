@@ -804,6 +804,10 @@ impl HasDefaultAuth for ApolloV2 {
     }
 }
 
+impl Validate for ApolloV2 {
+    type Firmware = ApolloFirmware;
+}
+
 impl SupportsTemperatureConfig for ApolloV2 {}
 impl GetTuningPercent for ApolloV2 {}
 impl SetTuningPercent for ApolloV2 {}

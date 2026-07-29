@@ -160,6 +160,10 @@ impl ElphapexV1 {
     }
 }
 
+impl Validate for ElphapexV1 {
+    type Firmware = ElphapexStockFirmware;
+}
+
 #[async_trait]
 impl APIClient for ElphapexV1 {
     async fn get_api_result(&self, command: &MinerCommand) -> Result<Value> {

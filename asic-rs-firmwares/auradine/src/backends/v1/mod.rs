@@ -1407,6 +1407,10 @@ impl HasAuth for AuradineV1 {
     }
 }
 
+impl Validate for AuradineV1 {
+    type Firmware = AuradineFirmware;
+}
+
 #[async_trait]
 impl SupportsTuningConfig for AuradineV1 {
     fn supports_tuning_config(&self) -> bool {

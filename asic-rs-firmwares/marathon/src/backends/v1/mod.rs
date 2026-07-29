@@ -1145,6 +1145,10 @@ impl HasAuth for MaraV1 {
     }
 }
 
+impl Validate for MaraV1 {
+    type Firmware = MarathonFirmware;
+}
+
 #[async_trait]
 impl SupportsTuningConfig for MaraV1 {
     fn supports_tuning_config(&self) -> bool {

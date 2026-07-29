@@ -28,6 +28,7 @@ use async_trait::async_trait;
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
 use reqwest::Method;
+use semver::Version;
 use serde_json::{Value, json};
 
 use web::BraiinsWebAPI;
@@ -870,6 +871,14 @@ impl HasAuth for BraiinsV2604 {
     fn set_auth(&mut self, auth: MinerAuth) {
         self.web.set_auth(auth.clone());
         self.graphql.set_auth(auth);
+    }
+}
+
+impl Validate for BraiinsV2604 {
+    type Firmware = BraiinsFirmware;
+
+    fn validate(version: Option<&semver::Version>) -> bool {
+        version.is_some_and(|v| *v >= Version::new(26, 4, 0))
     }
 }
 

@@ -26,6 +26,7 @@ use asic_rs_makes_bitaxe::hardware::BitaxeControlBoard;
 use async_trait::async_trait;
 use macaddr::MacAddr;
 use measurements::{AngularVelocity, Frequency, Power, Temperature, Voltage};
+use semver::Version;
 use serde_json::Value;
 use web::BitaxeWebAPI;
 
@@ -570,6 +571,14 @@ impl UpgradeFirmware for Bitaxe200 {
 
 impl HasAuth for Bitaxe200 {}
 impl HasDefaultAuth for Bitaxe200 {}
+
+impl Validate for Bitaxe200 {
+    type Firmware = BitaxeFirmware;
+
+    fn validate(version: Option<&semver::Version>) -> bool {
+        version.is_some_and(|v| *v >= Version::new(2, 0, 0) && *v < Version::new(2, 9, 0))
+    }
+}
 
 #[async_trait]
 impl SupportsTuningConfig for Bitaxe200 {

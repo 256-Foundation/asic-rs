@@ -837,6 +837,10 @@ impl HasDefaultAuth for SealMinerV2025 {
     }
 }
 
+impl Validate for SealMinerV2025 {
+    type Firmware = SealMinerStockFirmware;
+}
+
 impl SupportsTemperatureConfig for SealMinerV2025 {}
 impl GetTuningPercent for SealMinerV2025 {}
 impl SetTuningPercent for SealMinerV2025 {}

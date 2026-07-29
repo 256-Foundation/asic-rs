@@ -120,7 +120,7 @@ async fn get_version_with_auth(ip: IpAddr, auth: &MinerAuth) -> Option<semver::V
 
 #[async_trait]
 impl MinerFirmware for SealMinerStockFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let default = crate::backends::v2025::SealMinerV2025::default_auth();
         get_model_with_auth(ip, &default).await
     }

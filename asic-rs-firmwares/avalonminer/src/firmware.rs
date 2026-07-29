@@ -34,7 +34,7 @@ impl DiscoveryCommands for AvalonStockFirmware {
 
 #[async_trait]
 impl MinerFirmware for AvalonStockFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let response = util::send_rpc_command(&ip, "version").await;
 
         match response {

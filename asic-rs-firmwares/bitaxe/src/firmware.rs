@@ -35,7 +35,7 @@ impl DiscoveryCommands for BitaxeFirmware {
 
 #[async_trait]
 impl MinerFirmware for BitaxeFirmware {
-    async fn get_model(ip: IpAddr) -> Result<impl MinerModel, ModelSelectionError> {
+    async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let response = util::send_web_command(&ip, "/api/system/info").await;
 
         match response {
