@@ -6,7 +6,7 @@ use std::{
     pin::Pin,
     str::FromStr,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -37,13 +37,12 @@ const CONNECTIVITY_RETRIES: u32 = 0;
 const CONNECTIVITY_CONCURRENCY: usize = 256;
 const CONNECTIVITY_RETRY_CONCURRENCY: usize = 64;
 const CONNECTIVITY_RETRY_BACKOFF: Duration = Duration::from_millis(100);
-const SCAN_RETRIES: u32 = 1;
+const SCAN_RETRIES: u32 = 0;
 const SCAN_RETRY_BACKOFF: Duration = Duration::from_millis(250);
 const IDENTIFICATION_RETRY_CONCURRENCY: usize = 8;
 const NOFILE_PER_CONCURRENCY: u64 = 8;
 const MIN_NOFILE_LIMIT: u64 = 2048;
 const MINER_PORTS: [u16; 4] = [80, 4028, 4029, 8889];
-const SLOW_OPERATION_WARNING: Duration = Duration::from_secs(5);
 
 fn calculate_optimal_concurrency(ip_count: usize) -> usize {
     ip_count.clamp(1, IDENTIFICATION_CONCURRENCY)
@@ -298,15 +297,13 @@ pub struct MinerFactory {
 }
 
 #[allow(clippy::type_complexity)]
-async fn identify_ip_batch(
+fn identify_ip_stream(
     factory: Arc<MinerFactory>,
     ips: Vec<IpAddr>,
     concurrency: usize,
-) -> (Vec<(IpAddr, Box<dyn Miner>)>, Vec<IpAddr>) {
-    let mut identified = Vec::new();
-    let mut unidentified = Vec::new();
-    let mut tasks = stream::iter(ips)
-        .map(|ip| {
+) -> impl Stream<Item = (IpAddr, Option<Box<dyn Miner>>)> + Send {
+    stream::iter(ips)
+        .map(move |ip| {
             let factory = Arc::clone(&factory);
             async move {
                 let miner = factory.get_miner(ip).await.unwrap_or_else(|error| {
@@ -316,16 +313,7 @@ async fn identify_ip_batch(
                 (ip, miner)
             }
         })
-        .buffer_unordered(concurrency.max(1));
-
-    while let Some((ip, miner)) = tasks.next().await {
-        if let Some(miner) = miner {
-            identified.push((ip, miner));
-        } else {
-            unidentified.push(ip);
-        }
-    }
-    (identified, unidentified)
+        .buffer_unordered(concurrency.max(1))
 }
 
 impl std::fmt::Debug for MinerFactory {
@@ -392,7 +380,11 @@ impl MinerFactory {
             }
         }
         tracing::trace!("no response from any miner-specific ports");
-        Ok(None)
+        if self.strict_port_check {
+            Ok(None)
+        } else {
+            self.get_miner(ip).await
+        }
     }
 
     /// Discover and construct a miner at the given IP.
@@ -489,18 +481,8 @@ impl MinerFactory {
             Some(fw) => {
                 let firmware = fw.to_string();
                 let auth = self.discovery_auth_by_firmware.get(&fw.to_string());
-                let started = Instant::now();
                 let build_result =
                     timeout(self.miner_construction_timeout, fw.build_miner(ip, auth)).await;
-                let elapsed = started.elapsed();
-                tracing::debug!(
-                    target: "scan_benchmark",
-                    %ip,
-                    %firmware,
-                    elapsed_ms = elapsed.as_millis(),
-                    success = matches!(&build_result, Ok(Ok(_))),
-                    "scan benchmark: miner construction completed"
-                );
 
                 match build_result {
                     Ok(Ok(miner)) => Ok(Some(miner)),
@@ -598,8 +580,7 @@ impl MinerFactory {
     /// Set the number of additional attempts for addresses that fail scanning.
     ///
     /// Retries run as a separate lower-concurrency batch after the primary
-    /// identification pass. The default is one retry. Set this to zero to
-    /// retain single-attempt behavior.
+    /// identification pass. The default is zero retries.
     pub fn with_scan_retries(mut self, retries: u32) -> Self {
         self.scan_retries = retries;
         self
@@ -910,7 +891,7 @@ impl MinerFactory {
     #[allow(clippy::type_complexity)]
     fn scan_outcomes_stream(
         &self,
-    ) -> Pin<Box<dyn Stream<Item = (IpAddr, Option<Box<dyn Miner>>)> + Send>> {
+    ) -> Pin<Box<impl Stream<Item = (IpAddr, Option<Box<dyn Miner>>)> + Send + use<>>> {
         let identification_concurrency = self
             .concurrent
             .unwrap_or(calculate_optimal_concurrency(self.ips.len()))
@@ -930,27 +911,17 @@ impl MinerFactory {
             maybe_adjust_nofile_limit(desired_nofile);
         }
 
+        // The returned stream must own the factory configuration rather than
+        // borrow `self`, and every in-flight identification task shares it.
         let factory = Arc::new(self.clone());
         let queued_ips = self.ips.clone();
         Box::pin(async_stream::stream! {
             let (mut candidates, unreachable) = if factory.check_port {
-                let connectivity_started = Instant::now();
-                let mut initial_probe = Box::pin(probe_ip_batch(
+                let (mut reachable, mut unreachable) = probe_ip_batch(
                     queued_ips,
                     factory.connectivity_timeout,
                     factory.connectivity_concurrent,
-                ));
-                let (mut reachable, mut unreachable) = tokio::select! {
-                    result = &mut initial_probe => result,
-                    _ = tokio::time::sleep(SLOW_OPERATION_WARNING) => {
-                        tracing::warn!(
-                            concurrency = factory.connectivity_concurrent,
-                            elapsed_ms = connectivity_started.elapsed().as_millis(),
-                            "initial TCP reachability stage still pending"
-                        );
-                        initial_probe.await
-                    }
-                };
+                ).await;
 
                 for retry_index in 0..factory.connectivity_retries {
                     if unreachable.is_empty() {
@@ -972,23 +943,6 @@ impl MinerFactory {
                     reachable.extend(recovered);
                     unreachable = still_unreachable;
                 }
-                let connectivity_elapsed = connectivity_started.elapsed();
-                tracing::debug!(
-                    target: "scan_benchmark",
-                    reachable = reachable.len(),
-                    unreachable = unreachable.len(),
-                    elapsed_ms = connectivity_elapsed.as_millis(),
-                    "scan benchmark: TCP reachability stage completed"
-                );
-                if connectivity_elapsed >= SLOW_OPERATION_WARNING {
-                    tracing::warn!(
-                        reachable = reachable.len(),
-                        unreachable = unreachable.len(),
-                        concurrency = factory.connectivity_concurrent,
-                        elapsed_ms = connectivity_elapsed.as_millis(),
-                        "slow TCP reachability stage completed"
-                    );
-                }
                 (reachable, unreachable)
             } else {
                 (queued_ips, Vec::new())
@@ -1007,32 +961,18 @@ impl MinerFactory {
                 } else {
                     identification_retry_concurrency
                 };
-                let identification_started = Instant::now();
-                let (identified, unidentified) =
-                    identify_ip_batch(Arc::clone(&factory), candidates, concurrency).await;
-                let identified_count = identified.len();
-                for (ip, miner) in identified {
-                    yield (ip, Some(miner));
-                }
-                let identification_elapsed = identification_started.elapsed();
-                tracing::debug!(
-                    target: "scan_benchmark",
-                    attempt = attempt + 1,
-                    identified = identified_count,
-                    unidentified = unidentified.len(),
+                let mut unidentified = Vec::new();
+                let mut identification = Box::pin(identify_ip_stream(
+                    Arc::clone(&factory),
+                    candidates,
                     concurrency,
-                    elapsed_ms = identification_elapsed.as_millis(),
-                    "scan benchmark: miner identification stage completed"
-                );
-                if identification_elapsed >= Duration::from_secs(30) {
-                    tracing::warn!(
-                        attempt = attempt + 1,
-                        identified = identified_count,
-                        unidentified = unidentified.len(),
-                        concurrency,
-                        elapsed_ms = identification_elapsed.as_millis(),
-                        "slow miner identification stage completed"
-                    );
+                ));
+                while let Some((ip, miner)) = identification.next().await {
+                    if miner.is_some() {
+                        yield (ip, miner);
+                    } else {
+                        unidentified.push(ip);
+                    }
                 }
                 candidates = unidentified;
             }
@@ -1050,25 +990,13 @@ impl MinerFactory {
                 // absent. Preserve correctness with one conservative fallback
                 // pass after the responsive-host fast path. Fallback misses are
                 // not retried because most are genuinely unused addresses.
-                let fallback_count = unreachable.len();
-                let (identified, unidentified) = identify_ip_batch(
+                let mut fallback = Box::pin(identify_ip_stream(
                     Arc::clone(&factory),
                     unreachable,
                     identification_concurrency,
-                )
-                .await;
-                tracing::info!(
-                    attempted = fallback_count,
-                    identified = identified.len(),
-                    unidentified = unidentified.len(),
-                    concurrency = identification_concurrency,
-                    "probe-negative fallback identification completed"
-                );
-                for (ip, miner) in identified {
-                    yield (ip, Some(miner));
-                }
-                for ip in unidentified {
-                    yield (ip, None);
+                ));
+                while let Some(outcome) = fallback.next().await {
+                    yield outcome;
                 }
             }
         })
@@ -1092,7 +1020,7 @@ impl MinerFactory {
     /// The TCP reachability pass completes before application identification.
     /// Responsive addresses are identified with a separate, lower concurrency
     /// limit so embedded web servers are not overloaded.
-    pub fn scan_stream(&self) -> Pin<Box<dyn Stream<Item = Box<dyn Miner>> + Send>> {
+    pub fn scan_stream(&self) -> Pin<Box<impl Stream<Item = Box<dyn Miner>> + Send + use<>>> {
         Box::pin(
             self.scan_outcomes_stream()
                 .filter_map(|(_, miner)| async move { miner }),
@@ -1106,7 +1034,7 @@ impl MinerFactory {
     #[allow(clippy::type_complexity)]
     pub fn scan_stream_with_ip(
         &self,
-    ) -> Pin<Box<dyn Stream<Item = (IpAddr, Option<Box<dyn Miner>>)> + Send>> {
+    ) -> Pin<Box<impl Stream<Item = (IpAddr, Option<Box<dyn Miner>>)> + Send + use<>>> {
         self.scan_outcomes_stream()
     }
 
@@ -1277,13 +1205,14 @@ mod tests {
     }
 
     #[test]
-    fn staged_scan_defaults_match_benchmarked_limits() {
+    fn staged_scan_defaults_are_bounded() {
         let factory = MinerFactory::new();
         assert_eq!(calculate_optimal_concurrency(1024), 128);
         assert_eq!(factory.identification_timeout, Duration::from_secs(3));
         assert_eq!(factory.miner_construction_timeout, Duration::from_secs(5));
         assert_eq!(factory.connectivity_timeout, Duration::from_millis(500));
         assert_eq!(factory.connectivity_retries, 0);
+        assert_eq!(factory.scan_retries, 0);
         assert_eq!(factory.connectivity_concurrent, 256);
         assert_eq!(factory.connectivity_retry_concurrent, 64);
         assert!(factory.strict_port_check);
