@@ -1,10 +1,4 @@
-use std::{
-    fmt,
-    fmt::Display,
-    future::Future,
-    net::IpAddr,
-    time::{Duration, Instant},
-};
+use std::{fmt, fmt::Display, future::Future, net::IpAddr, time::Instant};
 
 use asic_rs_core::{
     data::{
@@ -97,43 +91,20 @@ impl MinerModel for EPicCompatibleModel {
 #[derive(Default, Debug)]
 pub struct EPicFirmware {}
 
-const SLOW_DISCOVERY_REQUEST_WARNING: Duration = Duration::from_secs(5);
-
-async fn await_with_slow_request_diagnostic<T>(
+async fn await_with_discovery_timing<T>(
     ip: IpAddr,
     operation: &'static str,
     future: impl Future<Output = T>,
 ) -> T {
     let started = Instant::now();
-    let mut future = Box::pin(future);
-    let result = tokio::select! {
-        result = &mut future => result,
-        _ = tokio::time::sleep(SLOW_DISCOVERY_REQUEST_WARNING) => {
-            tracing::warn!(
-                %ip,
-                operation,
-                elapsed_ms = started.elapsed().as_millis(),
-                "UMC OS miner construction request still pending"
-            );
-            future.await
-        }
-    };
-    let elapsed = started.elapsed();
+    let result = future.await;
     tracing::debug!(
         target: "scan_benchmark",
         %ip,
         operation,
-        elapsed_ms = elapsed.as_millis(),
+        elapsed_ms = started.elapsed().as_millis(),
         "scan benchmark: UMC OS construction request completed"
     );
-    if elapsed >= SLOW_DISCOVERY_REQUEST_WARNING {
-        tracing::warn!(
-            %ip,
-            operation,
-            elapsed_ms = elapsed.as_millis(),
-            "slow UMC OS miner construction request completed"
-        );
-    }
     result
 }
 
@@ -153,7 +124,7 @@ impl DiscoveryCommands for EPicFirmware {
 impl MinerFirmware for EPicFirmware {
     async fn get_model(ip: IpAddr) -> Result<impl MinerModel + Send, ModelSelectionError> {
         let url = format!("http://{}:4028/capabilities", ip);
-        let json_data = await_with_slow_request_diagnostic(ip, "capabilities", async {
+        let json_data = await_with_discovery_timing(ip, "capabilities", async {
             let response = build_discovery_client()?
                 .get(&url)
                 .send()
@@ -217,7 +188,7 @@ impl MinerFirmware for EPicFirmware {
 
     async fn get_version(ip: IpAddr) -> Option<semver::Version> {
         let url = format!("http://{}:4028/summary", ip);
-        let json_data = await_with_slow_request_diagnostic(ip, "summary", async {
+        let json_data = await_with_discovery_timing(ip, "summary", async {
             let response = build_discovery_client().ok()?.get(&url).send().await.ok()?;
             response.json::<serde_json::Value>().await.ok()
         })

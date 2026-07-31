@@ -973,11 +973,12 @@ impl MinerFactory {
                     unreachable = still_unreachable;
                 }
                 let connectivity_elapsed = connectivity_started.elapsed();
-                tracing::warn!(
+                tracing::debug!(
+                    target: "scan_benchmark",
                     reachable = reachable.len(),
                     unreachable = unreachable.len(),
                     elapsed_ms = connectivity_elapsed.as_millis(),
-                    "scan diagnostic: TCP reachability stage completed"
+                    "scan benchmark: TCP reachability stage completed"
                 );
                 if connectivity_elapsed >= SLOW_OPERATION_WARNING {
                     tracing::warn!(
@@ -1014,13 +1015,14 @@ impl MinerFactory {
                     yield (ip, Some(miner));
                 }
                 let identification_elapsed = identification_started.elapsed();
-                tracing::warn!(
+                tracing::debug!(
+                    target: "scan_benchmark",
                     attempt = attempt + 1,
                     identified = identified_count,
                     unidentified = unidentified.len(),
                     concurrency,
                     elapsed_ms = identification_elapsed.as_millis(),
-                    "scan diagnostic: miner identification stage completed"
+                    "scan benchmark: miner identification stage completed"
                 );
                 if identification_elapsed >= Duration::from_secs(30) {
                     tracing::warn!(
