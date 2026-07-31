@@ -89,12 +89,6 @@ if __name__ == "__main__":
 
 When the exact IP is not known, add a subnet, octet range, or range string to
 the factory and scan it. Large scans automatically use bounded concurrency.
-Scanning uses separate stages: a TCP reachability pass at 256 addresses at a
-time, followed by application identification at 128 addresses at a time.
-Probe-negative hosts are excluded by default. Applications that prioritize
-maximum coverage over scan time can call `with_strict_port_check(false)` to
-give probe misses a conservative identification pass. `with_concurrent_limit`
-controls only the identification stage.
 
 <!-- asic-rs-example:scan rust -->
 
@@ -104,7 +98,7 @@ use asic_rs::MinerFactory;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let miners = MinerFactory::from_subnet("192.168.1.0/24")?
-        .with_concurrent_limit(128)
+        .with_concurrent_limit(2500)
         .scan()
         .await?;
 
@@ -124,7 +118,7 @@ from pyasic_rs import MinerFactory
 async def main() -> None:
     miners = await (
         MinerFactory.from_subnet("192.168.1.0/24")
-        .with_concurrent_limit(128)
+        .with_concurrent_limit(2500)
         .scan()
     )
 
