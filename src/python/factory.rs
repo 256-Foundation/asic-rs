@@ -372,6 +372,16 @@ impl MinerFactory {
         }))
     }
 
+    /// Set the maximum seconds allowed to construct a miner after identification.
+    pub fn with_miner_construction_timeout_secs<'py>(
+        slf: PyRefMut<'py, Self>,
+        timeout_secs: u64,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        Ok(Self::update_inner(slf, |inner| {
+            inner.with_miner_construction_timeout_secs(timeout_secs)
+        }))
+    }
+
     /// Set the timeout, in seconds, for quick connectivity probes.
     pub fn with_connectivity_timeout_secs<'py>(
         slf: PyRefMut<'py, Self>,
@@ -392,7 +402,7 @@ impl MinerFactory {
         }))
     }
 
-    /// Set total connectivity attempts, including the first pass.
+    /// Set connectivity retries after the initial pass.
     pub fn with_connectivity_retries<'py>(
         slf: PyRefMut<'py, Self>,
         retries: u32,

@@ -6,7 +6,7 @@ use std::{
     pin::Pin,
     str::FromStr,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::Result;
@@ -30,9 +30,10 @@ use rand::seq::SliceRandom;
 use tokio::{net::TcpStream, time::timeout};
 
 const IDENTIFICATION_TIMEOUT: Duration = Duration::from_secs(3);
-const IDENTIFICATION_CONCURRENCY: usize = 32;
+const MINER_CONSTRUCTION_TIMEOUT: Duration = Duration::from_secs(5);
+const IDENTIFICATION_CONCURRENCY: usize = 128;
 const CONNECTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
-const CONNECTIVITY_ATTEMPTS: u32 = 2;
+const CONNECTIVITY_RETRIES: u32 = 0;
 const CONNECTIVITY_CONCURRENCY: usize = 256;
 const CONNECTIVITY_RETRY_CONCURRENCY: usize = 64;
 const CONNECTIVITY_RETRY_BACKOFF: Duration = Duration::from_millis(100);
@@ -42,6 +43,7 @@ const IDENTIFICATION_RETRY_CONCURRENCY: usize = 8;
 const NOFILE_PER_CONCURRENCY: u64 = 8;
 const MIN_NOFILE_LIMIT: u64 = 2048;
 const MINER_PORTS: [u16; 4] = [80, 4028, 4029, 8889];
+const SLOW_OPERATION_WARNING: Duration = Duration::from_secs(5);
 
 fn calculate_optimal_concurrency(ip_count: usize) -> usize {
     ip_count.clamp(1, IDENTIFICATION_CONCURRENCY)
@@ -279,6 +281,7 @@ pub struct MinerFactory {
     ips: Vec<IpAddr>,
     discovery_auth_by_firmware: HashMap<String, MinerAuth>,
     identification_timeout: Duration,
+    miner_construction_timeout: Duration,
     connectivity_timeout: Duration,
     connectivity_retries: u32,
     connectivity_concurrent: usize,
@@ -338,6 +341,10 @@ impl std::fmt::Debug for MinerFactory {
                 &self.discovery_auth_by_firmware.len(),
             )
             .field("identification_timeout", &self.identification_timeout)
+            .field(
+                "miner_construction_timeout",
+                &self.miner_construction_timeout,
+            )
             .field("connectivity_timeout", &self.connectivity_timeout)
             .field("connectivity_retries", &self.connectivity_retries)
             .field("connectivity_concurrent", &self.connectivity_concurrent)
@@ -374,7 +381,7 @@ impl MinerFactory {
             return self.get_miner(ip).await;
         }
 
-        for attempt in 0..self.connectivity_retries.max(1) {
+        for attempt in 0..=self.connectivity_retries {
             if attempt > 0 {
                 let multiplier = 1_u32 << (attempt - 1).min(10);
                 tokio::time::sleep(self.connectivity_retry_backoff.saturating_mul(multiplier))
@@ -480,11 +487,34 @@ impl MinerFactory {
 
         match found {
             Some(fw) => {
+                let firmware = fw.to_string();
                 let auth = self.discovery_auth_by_firmware.get(&fw.to_string());
-                match fw.build_miner(ip, auth).await {
-                    Ok(miner) => Ok(Some(miner)),
-                    Err(e) => {
+                let started = Instant::now();
+                let build_result =
+                    timeout(self.miner_construction_timeout, fw.build_miner(ip, auth)).await;
+                let elapsed = started.elapsed();
+                tracing::debug!(
+                    target: "scan_benchmark",
+                    %ip,
+                    %firmware,
+                    elapsed_ms = elapsed.as_millis(),
+                    success = matches!(&build_result, Ok(Ok(_))),
+                    "scan benchmark: miner construction completed"
+                );
+
+                match build_result {
+                    Ok(Ok(miner)) => Ok(Some(miner)),
+                    Ok(Err(e)) => {
                         tracing::debug!("failed to build miner for {ip}: {e}");
+                        Ok(None)
+                    }
+                    Err(_) => {
+                        tracing::warn!(
+                            %ip,
+                            %firmware,
+                            timeout_ms = self.miner_construction_timeout.as_millis(),
+                            "miner construction timed out"
+                        );
                         Ok(None)
                     }
                 }
@@ -506,8 +536,9 @@ impl MinerFactory {
             ips: Vec::new(),
             discovery_auth_by_firmware: HashMap::new(),
             identification_timeout: IDENTIFICATION_TIMEOUT,
+            miner_construction_timeout: MINER_CONSTRUCTION_TIMEOUT,
             connectivity_timeout: CONNECTIVITY_TIMEOUT,
-            connectivity_retries: CONNECTIVITY_ATTEMPTS,
+            connectivity_retries: CONNECTIVITY_RETRIES,
             connectivity_concurrent: CONNECTIVITY_CONCURRENCY,
             connectivity_retry_concurrent: CONNECTIVITY_RETRY_CONCURRENCY,
             connectivity_retry_backoff: CONNECTIVITY_RETRY_BACKOFF,
@@ -518,15 +549,15 @@ impl MinerFactory {
             nofile_limit: None,
             nofile_adjustment: true,
             check_port: true,
-            strict_port_check: false,
+            strict_port_check: true,
         }
     }
 
     /// Enable or disable TCP reachability prioritization before identification.
     ///
-    /// Responsive hosts are identified first. By default, hosts that miss the
-    /// probe still receive a fallback identification attempt so a transient
-    /// TCP miss cannot silently remove a miner from scan results.
+    /// Responsive hosts are identified after the reachability stage. By
+    /// default, hosts that miss the probe are excluded; call
+    /// `with_strict_port_check(false)` to enable the conservative fallback.
     pub fn with_port_check(mut self, enabled: bool) -> Self {
         self.check_port = enabled;
         self
@@ -536,7 +567,8 @@ impl MinerFactory {
     ///
     /// This can reduce scan time on sparse networks, but may produce false
     /// negatives when ARP resolution, switches, or embedded TCP stacks drop
-    /// probe bursts. The default is `false`.
+    /// probe bursts. The default is `true`; set this to `false` to run one
+    /// application-identification fallback pass for probe-negative hosts.
     pub fn with_strict_port_check(mut self, enabled: bool) -> Self {
         self.strict_port_check = enabled;
         self
@@ -557,7 +589,7 @@ impl MinerFactory {
     /// Set the maximum number of responsive addresses identified concurrently.
     ///
     /// TCP reachability probing has an independent concurrency limit. If this
-    /// is unset, identification uses a conservative default of 32 addresses.
+    /// is unset, identification uses a default of 128 addresses.
     pub fn with_concurrent_limit(mut self, limit: usize) -> Self {
         self.concurrent = Some(limit.max(1));
         self
@@ -644,6 +676,18 @@ impl MinerFactory {
         self
     }
 
+    /// Set the maximum time allowed to construct a miner after identification.
+    pub fn with_miner_construction_timeout(mut self, timeout: Duration) -> Self {
+        self.miner_construction_timeout = timeout;
+        self
+    }
+
+    /// Set the miner construction timeout in seconds.
+    pub fn with_miner_construction_timeout_secs(mut self, timeout_secs: u64) -> Self {
+        self.miner_construction_timeout = Duration::from_secs(timeout_secs);
+        self
+    }
+
     /// Set the timeout for quick connectivity probes during scans.
     pub fn with_connectivity_timeout(mut self, timeout: Duration) -> Self {
         self.connectivity_timeout = timeout;
@@ -662,9 +706,12 @@ impl MinerFactory {
         self
     }
 
-    /// Set the total number of connectivity attempts, including the first.
-    pub fn with_connectivity_retries(mut self, attempts: u32) -> Self {
-        self.connectivity_retries = attempts.max(1);
+    /// Set the number of connectivity retries after the initial attempt.
+    ///
+    /// A value of zero performs one initial connectivity pass without retries,
+    /// which is the default.
+    pub fn with_connectivity_retries(mut self, retries: u32) -> Self {
+        self.connectivity_retries = retries;
         self
     }
 
@@ -887,18 +934,29 @@ impl MinerFactory {
         let queued_ips = self.ips.clone();
         Box::pin(async_stream::stream! {
             let (mut candidates, unreachable) = if factory.check_port {
-                let (mut reachable, mut unreachable) = probe_ip_batch(
+                let connectivity_started = Instant::now();
+                let mut initial_probe = Box::pin(probe_ip_batch(
                     queued_ips,
                     factory.connectivity_timeout,
                     factory.connectivity_concurrent,
-                )
-                .await;
+                ));
+                let (mut reachable, mut unreachable) = tokio::select! {
+                    result = &mut initial_probe => result,
+                    _ = tokio::time::sleep(SLOW_OPERATION_WARNING) => {
+                        tracing::warn!(
+                            concurrency = factory.connectivity_concurrent,
+                            elapsed_ms = connectivity_started.elapsed().as_millis(),
+                            "initial TCP reachability stage still pending"
+                        );
+                        initial_probe.await
+                    }
+                };
 
-                for retry_index in 1..factory.connectivity_retries.max(1) {
+                for retry_index in 0..factory.connectivity_retries {
                     if unreachable.is_empty() {
                         break;
                     }
-                    let multiplier = 1_u32 << (retry_index - 1).min(10);
+                    let multiplier = 1_u32 << retry_index.min(10);
                     tokio::time::sleep(
                         factory
                             .connectivity_retry_backoff
@@ -914,11 +972,22 @@ impl MinerFactory {
                     reachable.extend(recovered);
                     unreachable = still_unreachable;
                 }
-                tracing::info!(
+                let connectivity_elapsed = connectivity_started.elapsed();
+                tracing::warn!(
                     reachable = reachable.len(),
                     unreachable = unreachable.len(),
-                    "TCP reachability stage completed"
+                    elapsed_ms = connectivity_elapsed.as_millis(),
+                    "scan diagnostic: TCP reachability stage completed"
                 );
+                if connectivity_elapsed >= SLOW_OPERATION_WARNING {
+                    tracing::warn!(
+                        reachable = reachable.len(),
+                        unreachable = unreachable.len(),
+                        concurrency = factory.connectivity_concurrent,
+                        elapsed_ms = connectivity_elapsed.as_millis(),
+                        "slow TCP reachability stage completed"
+                    );
+                }
                 (reachable, unreachable)
             } else {
                 (queued_ips, Vec::new())
@@ -937,19 +1006,32 @@ impl MinerFactory {
                 } else {
                     identification_retry_concurrency
                 };
+                let identification_started = Instant::now();
                 let (identified, unidentified) =
                     identify_ip_batch(Arc::clone(&factory), candidates, concurrency).await;
                 let identified_count = identified.len();
                 for (ip, miner) in identified {
                     yield (ip, Some(miner));
                 }
-                tracing::info!(
+                let identification_elapsed = identification_started.elapsed();
+                tracing::warn!(
                     attempt = attempt + 1,
                     identified = identified_count,
                     unidentified = unidentified.len(),
                     concurrency,
-                    "miner identification stage completed"
+                    elapsed_ms = identification_elapsed.as_millis(),
+                    "scan diagnostic: miner identification stage completed"
                 );
+                if identification_elapsed >= Duration::from_secs(30) {
+                    tracing::warn!(
+                        attempt = attempt + 1,
+                        identified = identified_count,
+                        unidentified = unidentified.len(),
+                        concurrency,
+                        elapsed_ms = identification_elapsed.as_millis(),
+                        "slow miner identification stage completed"
+                    );
+                }
                 candidates = unidentified;
             }
 
@@ -1195,13 +1277,14 @@ mod tests {
     #[test]
     fn staged_scan_defaults_match_benchmarked_limits() {
         let factory = MinerFactory::new();
-        assert_eq!(calculate_optimal_concurrency(1024), 32);
+        assert_eq!(calculate_optimal_concurrency(1024), 128);
         assert_eq!(factory.identification_timeout, Duration::from_secs(3));
+        assert_eq!(factory.miner_construction_timeout, Duration::from_secs(5));
         assert_eq!(factory.connectivity_timeout, Duration::from_millis(500));
-        assert_eq!(factory.connectivity_retries, 2);
+        assert_eq!(factory.connectivity_retries, 0);
         assert_eq!(factory.connectivity_concurrent, 256);
         assert_eq!(factory.connectivity_retry_concurrent, 64);
-        assert!(!factory.strict_port_check);
+        assert!(factory.strict_port_check);
         assert_eq!(
             factory.connectivity_retry_backoff,
             Duration::from_millis(100)
@@ -1209,9 +1292,9 @@ mod tests {
     }
 
     #[test]
-    fn connectivity_attempts_are_never_disabled_accidentally() {
+    fn connectivity_retries_can_be_disabled_without_disabling_initial_attempt() {
         let factory = MinerFactory::new().with_connectivity_retries(0);
-        assert_eq!(factory.connectivity_retries, 1);
+        assert_eq!(factory.connectivity_retries, 0);
     }
 
     #[test]
