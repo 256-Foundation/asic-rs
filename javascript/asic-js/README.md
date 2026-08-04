@@ -40,5 +40,3 @@ main().catch((err) => {
   process.exitCode = 1;
 });
 ```
-
-Snake-case aliases are provided for parity with `pyasic_rs`, for example `get_miner`, `get_data`, and `supports_restart`.
