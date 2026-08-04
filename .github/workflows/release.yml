@@ -55,6 +55,28 @@ jobs:
           sed -i '/^\[workspace\.package\]/,/^\[/{s/^version = ".*"/version = "'"$VERSION"'"/}' Cargo.toml
           sed -i '/^\[workspace\.dependencies\]/,/^\[/{s/version = "'"$CURRENT_VERSION"'"/version = "'"$VERSION"'"/g}' Cargo.toml
           sed -i '/^\[project\]/,/^\[/{s/^version = ".*"/version = "'"$VERSION"'"/}' pyproject.toml
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          package_dir = Path("javascript/asic-js")
+
+          package_json = package_dir / "package.json"
+          package = json.loads(package_json.read_text())
+          package["version"] = version
+          package_json.write_text(json.dumps(package, indent=2) + "\n")
+
+          package_lock_json = package_dir / "package-lock.json"
+          if package_lock_json.exists():
+              package_lock = json.loads(package_lock_json.read_text())
+              package_lock["version"] = version
+              root_package = package_lock.get("packages", {}).get("")
+              if root_package is not None:
+                  root_package["version"] = version
+              package_lock_json.write_text(json.dumps(package_lock, indent=2) + "\n")
+          PY
 
           declare -A CARGO_MANIFESTS=()
           CARGO_MANIFESTS["./Cargo.toml"]=1
@@ -81,7 +103,7 @@ jobs:
             codeberg.org/msrd0/cargo-doc2readme:nightly \
             cargo doc2readme --expand-macros
 
-          git add Cargo.toml pyproject.toml README.md
+          git add Cargo.toml pyproject.toml README.md javascript/asic-js/package.json javascript/asic-js/package-lock.json
 
           while IFS= read -r -d '' lockfile; do
             git add "$lockfile"
@@ -240,7 +262,89 @@ jobs:
       - name: Publish crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo workspaces publish --from-git --yes --allow-dirty
+        run: cargo workspaces publish --from-git --yes --allow-dirty --exclude asic-js
+
+  build-js-bindings:
+    needs: prepare-release
+    name: Build JS binding (${{ matrix.artifact }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact: linux-x64
+            os: ubuntu-24.04
+          - artifact: windows-x64
+            os: windows-latest
+          - artifact: macos-arm64
+            os: macos-14
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: javascript/asic-js/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        working-directory: javascript/asic-js
+        run: npm ci
+
+      - name: Build native binding
+        working-directory: javascript/asic-js
+        run: npm run build
+
+      - name: Upload native binding
+        uses: actions/upload-artifact@v6
+        with:
+          name: js-native-${{ matrix.artifact }}
+          path: javascript/asic-js/*.node
+          if-no-files-found: error
+
+  publish-js:
+    needs:
+      - prepare-release
+      - build-js-bindings
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: javascript/asic-js/package-lock.json
+
+      - name: Install dependencies
+        working-directory: javascript/asic-js
+        run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: js-native-*
+          path: javascript/asic-js
+          merge-multiple: true
+
+      - name: Verify package contents
+        working-directory: javascript/asic-js
+        run: npm pack --dry-run
+
+      - name: Publish to npm
+        working-directory: javascript/asic-js
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance
 
   release:
     runs-on: ubuntu-24.04
@@ -249,6 +353,7 @@ jobs:
       - build-python-wheels
       - build-python-sdist
       - publish-rust
+      - publish-js
     permissions:
       contents: write
       id-token: write

@@ -1,5 +1,9 @@
 /target
 /site
+/javascript/asic-js/node_modules
+/javascript/asic-js/index.js
+/javascript/asic-js/index.d.ts
+/javascript/asic-js/*.node
 /.idea
 /.vscode
 /.git

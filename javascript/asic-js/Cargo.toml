@@ -1,0 +1,64 @@
+[package]
+name = "asic-js"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+documentation.workspace = true
+repository.workspace = true
+keywords.workspace = true
+description = "Node.js bindings for asic-rs"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = [
+    "antminer",
+    "futurebit",
+    "auradine",
+    "avalonminer",
+    "bitaxe",
+    "braiins",
+    "elphapex",
+    "epic",
+    "luxminer",
+    "marathon",
+    "nerdaxe",
+    "proto",
+    "sealminer",
+    "vnish",
+    "volcminer",
+    "whatsminer",
+]
+
+core = ["asic-rs/core", "asic-rs/javascript"]
+antminer = ["core", "asic-rs/antminer"]
+futurebit = ["core", "asic-rs/futurebit"]
+auradine = ["core", "asic-rs/auradine"]
+avalonminer = ["core", "asic-rs/avalonminer"]
+bitaxe = ["core", "asic-rs/bitaxe"]
+braiins = ["core", "asic-rs/braiins"]
+elphapex = ["core", "asic-rs/elphapex"]
+epic = ["core", "asic-rs/epic"]
+luxminer = ["core", "asic-rs/luxminer"]
+marathon = ["core", "asic-rs/marathon"]
+nerdaxe = ["core", "asic-rs/nerdaxe"]
+proto = ["core", "asic-rs/proto"]
+sealminer = ["core", "asic-rs/sealminer"]
+vnish = ["core", "asic-rs/vnish"]
+volcminer = ["core", "asic-rs/volcminer"]
+whatsminer = ["core", "asic-rs/whatsminer"]
+
+[dependencies]
+asic-rs = { path = "../..", version = "0.7.3", default-features = false }
+anyhow.workspace = true
+measurements.workspace = true
+napi = { version = "3.0.0", default-features = false, features = ["napi4", "serde-json", "tokio_rt"] }
+napi-derive = "3.0.0"
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[build-dependencies]
+napi-build = "2.2.3"

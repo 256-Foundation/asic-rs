@@ -58,6 +58,7 @@ members = [
     "asic-rs-firmwares/whatsminer",
     "asic-rs-pydantic",
     "asic-rs-pydantic-macros",
+    "javascript/asic-js",
 ]
 
 [workspace.dependencies]
@@ -134,10 +135,12 @@ pyo3 = { version = "0.28.2", features = [
     "experimental-inspect",
     "multiple-pymethods",
     "time",
-]}
+] }
 pyo3-async-runtimes = { version = "0.28.0", features = ["tokio-runtime", "unstable-streams"] }
 pyo3-build-config = { version = "0.28.2" }
 pyo3-log = { version = "0.13.3" }
+napi = { version = "3.0.0", default-features = false }
+napi-derive = "3.0.0"
 
 [workspace.lints.rust]
 warnings = "deny"
@@ -224,6 +227,10 @@ python = [
     "asic-rs-firmwares-whatsminer?/python",
 ]
 
+javascript = [
+    "asic-rs-core/javascript",
+]
+
 [dependencies]
 asic-rs-core.workspace = true
 asic-rs-pydantic = { workspace = true, optional = true }
@@ -273,9 +280,9 @@ async-stream.workspace = true
 tracing.workspace = true
 rlimit.workspace = true
 
-pyo3 = {workspace = true, optional = true}
-pyo3-async-runtimes = {workspace = true, optional = true}
-pyo3-log = {workspace = true, optional = true}
+pyo3 = { workspace = true, optional = true }
+pyo3-async-runtimes = { workspace = true, optional = true }
+pyo3-log = { workspace = true, optional = true }
 
 [build-dependencies]
 pyo3-build-config.workspace = true
