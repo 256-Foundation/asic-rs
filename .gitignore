@@ -4,6 +4,10 @@
 /javascript/asic-js/index.js
 /javascript/asic-js/index.d.ts
 /javascript/asic-js/*.node
+/python/**/__pycache__
+/python/pyasic-rs/pyasic_rs/*.pyd
+/python/pyasic-rs/pyasic_rs/*.pdb
+/python/pyasic-rs/pyasic_rs/*.so
 /.idea
 /.vscode
 /.git
