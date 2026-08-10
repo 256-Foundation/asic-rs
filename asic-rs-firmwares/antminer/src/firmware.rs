@@ -22,7 +22,7 @@ use asic_rs_makes_antminer::models::AntMinerModel;
 use async_trait::async_trait;
 use chrono::{Datelike, NaiveDateTime};
 use diqwest::WithDigestAuth;
-use reqwest::Response;
+use reqwest::{Response, StatusCode};
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -79,6 +79,21 @@ impl DiscoveryCommands for AntMinerStockFirmware {
     }
 }
 
+fn parse_model_response(
+    json_data: Value,
+    model_key: &str,
+) -> Result<AntMinerCompatibleModel, ModelSelectionError> {
+    let model = json_data[model_key].as_str().unwrap_or("").to_uppercase();
+
+    if model == "ANTMINER BHB42XXX" {
+        Ok(AntMinerCompatibleModel::Unknown(UnknownMinerModel {
+            name: model,
+        }))
+    } else {
+        AntMinerMake::parse_model(model).map(AntMinerCompatibleModel::AntMiner)
+    }
+}
+
 /// Fetch the model from a miner using digest auth.
 async fn get_model_with_auth(
     ip: IpAddr,
@@ -90,26 +105,31 @@ async fn get_model_with_auth(
         .send_digest_auth((auth.username(), auth.password()))
         .await
         .ok();
-    match response {
-        Some(data) => {
-            let Ok(json_data) = data.json::<Value>().await else {
-                return Err(ModelSelectionError::UnexpectedModelResponse);
-            };
 
-            let model = json_data["miner_type"]
-                .as_str()
-                .unwrap_or("")
-                .to_uppercase();
+    let Some(response) = response else {
+        return Err(ModelSelectionError::NoModelResponse);
+    };
 
-            if model == "ANTMINER BHB42XXX" {
-                Ok(AntMinerCompatibleModel::Unknown(UnknownMinerModel {
-                    name: model,
-                }))
-            } else {
-                AntMinerMake::parse_model(model).map(AntMinerCompatibleModel::AntMiner)
-            }
-        }
-        None => Err(ModelSelectionError::NoModelResponse),
+    let (response, model_key) = if response.status() == StatusCode::NOT_FOUND {
+        let fallback_response: Option<Response> = client
+            .get(format!("http://{ip}/cgi-bin/get_system_info.cgi"))
+            .send_digest_auth((auth.username(), auth.password()))
+            .await
+            .ok();
+
+        let Some(response) = fallback_response else {
+            return Err(ModelSelectionError::NoModelResponse);
+        };
+
+        (response, "minertype")
+    } else {
+        (response, "miner_type")
+    };
+
+    if let Ok(json_data) = response.json::<Value>().await {
+        parse_model_response(json_data, model_key)
+    } else {
+        Err(ModelSelectionError::UnexpectedModelResponse)
     }
 }
 
