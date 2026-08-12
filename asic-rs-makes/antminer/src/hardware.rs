@@ -85,6 +85,10 @@ impl From<AntMinerModel> for MinerHardware {
                 fans: Some(4),
                 boards: Some(vec![Some(110), Some(110), Some(110)]),
             },
+            AntMinerModel::L11 => Self {
+                fans: Some(4),
+                boards: Some(vec![Some(88), Some(88), Some(88)]),
+            },
             AntMinerModel::Z15 => Self {
                 fans: Some(2),
                 boards: Some(vec![Some(3), Some(3), Some(3)]),
