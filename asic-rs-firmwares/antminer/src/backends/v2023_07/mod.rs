@@ -192,6 +192,14 @@ impl AntMinerV202307 {
         }
     }
 
+    /// Read a numeric field that some firmware generations emit as a JSON
+    /// number and others as a quoted string.
+    fn parse_f64_field(value: &Value) -> Option<f64> {
+        value
+            .as_f64()
+            .or_else(|| value.as_str().and_then(|s| s.trim().parse::<f64>().ok()))
+    }
+
     fn parse_temp_string(temp_str: &str) -> Option<Temperature> {
         let temps: Vec<f64> = temp_str
             .split('-')
@@ -585,8 +593,7 @@ impl GetHashboards for AntMinerV202307 {
 
             board.hashrate = stats_data
                 .get(&format!("chain_rate{idx}"))
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse::<f64>().ok())
+                .and_then(Self::parse_f64_field)
                 .map(|r| {
                     HashRate {
                         value: r,
@@ -596,10 +603,19 @@ impl GetHashboards for AntMinerV202307 {
                     .as_unit(HashRateUnit::default())
                 });
 
+            // `temp_pcb{idx}` on older generations; newer ones split the
+            // reading into inlet/outlet pairs and omit the combined key.
             board.board_temperature = stats_data
                 .get(&format!("temp_pcb{idx}"))
                 .and_then(|v| v.as_str())
-                .and_then(Self::parse_temp_string);
+                .and_then(Self::parse_temp_string)
+                .or_else(|| {
+                    stats_data
+                        .get(&format!("temp_out_pcb_{idx}"))
+                        .and_then(Self::parse_f64_field)
+                        .filter(|&t| t > 0.0)
+                        .map(Temperature::from_celsius)
+                });
 
             board.working_chips = stats_data
                 .get(&format!("chain_acn{idx}"))
