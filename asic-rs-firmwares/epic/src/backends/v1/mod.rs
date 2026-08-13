@@ -375,14 +375,28 @@ impl GetDataLocations for PowerPlayV1 {
                     },
                 ),
             ],
-            DataField::SerialNumber => vec![(
-                WEB_CAPABILITIES,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/Control Board Version/cpuSerial"),
-                    tag: None,
-                },
-            )],
+            // Tagged rather than relying on location order: `Miner Serial
+            // Number` is frequently present-but-null, and `get_by_pointer`
+            // returns `Some(Value::Null)` for that, which an untagged fallback
+            // would merge over the control board serial and lose both.
+            DataField::SerialNumber => vec![
+                (
+                    WEB_CAPABILITIES,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/Miner Serial Number"),
+                        tag: Some("miner"),
+                    },
+                ),
+                (
+                    WEB_CAPABILITIES,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/Control Board Version/cpuSerial"),
+                        tag: Some("control_board"),
+                    },
+                ),
+            ],
             DataField::ExpectedHashrate => vec![(
                 WEB_CAPABILITIES,
                 DataExtractor {
@@ -456,7 +470,11 @@ impl GetMAC for PowerPlayV1 {
 
 impl GetSerialNumber for PowerPlayV1 {
     fn parse_serial_number(&self, data: &HashMap<DataField, Value>) -> Option<String> {
-        data.extract::<String>(DataField::SerialNumber)
+        // The manufacturer serial is the meaningful identifier, but PowerPlay
+        // only reports it on some units; fall back to the control board CPU
+        // serial so the field stays populated everywhere it used to be.
+        data.extract_nested::<String>(DataField::SerialNumber, "miner")
+            .or_else(|| data.extract_nested::<String>(DataField::SerialNumber, "control_board"))
     }
 }
 
@@ -1965,6 +1983,68 @@ mod tests {
 
             assert_eq!(updated_pool.password, expected.password);
         }
+
+        Ok(())
+    }
+
+    /// Builds a collector over the v1 fixtures with `capabilities` overridden,
+    /// then returns whatever `parse_serial_number` makes of it.
+    async fn serial_number_for(capabilities: Value) -> Option<String> {
+        let miner = PowerPlayV1::new(IpAddr::from([127, 0, 0, 1]), AntMinerModel::S19XP);
+
+        let mut results = HashMap::new();
+        results.insert(
+            MinerCommand::WebAPI {
+                command: "capabilities",
+                parameters: None,
+            },
+            capabilities,
+        );
+
+        let mock_api = MockAPIClient::new(results);
+        let mut collector = DataCollector::new_with_client(&miner, &mock_api);
+        let data = collector.collect(&[DataField::SerialNumber]).await;
+
+        miner.parse_serial_number(&data)
+    }
+
+    #[tokio::test]
+    async fn serial_number_prefers_the_miner_serial() -> anyhow::Result<()> {
+        let mut capabilities = Value::from_str(CAPABILITIES)?;
+        capabilities["Miner Serial Number"] = Value::from("YDFTDXUBBJDJH067C");
+
+        assert_eq!(
+            serial_number_for(capabilities).await,
+            Some("YDFTDXUBBJDJH067C".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn serial_number_falls_back_when_miner_serial_is_absent() -> anyhow::Result<()> {
+        // The stock fixture carries no `Miner Serial Number` key at all.
+        let capabilities = Value::from_str(CAPABILITIES)?;
+        assert!(capabilities.get("Miner Serial Number").is_none());
+
+        assert_eq!(
+            serial_number_for(capabilities).await,
+            Some("002000353232510933363631".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn serial_number_falls_back_when_miner_serial_is_null() -> anyhow::Result<()> {
+        // The common case in the field: the key is present but explicitly null.
+        let mut capabilities = Value::from_str(CAPABILITIES)?;
+        capabilities["Miner Serial Number"] = Value::Null;
+
+        assert_eq!(
+            serial_number_for(capabilities).await,
+            Some("002000353232510933363631".to_string())
+        );
 
         Ok(())
     }
