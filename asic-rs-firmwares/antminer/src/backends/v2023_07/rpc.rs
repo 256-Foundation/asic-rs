@@ -10,6 +10,35 @@ use asic_rs_core::{
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
+/// Build the JSON request for a cgminer-style RPC call.
+///
+/// Bitmain's API extensions — `new_api` being the one this backend uses — are
+/// top-level flags alongside `command`, not values of cgminer's `parameter`
+/// argument. Wrapping them makes the firmware ignore the flag and silently
+/// answer with the legacy payload, which is indistinguishable from a
+/// successful call.
+///
+/// An object is always one of those extensions; cgminer's own convention
+/// passes a scalar (e.g. `switchpool`'s pool index), so scalars keep the
+/// `parameter` wrapper.
+fn build_rpc_request(command: &str, parameters: Option<Value>) -> Value {
+    match parameters {
+        Some(Value::Object(params)) => {
+            let mut request = params;
+            // Inserted last so a stray `command` key cannot displace it.
+            request.insert("command".to_string(), Value::from(command));
+            Value::Object(request)
+        }
+        Some(params) => json!({
+            "command": command,
+            "parameter": params
+        }),
+        None => json!({
+            "command": command
+        }),
+    }
+}
+
 #[derive(Debug)]
 pub struct AntMinerRPCAPI {
     ip: IpAddr,
@@ -28,16 +57,7 @@ impl AntMinerRPCAPI {
         _privileged: bool,
         parameters: Option<Value>,
     ) -> anyhow::Result<Value> {
-        let request = if let Some(params) = parameters {
-            json!({
-                "command": command,
-                "parameter": params
-            })
-        } else {
-            json!({
-                "command": command
-            })
-        };
+        let request = build_rpc_request(command, parameters);
 
         let json_str = request.to_string();
         let message = format!("{}\n", json_str);
@@ -157,5 +177,45 @@ impl StatusFromAntMiner for RPCCommandStatus {
         }
 
         Ok(Self::Success)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn object_parameters_become_top_level_flags() {
+        // The firmware only honours `new_api` at the top level; nested under
+        // `parameter` it is ignored and the legacy payload comes back.
+        assert_eq!(
+            build_rpc_request("stats", Some(json!({"new_api": true}))),
+            json!({"command": "stats", "new_api": true})
+        );
+    }
+
+    #[test]
+    fn scalar_parameters_keep_the_cgminer_wrapper() {
+        // cgminer's own convention, e.g. `switchpool` with a pool index.
+        assert_eq!(
+            build_rpc_request("switchpool", Some(json!("1"))),
+            json!({"command": "switchpool", "parameter": "1"})
+        );
+    }
+
+    #[test]
+    fn absent_parameters_send_the_bare_command() {
+        assert_eq!(
+            build_rpc_request("version", None),
+            json!({"command": "version"})
+        );
+    }
+
+    #[test]
+    fn command_wins_over_a_conflicting_parameter_key() {
+        assert_eq!(
+            build_rpc_request("stats", Some(json!({"command": "evil"}))),
+            json!({"command": "stats"})
+        );
     }
 }
