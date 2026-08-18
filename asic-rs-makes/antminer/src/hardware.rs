@@ -3,6 +3,7 @@ use asic_rs_core::data::{board::MinerControlBoard, device::MinerHardware};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use strum::Display;
+use ts_rs::TS;
 
 use crate::models::AntMinerModel;
 
@@ -242,7 +243,7 @@ impl From<AntMinerModel> for MinerHardware {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, TS)]
 pub enum AntMinerControlBoard {
     #[serde(rename = "Xilinx")]
     Xilinx,

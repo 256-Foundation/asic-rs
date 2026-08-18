@@ -3,12 +3,13 @@ use measurements::AngularVelocity;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use serialize::serialize_angular_velocity;
+use ts_rs::TS;
 
 use crate::data::serialize;
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 /// Runtime fan telemetry.
 pub struct FanData {
     /// The position or index of the fan as seen by the device
@@ -17,5 +18,6 @@ pub struct FanData {
     /// The RPM of the fan
     #[serde(serialize_with = "serialize_angular_velocity")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub rpm: Option<AngularVelocity>,
 }

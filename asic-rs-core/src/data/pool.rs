@@ -8,11 +8,12 @@ use asic_rs_pydantic::{PyPydanticType, PydanticSchemaMode, get_required_field};
 #[cfg(feature = "python")]
 use pyo3::{prelude::*, types::PyAnyMethods};
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use url::Url;
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, str, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticEnum))]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 /// Mining pool URL scheme.
 pub enum PoolScheme {
     /// Stratum V1 over TCP.
@@ -73,7 +74,7 @@ impl FromStr for PoolScheme {
         no_repr
     )
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 /// Parsed mining pool URL.
 pub struct PoolURL {
     /// The scheme being used to connect to this pool
@@ -135,7 +136,7 @@ impl Display for PoolURL {
     pyclass(from_py_object, get_all, module = "asic_rs")
 )]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 /// Runtime status for one configured pool.
 pub struct PoolData {
     /// Pool position in the firmware configuration.
@@ -159,7 +160,7 @@ pub struct PoolData {
     pyclass(from_py_object, get_all, module = "asic_rs")
 )]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 /// Runtime status for a group of configured pools.
 pub struct PoolGroupData {
     /// Pool group name.

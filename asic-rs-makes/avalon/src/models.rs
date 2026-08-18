@@ -4,8 +4,9 @@ use std::str::FromStr;
 use asic_rs_core::errors::ModelSelectionError;
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use ts_rs::TS;
 
-#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, TS)]
 pub enum AvalonMinerModel {
     #[serde(alias = "721")]
     Avalon721,

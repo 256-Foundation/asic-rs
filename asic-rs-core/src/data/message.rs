@@ -4,10 +4,11 @@ use std::fmt::Formatter;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
+use ts_rs::TS;
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, str, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticEnum))]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString, TS)]
 /// Severity for a miner-reported message.
 pub enum MessageSeverity {
     /// Error condition.
@@ -24,7 +25,7 @@ pub enum MessageSeverity {
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticTaggedEnum))]
 #[cfg_attr(feature = "python", pydantic(discriminator = "type"))]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 /// Miner component referenced by an error or status message.
 pub enum MinerComponent {
@@ -155,7 +156,7 @@ impl MinerComponent {
     pyclass(from_py_object, get_all, module = "asic_rs")
 )]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 /// Message, warning, or error reported by a miner.
 pub struct MinerMessage {
     /// The time this message was generated or occurred

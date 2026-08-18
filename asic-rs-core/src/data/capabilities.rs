@@ -9,13 +9,14 @@
 #[cfg(feature = "python")]
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use super::miner::TuningTarget;
 
 /// Factory tuning envelope for power-target tuning.
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, TS)]
 pub struct PowerTuningCapabilities {
     /// The factory default power target, i.e. the value tuning starts from.
     pub default: Option<TuningTarget>,
@@ -28,7 +29,7 @@ pub struct PowerTuningCapabilities {
 /// Factory tuning envelope for hashrate-target tuning.
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, TS)]
 pub struct HashRateTuningCapabilities {
     /// The factory default hashrate target, i.e. the value tuning starts from.
     pub default: Option<TuningTarget>,
@@ -41,7 +42,7 @@ pub struct HashRateTuningCapabilities {
 /// Factory tuning envelope for preset / mining-mode tuning.
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, TS)]
 pub struct PresetTuningCapabilities {
     /// The factory default preset, when one is marked as default.
     pub default: Option<TuningTarget>,
@@ -56,7 +57,7 @@ pub struct PresetTuningCapabilities {
 /// tuned to" instead of a flat list of per-aspect fields.
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, TS)]
 pub struct TuningCapabilities {
     /// Power-target tuning envelope, when the firmware tunes by power.
     pub power: Option<PowerTuningCapabilities>,

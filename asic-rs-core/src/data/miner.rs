@@ -5,6 +5,7 @@ use measurements::{Power, Temperature};
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use super::{
     board::{BoardData, MinerControlBoard},
@@ -20,11 +21,11 @@ use crate::data::{
     serialize::{serialize_macaddr, serialize_power, serialize_temperature},
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 /// Firmware tuning target reported by a miner or requested by configuration.
 pub enum TuningTarget {
     /// Target a power limit.
-    Power(Power),
+    Power(#[ts(type = "{ watts: number }")] Power),
     /// Target a hashrate.
     HashRate(HashRate),
     /// Target a named mining mode.
@@ -41,7 +42,7 @@ impl TuningTarget {
 #[cfg_attr(feature = "python", pyclass(from_py_object, str, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticEnum))]
 #[derive(
-    Debug, Clone, Copy, PartialEq, Serialize, Deserialize, strum::Display, strum::EnumString,
+    Debug, Clone, Copy, PartialEq, Serialize, Deserialize, strum::Display, strum::EnumString, TS,
 )]
 /// Firmware-defined mining performance mode.
 pub enum MiningMode {
@@ -58,7 +59,7 @@ pub enum MiningMode {
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 /// Standardized telemetry snapshot for one miner.
 pub struct MinerData {
     /// The schema version of this MinerData object, for use in external APIs
@@ -72,6 +73,7 @@ pub struct MinerData {
         serialize_with = "serialize_macaddr",
         deserialize_with = "deserialize_macaddr"
     )]
+    #[ts(type = "string | null")]
     pub mac: Option<MacAddr>,
     /// Hardware information about this miner
     pub device_info: DeviceInfo,
@@ -105,15 +107,19 @@ pub struct MinerData {
     pub psu_fans: Vec<FanData>,
     /// The average temperature across all chips in the miner
     #[serde(serialize_with = "serialize_temperature")]
+    #[ts(type = "number | null")]
     pub average_temperature: Option<Temperature>,
     /// The environment temperature of the miner, such as air temperature or immersion fluid temperature
     #[serde(serialize_with = "serialize_temperature")]
+    #[ts(type = "number | null")]
     pub fluid_temperature: Option<Temperature>,
     /// The coolant exhaust temperature, only for water-cooled miners with dedicated sensors
     #[serde(serialize_with = "serialize_temperature")]
+    #[ts(type = "number | null")]
     pub outlet_fluid_temperature: Option<Temperature>,
     /// The current power consumption of the miner
     #[serde(serialize_with = "serialize_power")]
+    #[ts(type = "number | null")]
     pub wattage: Option<Power>,
     /// The current manual tuning percent of full power (100 = unthrottled), where supported
     pub tuning_percent: Option<u8>,
@@ -131,6 +137,7 @@ pub struct MinerData {
     /// Any message on the miner, including errors
     pub messages: Vec<MinerMessage>,
     /// The total uptime of the miner's system
+    #[ts(type = "{ secs: number, nanos: number } | null")]
     pub uptime: Option<Duration>,
     /// Whether the hashing process is currently running,
     /// false if paused, true if running, even if the hashrate is 0

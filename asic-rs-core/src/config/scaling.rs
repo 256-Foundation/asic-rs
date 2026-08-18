@@ -1,13 +1,14 @@
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 #[cfg_attr(
     feature = "python",
     pyclass(from_py_object, get_all, module = "asic_rs")
 )]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 /// Power or performance scaling configuration.
 pub struct ScalingConfig {
     /// Scaling step size used by the firmware.

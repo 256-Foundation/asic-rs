@@ -1,6 +1,7 @@
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 #[cfg_attr(
     feature = "python",
@@ -15,7 +16,7 @@ use serde::{Deserialize, Serialize};
     feature = "python",
     asic_rs_pydantic::py_pydantic_model(new, name = "TemperatureConfig")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 /// Configured thermal limits of the miner (°C).
 ///
 /// Mirrors the Braiins OS layout. Fields are optional because not every

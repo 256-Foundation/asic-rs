@@ -1,9 +1,10 @@
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 #[cfg_attr(feature = "python", pyclass(skip_from_py_object, module = "asic_rs"))]
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, TS)]
 /// Fan control mode.
 pub enum FanMode {
     /// Firmware-managed fan control using a target temperature.
@@ -13,7 +14,7 @@ pub enum FanMode {
 }
 
 #[cfg_attr(feature = "python", pyclass(skip_from_py_object, module = "asic_rs"))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 #[serde(tag = "mode", rename_all = "PascalCase")]
 /// Desired fan control configuration.
 ///
