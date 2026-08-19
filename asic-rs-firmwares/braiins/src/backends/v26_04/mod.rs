@@ -739,11 +739,10 @@ impl SupportsPoolsConfig for BraiinsV2604 {
             })
             .collect();
 
-        Ok(self
-            .web
+        self.web
             .send_command("pools/batch", true, Some(json!(groups)), Method::PUT)
-            .await
-            .is_ok())
+            .await?;
+        Ok(true)
     }
 
     fn supports_pools_config(&self) -> bool {

@@ -72,10 +72,12 @@ impl WebAPIClient for BraiinsWebAPI {
                 .map_err(|e| BraiinsError::ParseError(e.to_string()))?;
             Ok(json_data)
         } else {
+            // The API reports why it rejected a request in the body.
             let code = status.as_u16();
+            let body = response.text().await.unwrap_or_default();
             Err(match code {
                 401 => BraiinsError::Unauthorized,
-                _ => BraiinsError::HttpError(code),
+                _ => BraiinsError::HttpError { status: code, body },
             })?
         }
     }
@@ -227,8 +229,8 @@ impl BraiinsWebAPI {
 pub enum BraiinsError {
     /// Network error (connection issues, DNS resolution, etc.)
     NetworkError(String),
-    /// HTTP error with status code
-    HttpError(u16),
+    /// HTTP error with status code and response body
+    HttpError { status: u16, body: String },
     /// JSON parsing error
     ParseError(String),
     /// Request building error
@@ -249,7 +251,10 @@ impl std::fmt::Display for BraiinsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BraiinsError::NetworkError(msg) => write!(f, "Network error: {msg}"),
-            BraiinsError::HttpError(code) => write!(f, "HTTP error: {code}"),
+            BraiinsError::HttpError { status, body } if !body.trim().is_empty() => {
+                write!(f, "HTTP error: {status}: {}", body.trim())
+            }
+            BraiinsError::HttpError { status, .. } => write!(f, "HTTP error: {status}"),
             BraiinsError::ParseError(msg) => write!(f, "Parse error: {msg}"),
             BraiinsError::RequestError(msg) => write!(f, "Request error: {msg}"),
             BraiinsError::Timeout => write!(f, "Request timeout"),
