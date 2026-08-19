@@ -1,6 +1,7 @@
 use asic_rs_core::data::{board::MinerControlBoard, collector::FromValue, device::MinerHardware};
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use ts_rs::TS;
 
 use crate::models::SealMinerModel;
 
@@ -16,7 +17,7 @@ impl From<SealMinerModel> for MinerHardware {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, TS)]
 pub enum SealMinerControlBoard {
     #[serde(rename = "TaurusAir")]
     TaurusAir,

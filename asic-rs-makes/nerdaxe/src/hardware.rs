@@ -1,10 +1,11 @@
 use asic_rs_core::data::{board::MinerControlBoard, collector::FromValue, device::MinerHardware};
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use ts_rs::TS;
 
 use crate::models::NerdAxeModel;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, TS)]
 pub enum NerdAxeControlBoard {
     #[serde(rename = "B102")]
     B102,

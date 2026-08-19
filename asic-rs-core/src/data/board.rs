@@ -4,6 +4,7 @@ use measurements::{Frequency, Temperature, Voltage};
 #[cfg(feature = "python")]
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use super::{
     hashrate::HashRate,
@@ -12,7 +13,7 @@ use super::{
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, TS)]
 /// Per-chip telemetry for a hashboard.
 pub struct ChipData {
     /// The position of the chip on the board, indexed from 0
@@ -22,14 +23,17 @@ pub struct ChipData {
     /// The current chip temperature
     #[serde(serialize_with = "serialize_temperature")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub temperature: Option<Temperature>,
     /// The voltage set point for this chip
     #[serde(serialize_with = "serialize_voltage")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub voltage: Option<Voltage>,
     /// The frequency set point for this chip
     #[serde(serialize_with = "serialize_frequency")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub frequency: Option<Frequency>,
     /// Whether this chip is tuned and optimizations have completed
     pub tuned: Option<bool>,
@@ -39,7 +43,7 @@ pub struct ChipData {
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, TS)]
 /// Per-hashboard telemetry for a miner.
 pub struct BoardData {
     /// The board position in the miner, indexed from 0
@@ -51,14 +55,17 @@ pub struct BoardData {
     /// The board temperature, also sometimes called PCB temperature
     #[serde(serialize_with = "serialize_temperature")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub board_temperature: Option<Temperature>,
     /// The temperature of the coolest / first-in-chain chip on the board
     #[serde(serialize_with = "serialize_temperature")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub inlet_chip_temperature: Option<Temperature>,
     /// The temperature of the hottest / last-in-chain chip on the board
     #[serde(serialize_with = "serialize_temperature")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub outlet_chip_temperature: Option<Temperature>,
     /// The expected number of chips on this board
     pub expected_chips: Option<u16>,
@@ -72,10 +79,12 @@ pub struct BoardData {
     /// The average voltage or voltage set point of this board
     #[serde(serialize_with = "serialize_voltage")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub voltage: Option<Voltage>,
     /// The average frequency or frequency set point of this board
     #[serde(serialize_with = "serialize_frequency")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
     pub frequency: Option<Frequency>,
     /// Whether this board has been tuned and optimizations have completed
     pub tuned: Option<bool>,
@@ -111,7 +120,7 @@ impl BoardData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[cfg_attr(
     feature = "python",
     pyclass(from_py_object, get_all, module = "asic_rs")

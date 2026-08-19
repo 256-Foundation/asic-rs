@@ -2,10 +2,11 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum::{Display as StrumDisplay, EnumString};
+use ts_rs::TS;
 
 use crate::traits::{firmware::MinerFirmware, model::MinerModel};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
 /// Static identity and hardware information for a miner model.
@@ -37,7 +38,7 @@ impl DeviceInfo {
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Default, TS)]
 /// Expected hardware counts for a miner model.
 pub struct MinerHardware {
     /// Expected number of fans.
@@ -87,7 +88,7 @@ impl MinerHardware {
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticEnum))]
 #[derive(
-    Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, StrumDisplay, EnumString,
+    Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, StrumDisplay, EnumString, TS,
 )]
 /// Mining hash algorithm.
 pub enum HashAlgorithm {

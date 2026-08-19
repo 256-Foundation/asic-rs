@@ -1,6 +1,7 @@
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::data::pool::{PoolGroupData, PoolURL};
 
@@ -12,7 +13,7 @@ use crate::data::pool::{PoolGroupData, PoolURL};
     feature = "python",
     asic_rs_pydantic::py_pydantic_model(new, name = "Pool")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 /// A writable mining pool endpoint.
 pub struct PoolConfig {
     /// Pool URL including scheme, host, port, and optional Stratum V2 pubkey.
@@ -32,7 +33,7 @@ pub struct PoolConfig {
     feature = "python",
     asic_rs_pydantic::py_pydantic_model(new, name = "PoolGroup")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 /// A writable group of mining pools.
 ///
 /// Some firmwares support multiple pool groups with quota-based selection. For

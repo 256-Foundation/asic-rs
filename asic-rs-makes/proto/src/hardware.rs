@@ -1,6 +1,7 @@
 use asic_rs_core::data::{board::MinerControlBoard, collector::FromValue, device::MinerHardware};
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use ts_rs::TS;
 
 use crate::models::ProtoModel;
 
@@ -32,7 +33,7 @@ mod tests {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, TS)]
 pub enum ProtoControlBoard {
     #[serde(rename = "C1")]
     C1,

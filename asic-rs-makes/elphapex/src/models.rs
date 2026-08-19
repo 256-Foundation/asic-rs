@@ -5,8 +5,9 @@ use asic_rs_core::{
 };
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use ts_rs::TS;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, TS)]
 pub enum ElphapexModel {
     #[serde(alias = "DG1")]
     DG1,
