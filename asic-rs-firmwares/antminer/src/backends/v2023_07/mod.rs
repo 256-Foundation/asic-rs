@@ -486,11 +486,6 @@ impl GetDataLocations for AntMinerV202307 {
                 },
             )],
             DataField::Wattage => {
-                // Newer stock firmware reports power draw only in the `new_api`
-                // variant of `stats`. That is a different payload to the legacy
-                // one: its `STATS` array holds a single element, so the reading
-                // sits at `/STATS/0` rather than the `/STATS/1` used above.
-                //
                 // Not a `const` because `json!` is not const-evaluable.
                 let rpc_new_stats = MinerCommand::RPC {
                     command: "stats",
