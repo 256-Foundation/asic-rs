@@ -680,16 +680,22 @@ impl Miner {
         })
     }
     /// Replace the configured mining pool groups.
+    ///
+    /// Raises on failure, as `upgrade_firmware` does: a refused write is not a
+    /// missing reading, and the miner explains which it was.
     #[pyo3(signature = (groups: "list[PoolGroup]"))]
     pub fn set_pools_config<'a>(
         &self,
         py: Python<'a>,
         groups: Vec<PoolGroup>,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            Ok(inner.set_pools_config(groups).await.ok())
+            inner
+                .set_pools_config(groups)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Set scaling configuration.
