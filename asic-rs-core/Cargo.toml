@@ -26,6 +26,9 @@ secrecy.workspace = true
 
 asic-rs-pydantic = { workspace = true, optional = true }
 pyo3 = {workspace = true, optional = true}
+napi = { workspace = true, optional = true }
+napi-derive = { workspace = true, optional = true }
 
 [features]
 python = ["dep:asic-rs-pydantic", "dep:pyo3"]
+javascript = ["dep:napi", "dep:napi-derive"]

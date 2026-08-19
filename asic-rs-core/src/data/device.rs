@@ -8,6 +8,7 @@ use crate::traits::{firmware::MinerFirmware, model::MinerModel};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
+#[cfg_attr(feature = "javascript", napi_derive::napi(object))]
 /// Static identity and hardware information for a miner model.
 pub struct DeviceInfo {
     /// Miner manufacturer or make.
@@ -37,6 +38,7 @@ impl DeviceInfo {
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model(getters))]
+#[cfg_attr(feature = "javascript", napi_derive::napi(object))]
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Default)]
 /// Expected hardware counts for a miner model.
 pub struct MinerHardware {
@@ -86,6 +88,7 @@ impl MinerHardware {
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticEnum))]
+#[cfg_attr(feature = "javascript", napi_derive::napi(string_enum))]
 #[derive(
     Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, StrumDisplay, EnumString,
 )]

@@ -18,6 +18,7 @@ repos:
       - id: check-added-large-files
       - id: pretty-format-json
         args: ["--autofix", "--indent=2"]
+        exclude: (^|/)package(-lock)?\.json$
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.0.0
     hooks:
@@ -36,14 +37,14 @@ repos:
       - id: uv-lock
         alias: generate-pyo3-stubs
         name: generate PyO3 stubs
-        entry: uvx maturin generate-stubs --features python -o python/pyasic_rs
+        entry: uvx maturin generate-stubs --manifest-path python/pyasic-rs/Cargo.toml --features python -o python/pyasic-rs/pyasic_rs
         always_run: true
         pass_filenames: false
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.20.0
     hooks:
       - id: mypy
-        args: ["--config-file=pyproject.toml"]
+        args: ["--config-file=python/pyasic-rs/pyproject.toml"]
         additional_dependencies: [pydantic==2.12.5]
         pass_filenames: false
   - repo: local

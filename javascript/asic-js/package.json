@@ -1,0 +1,30 @@
+{
+  "description": "Node.js bindings for asic-rs",
+  "devDependencies": {
+    "@napi-rs/cli": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "asic_js",
+    "*.node"
+  ],
+  "license": "Apache-2.0",
+  "main": "asic_js/index.js",
+  "name": "asic-js",
+  "repository": {
+    "directory": "javascript/asic-js",
+    "type": "git",
+    "url": "https://github.com/256foundation/asic-rs.git"
+  },
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:bitaxe": "napi build --platform --release --no-default-features --features bitaxe",
+    "build:debug": "napi build --platform",
+    "test": "node --test tests/*.test.js"
+  },
+  "type": "commonjs",
+  "types": "asic_js/index.d.ts",
+  "version": "0.7.3"
+}

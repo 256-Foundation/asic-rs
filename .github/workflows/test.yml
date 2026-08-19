@@ -17,7 +17,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run tests
-        run: cargo test --all --locked --exclude asic-rs-pydantic --exclude asic-rs-pydantic-macros
+        run: cargo test --all --locked --exclude asic-rs-pydantic --exclude asic-rs-pydantic-macros --exclude asic-js --exclude pyasic-rs
 
   python-test:
     name: Python Test
@@ -43,7 +43,8 @@ jobs:
         run: .venv/bin/python -m pip install --upgrade pip maturin
 
       - name: Build and install package with test dependencies
-        run: VIRTUAL_ENV="$PWD/.venv" .venv/bin/maturin develop --features python --extras test
+        working-directory: python/pyasic-rs
+        run: VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv" "$GITHUB_WORKSPACE/.venv/bin/maturin" develop --features python --extras test
 
       - name: Run Python tests
-        run: .venv/bin/python -m pytest python/tests
+        run: .venv/bin/python -m pytest python/pyasic-rs/tests

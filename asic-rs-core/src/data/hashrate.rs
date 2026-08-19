@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticEnum))]
+#[cfg_attr(feature = "javascript", napi_derive::napi(string_enum))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 /// Unit used to represent a [`HashRate`] value.
 pub enum HashRateUnit {
@@ -181,6 +182,7 @@ impl HashRateUnit {
     pyclass(from_py_object, get_all, module = "asic_rs")
 )]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model)]
+#[cfg_attr(feature = "javascript", napi_derive::napi(object))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Hashrate value with unit and mining algorithm.
 pub struct HashRate {
