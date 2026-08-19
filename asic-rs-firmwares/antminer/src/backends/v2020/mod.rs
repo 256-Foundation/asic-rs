@@ -509,14 +509,32 @@ impl GetDataLocations for AntMinerV2020 {
                     tag: None,
                 },
             )],
-            DataField::Wattage => vec![(
-                RPC_STATS,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/STATS/1"),
-                    tag: None,
-                },
-            )],
+            DataField::Wattage => {
+                // Not a `const` because `json!` is not const-evaluable.
+                let rpc_new_stats = MinerCommand::RPC {
+                    command: "stats",
+                    parameters: Some(json!({ "new_api": true })),
+                };
+
+                vec![
+                    (
+                        RPC_STATS,
+                        DataExtractor {
+                            func: get_by_pointer,
+                            key: Some("/STATS/1"),
+                            tag: None,
+                        },
+                    ),
+                    (
+                        rpc_new_stats,
+                        DataExtractor {
+                            func: get_by_pointer,
+                            key: Some("/STATS/0"),
+                            tag: None,
+                        },
+                    ),
+                ]
+            }
             DataField::SerialNumber => vec![
                 (
                     WEB_SYSTEM_INFO,
@@ -835,6 +853,9 @@ impl GetWattage for AntMinerV2020 {
             if let Some(power) = stats_data
                 .get("power")
                 .or_else(|| stats_data.get("Power"))
+                // Same firmware version spells this differently per model: the
+                // L9 reports `power`, the L11 `watt`.
+                .or_else(|| stats_data.get("watt"))
                 .and_then(|v| v.as_f64())
             {
                 return Some(Power::from_watts(power));
