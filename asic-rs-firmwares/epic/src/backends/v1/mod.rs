@@ -1910,13 +1910,6 @@ mod tests {
         );
 
         println!(
-            "set_tuning_config {}",
-            miner
-                .set_tuning_config(tuning_config, Some(scaling_config))
-                .await?
-        );
-
-        println!(
             "fanconfig {}",
             serde_json::to_string_pretty(&miner.get_fan_config().await?)?
         );
@@ -1929,6 +1922,67 @@ mod tests {
         assert_eq!(miner_data.ip, ip);
         assert!(miner_data.timestamp > 0);
         assert!(!miner_data.schema_version.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore = "requires live miner and writes perpetual tune config; set MINER_IP and EPIC_TUNE_MODE=chiptune|powertune"]
+    async fn set_perpetual_tune_live_test() -> anyhow::Result<()> {
+        let ip_str = std::env::var("MINER_IP").context("MINER_IP is not set")?;
+        let ip =
+            IpAddr::from_str(&ip_str).with_context(|| format!("invalid MINER_IP: {ip_str}"))?;
+        let tune_mode = std::env::var("EPIC_TUNE_MODE")
+            .context("EPIC_TUNE_MODE is not set (expected chiptune or powertune)")?;
+
+        let miner = get_miner(ip, Arc::new(EPicFirmware::default()))
+            .await?
+            .context("no miner detected at MINER_IP")?;
+
+        let current_tuning = miner.get_tuning_config().await?;
+        let current_scaling = miner.get_scaling_config().await?;
+        println!(
+            "current perpetual tune settings: tuning={} scaling={}",
+            serde_json::to_string_pretty(&current_tuning)?,
+            serde_json::to_string_pretty(&current_scaling)?,
+        );
+
+        let target_tuning = match tune_mode.trim().to_ascii_lowercase().as_str() {
+            "chiptune" => {
+                let target = std::env::var("EPIC_HASHRATE_TARGET_TH")
+                    .unwrap_or_else(|_| "103".to_string())
+                    .parse::<f64>()
+                    .context("EPIC_HASHRATE_TARGET_TH must be a number in TH/s")?;
+                TuningConfig::new(TuningTarget::HashRate(HashRate {
+                    value: target,
+                    unit: HashRateUnit::TeraHash,
+                    algo: "SHA256".to_string(),
+                }))
+                .with_algorithm("ChipTune")
+            }
+            "powertune" => {
+                let target = std::env::var("EPIC_POWER_TARGET_W")
+                    .unwrap_or_else(|_| "3000".to_string())
+                    .parse::<f64>()
+                    .context("EPIC_POWER_TARGET_W must be a number in watts")?;
+                TuningConfig::new(TuningTarget::Power(Power::from_watts(target)))
+            }
+            _ => anyhow::bail!(
+                "invalid EPIC_TUNE_MODE '{tune_mode}' (expected chiptune or powertune)"
+            ),
+        };
+
+        println!(
+            "target perpetual tune settings: tuning={} scaling={}",
+            serde_json::to_string_pretty(&target_tuning)?,
+            serde_json::to_string_pretty(&current_scaling)?,
+        );
+        anyhow::ensure!(
+            miner
+                .set_tuning_config(target_tuning, Some(current_scaling))
+                .await?,
+            "miner rejected the perpetual tune settings"
+        );
 
         Ok(())
     }
