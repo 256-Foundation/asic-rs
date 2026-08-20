@@ -1341,7 +1341,17 @@ impl SupportsPoolsConfig for PowerPlayV1 {
     }
 }
 
+#[async_trait]
 impl SupportsScalingConfig for PowerPlayV1 {
+    async fn set_scaling_config(&self, config: ScalingConfig) -> anyhow::Result<bool> {
+        // PowerPlay has no scaling-only endpoint: `min_throttle` and
+        // `throttle_step` are written by the same `perpetualtune/algo` call that
+        // sets the tuning target, so the current target is read and resent to
+        // avoid clobbering it.
+        let current = self.get_tuning_config().await?;
+        self.set_tuning_config(current, Some(config)).await
+    }
+
     fn parse_scaling_config(
         &self,
         data: &HashMap<ConfigField, Value>,
@@ -1984,6 +1994,44 @@ mod tests {
             "miner rejected the perpetual tune settings"
         );
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore = "requires live miner and writes perpetual tune config; set MINER_IP"]
+    async fn set_scaling_config_live_test() -> anyhow::Result<()> {
+        let ip_str = std::env::var("MINER_IP").context("MINER_IP is not set")?;
+        let ip =
+            IpAddr::from_str(&ip_str).with_context(|| format!("invalid MINER_IP: {ip_str}"))?;
+
+        let miner = get_miner(ip, Arc::new(EPicFirmware::default()))
+            .await?
+            .context("no miner detected at MINER_IP")?;
+
+        let original_tuning = miner.get_tuning_config().await?;
+        let original_scaling = miner.get_scaling_config().await?;
+        println!(
+            "original: tuning={} scaling={}",
+            serde_json::to_string_pretty(&original_tuning)?,
+            serde_json::to_string_pretty(&original_scaling)?,
+        );
+
+        let target = ScalingConfig::new(original_scaling.step + 1, original_scaling.minimum);
+        anyhow::ensure!(
+            miner.set_scaling_config(target).await?,
+            "miner rejected the scaling config"
+        );
+
+        // The tuning target must survive a scaling-only write. Compared as JSON
+        // because TuningConfig is not PartialEq.
+        let before = serde_json::to_string(&original_tuning)?;
+        let after = serde_json::to_string(&miner.get_tuning_config().await?)?;
+        anyhow::ensure!(
+            before == after,
+            "scaling write changed the tuning target: {before} -> {after}"
+        );
+
+        miner.set_scaling_config(original_scaling).await?;
         Ok(())
     }
 
