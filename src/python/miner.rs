@@ -550,28 +550,26 @@ impl Miner {
     // Control functions
     /// Set the fault light state.
     ///
-    /// Returns `None` if the command is unsupported or rejected by the backend.
-    pub fn set_fault_light<'a>(
-        &self,
-        py: Python<'a>,
-        fault: bool,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    pub fn set_fault_light<'a>(&self, py: Python<'a>, fault: bool) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            let data = inner.set_fault_light(fault).await;
-            Ok(data.ok())
+            inner
+                .set_fault_light(fault)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Restart the miner.
     ///
-    /// Returns `None` if restart is unsupported or rejected by the backend.
-    pub fn restart<'a>(&self, py: Python<'a>) -> PyResult<PyAwaitable<Option<bool>>> {
+    pub fn restart<'a>(&self, py: Python<'a>) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            let data = inner.restart().await;
-            Ok(data.ok())
+            inner
+                .restart()
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Pause mining immediately or after a delay.
@@ -582,13 +580,15 @@ impl Miner {
         &self,
         py: Python<'a>,
         at_time: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         let at_time = parse_optional_duration(at_time)?;
         future_into_py(py, async move {
             let inner = inner.read().await;
-            let data = inner.pause(at_time).await;
-            Ok(data.ok())
+            inner
+                .pause(at_time)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Resume mining immediately or after a delay.
@@ -599,13 +599,15 @@ impl Miner {
         &self,
         py: Python<'a>,
         at_time: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         let at_time = parse_optional_duration(at_time)?;
         future_into_py(py, async move {
             let inner = inner.read().await;
-            let data = inner.resume(at_time).await;
-            Ok(data.ok())
+            inner
+                .resume(at_time)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Re-run this miner backend's discovery checks against the same IP.
@@ -622,13 +624,14 @@ impl Miner {
     }
     /// Factory reset the miner.
     ///
-    /// Returns `None` if factory reset is unsupported or rejected by the backend.
-    pub fn factory_reset<'a>(&self, py: Python<'a>) -> PyResult<PyAwaitable<Option<bool>>> {
+    pub fn factory_reset<'a>(&self, py: Python<'a>) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            let data = inner.factory_reset().await;
-            Ok(data.ok())
+            inner
+                .factory_reset()
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Read miner logs, if supported.
@@ -647,24 +650,26 @@ impl Miner {
         &self,
         py: Python<'a>,
         password: &str,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let password = password.to_string();
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let mut inner = inner.write().await;
-            Ok(inner.change_password(&password).await.ok())
+            inner
+                .change_password(&password)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Set the power limit in watts.
-    pub fn set_power_limit<'a>(
-        &self,
-        py: Python<'a>,
-        watts: f64,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    pub fn set_power_limit<'a>(&self, py: Python<'a>, watts: f64) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            Ok(inner.set_power_limit(Power::from_watts(watts)).await.ok())
+            inner
+                .set_power_limit(Power::from_watts(watts))
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Set a manual tuning percent of full power (100 = unthrottled).
@@ -672,11 +677,14 @@ impl Miner {
         &self,
         py: Python<'a>,
         percent: u8,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            Ok(inner.set_tuning_percent(percent).await.ok())
+            inner
+                .set_tuning_percent(percent)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Replace the configured mining pool groups.
@@ -685,11 +693,14 @@ impl Miner {
         &self,
         py: Python<'a>,
         groups: Vec<PoolGroup>,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            Ok(inner.set_pools_config(groups).await.ok())
+            inner
+                .set_pools_config(groups)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Set scaling configuration.
@@ -698,11 +709,14 @@ impl Miner {
         &self,
         py: Python<'a>,
         config: ScalingConfig,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            Ok(inner.set_scaling_config(config).await.ok())
+            inner
+                .set_scaling_config(config)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Set tuning configuration, optionally with companion scaling settings.
@@ -712,11 +726,14 @@ impl Miner {
         py: Python<'a>,
         config: TuningConfig,
         scaling_config: Option<ScalingConfig>,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            Ok(inner.set_tuning_config(config, scaling_config).await.ok())
+            inner
+                .set_tuning_config(config, scaling_config)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Set fan configuration.
@@ -725,11 +742,14 @@ impl Miner {
         &self,
         py: Python<'a>,
         config: FanConfig,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            Ok(inner.set_fan_config(config).await.ok())
+            inner
+                .set_fan_config(config)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Upload and apply a firmware image from a local path.
