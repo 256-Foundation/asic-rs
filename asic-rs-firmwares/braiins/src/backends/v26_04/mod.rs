@@ -687,16 +687,15 @@ impl SetFaultLight for BraiinsV2604 {
 #[async_trait]
 impl SetPowerLimit for BraiinsV2604 {
     async fn set_power_limit(&self, limit: Power) -> anyhow::Result<bool> {
-        Ok(self
-            .web
+        self.web
             .send_command(
                 "performance/power-target",
                 true,
                 Some(json!({"watt": limit.as_watts() as u64})),
                 Method::PUT,
             )
-            .await
-            .is_ok())
+            .await?;
+        Ok(true)
     }
     fn supports_set_power_limit(&self) -> bool {
         true
