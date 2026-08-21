@@ -756,11 +756,10 @@ impl SetPowerLimit for BraiinsV2505 {
             }
         }"#;
         let variables = json!({ "limit": limit.as_watts() as u64 });
-        Ok(self
-            .graphql
+        self.graphql
             .send_command(mutation, true, Some(variables))
-            .await
-            .is_ok())
+            .await?;
+        Ok(true)
     }
     fn supports_set_power_limit(&self) -> bool {
         true
