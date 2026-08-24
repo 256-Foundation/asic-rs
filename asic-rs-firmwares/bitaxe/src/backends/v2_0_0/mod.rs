@@ -264,7 +264,7 @@ impl GetHashboards for Bitaxe200 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         });
@@ -277,7 +277,7 @@ impl GetHashboards for Bitaxe200 {
                 HashRate {
                     value: core_count as f64 * chips as f64 * freq.as_gigahertz(),
                     unit: HashRateUnit::GigaHash,
-                    algo: "SHA256".to_string(),
+                    algo: HashAlgorithm::SHA256,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -333,7 +333,7 @@ impl GetHashrate for Bitaxe200 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -363,7 +363,7 @@ impl GetExpectedHashrate for Bitaxe200 {
                         .unwrap_or(Frequency::from_megahertz(0f64))
                         .as_gigahertz(),
                 unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default()),
         )
@@ -697,7 +697,7 @@ mod tests {
             &Some(HashRate {
                 value: 1f64,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             })
         );
         assert_eq!(&miner_data.total_chips, &Some(1u16));

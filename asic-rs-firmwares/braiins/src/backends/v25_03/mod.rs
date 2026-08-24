@@ -452,7 +452,7 @@ impl GetHashboards for BraiinsV2503 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::MegaHash,
-                        algo: "SHA256".to_string(),
+                        algo: HashAlgorithm::SHA256,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -460,7 +460,7 @@ impl GetHashboards for BraiinsV2503 {
                 HashRate {
                     value: f,
                     unit: HashRateUnit::MegaHash,
-                    algo: "SHA256".to_string(),
+                    algo: HashAlgorithm::SHA256,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -509,7 +509,7 @@ impl GetHashrate for BraiinsV2503 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -522,7 +522,7 @@ impl GetExpectedHashrate for BraiinsV2503 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })

@@ -437,7 +437,7 @@ impl GetHashboards for SealMinerV2025 {
                         HashRate {
                             value: mhs,
                             unit: HashRateUnit::MegaHash,
-                            algo: "SHA256".to_string(),
+                            algo: HashAlgorithm::SHA256,
                         }
                         .as_unit(HashRateUnit::default())
                     });
@@ -448,7 +448,7 @@ impl GetHashboards for SealMinerV2025 {
                         HashRate {
                             value: mhs,
                             unit: HashRateUnit::MegaHash,
-                            algo: "SHA256".to_string(),
+                            algo: HashAlgorithm::SHA256,
                         }
                         .as_unit(HashRateUnit::default())
                     });
@@ -485,7 +485,7 @@ impl GetHashrate for SealMinerV2025 {
             HashRate {
                 value: mhs,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -498,7 +498,7 @@ impl GetExpectedHashrate for SealMinerV2025 {
             HashRate {
                 value: mhs,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -949,7 +949,7 @@ mod tests {
             Some(HashRate {
                 value: 206.86047351,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string()
+                algo: HashAlgorithm::SHA256
             })
         );
         assert_eq!(
@@ -957,7 +957,7 @@ mod tests {
             Some(HashRate {
                 value: 230.83940728559,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string()
+                algo: HashAlgorithm::SHA256
             })
         );
         assert_eq!(miner_data.fans.len(), 4);

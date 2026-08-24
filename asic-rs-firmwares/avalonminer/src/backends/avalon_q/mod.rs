@@ -617,7 +617,7 @@ impl GetHashboards for AvalonQMiner {
                     HashRate {
                         value: r,
                         unit: HashRateUnit::GigaHash,
-                        algo: "SHA256".to_string(),
+                        algo: HashAlgorithm::SHA256,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -699,7 +699,7 @@ impl GetHashrate for AvalonQMiner {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -712,7 +712,7 @@ impl GetExpectedHashrate for AvalonQMiner {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })

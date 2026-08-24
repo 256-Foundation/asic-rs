@@ -1,6 +1,7 @@
 use asic_rs_core::data::capabilities::{
     HashRateTuningCapabilities, PowerTuningCapabilities, TuningCapabilities,
 };
+use asic_rs_core::data::device::HashAlgorithm;
 use asic_rs_core::data::hashrate::{HashRate, HashRateUnit};
 use asic_rs_core::data::miner::TuningTarget;
 use measurements::Power;
@@ -54,7 +55,7 @@ pub(crate) fn tuner_constraints_capabilities(tuner: &Value) -> TuningCapabilitie
                     TuningTarget::HashRate(HashRate {
                         value,
                         unit: HashRateUnit::TeraHash,
-                        algo: "SHA256".to_string(),
+                        algo: HashAlgorithm::SHA256,
                     })
                 })
         };
@@ -97,7 +98,7 @@ fn parse_tagged_tuning_target(value: &Value, prefix: &str) -> Option<TuningTarge
             TuningTarget::HashRate(HashRate {
                 value,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             })
         });
 

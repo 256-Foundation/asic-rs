@@ -457,7 +457,7 @@ impl GetHashboards for BraiinsV2109 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::MegaHash,
-                        algo: "SHA256".to_string(),
+                        algo: HashAlgorithm::SHA256,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -465,7 +465,7 @@ impl GetHashboards for BraiinsV2109 {
                 HashRate {
                     value: f,
                     unit: HashRateUnit::MegaHash,
-                    algo: "SHA256".to_string(),
+                    algo: HashAlgorithm::SHA256,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -510,7 +510,7 @@ impl GetHashrate for BraiinsV2109 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -523,7 +523,7 @@ impl GetExpectedHashrate for BraiinsV2109 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -1175,7 +1175,7 @@ mod tests {
             HashRate {
                 value: 7.24240252323,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
         );
         assert_eq!(
@@ -1183,7 +1183,7 @@ mod tests {
             HashRate {
                 value: 7.160208944955902,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
         );
         assert_eq!(miner_data.pools.len(), 2);

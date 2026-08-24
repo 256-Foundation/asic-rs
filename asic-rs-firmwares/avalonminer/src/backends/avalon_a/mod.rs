@@ -604,7 +604,7 @@ impl GetHashboards for AvalonAMiner {
                     HashRate {
                         value: rate,
                         unit: HashRateUnit::GigaHash,
-                        algo: "SHA256".to_string(),
+                        algo: HashAlgorithm::SHA256,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -714,7 +714,7 @@ impl GetHashboards for AvalonAMiner {
                 HashRate {
                     value: r,
                     unit: HashRateUnit::GigaHash,
-                    algo: "SHA256".to_string(),
+                    algo: HashAlgorithm::SHA256,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -803,7 +803,7 @@ impl GetHashrate for AvalonAMiner {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -816,7 +816,7 @@ impl GetExpectedHashrate for AvalonAMiner {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -1129,7 +1129,7 @@ mod tests {
             Some(HashRate {
                 value: 83.92304,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string()
+                algo: HashAlgorithm::SHA256
             })
         );
         assert_eq!(miner_data.wattage, Some(Power::from_watts(3189.0)));

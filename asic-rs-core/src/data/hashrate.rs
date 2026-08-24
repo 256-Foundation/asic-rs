@@ -7,6 +7,8 @@ use std::{
 #[cfg(feature = "python")]
 use asic_rs_pydantic::py_to_string;
 use measurements::Power;
+
+use crate::data::device::HashAlgorithm;
 #[cfg(feature = "python")]
 use pyo3::{
     exceptions::PyValueError,
@@ -216,7 +218,8 @@ pub struct HashRate {
     #[cfg_attr(feature = "python", pydantic_data(to_string))]
     pub unit: HashRateUnit,
     /// The algorithm of the computed hashes
-    pub algo: String,
+    #[cfg_attr(feature = "python", pydantic_data(to_string))]
+    pub algo: HashAlgorithm,
 }
 
 impl HashRate {
@@ -246,9 +249,14 @@ impl HashRate {
             value,
             unit: unit.unwrap_or_default(),
             algo: algo
-                .map(py_to_string)
+                .map(|algo| {
+                    let name = py_to_string(algo)?;
+                    HashAlgorithm::from_str(&name).map_err(|_| {
+                        PyValueError::new_err(format!("unknown hash algorithm: {name}"))
+                    })
+                })
                 .transpose()?
-                .unwrap_or_else(|| "SHA256".to_string()),
+                .unwrap_or(HashAlgorithm::SHA256),
         })
     }
 

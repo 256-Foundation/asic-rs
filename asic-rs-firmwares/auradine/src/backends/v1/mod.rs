@@ -697,7 +697,7 @@ impl GetHashboards for AuradineV1 {
                     HashRate {
                         value,
                         unit: HashRateUnit::MegaHash,
-                        algo: "SHA256".to_string(),
+                        algo: HashAlgorithm::SHA256,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -987,7 +987,7 @@ impl GetHashrate for AuradineV1 {
             HashRate {
                 value,
                 unit: HashRateUnit::MegaHash,
-                algo: String::from("SHA256"),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -1000,7 +1000,7 @@ impl GetExpectedHashrate for AuradineV1 {
             HashRate {
                 value,
                 unit: HashRateUnit::TeraHash,
-                algo: String::from("SHA256"),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -1079,7 +1079,7 @@ impl GetTuningTarget for AuradineV1 {
                 HashRate {
                     value: ths,
                     unit: HashRateUnit::TeraHash,
-                    algo: String::from("SHA256"),
+                    algo: HashAlgorithm::SHA256,
                 }
                 .as_unit(HashRateUnit::default()),
             ));
@@ -1096,7 +1096,7 @@ impl GetTuningTarget for AuradineV1 {
                 HashRate {
                     value: ths,
                     unit: HashRateUnit::TeraHash,
-                    algo: String::from("SHA256"),
+                    algo: HashAlgorithm::SHA256,
                 }
                 .as_unit(HashRateUnit::default()),
             ));
@@ -1656,7 +1656,7 @@ mod tests {
             Some(HashRate {
                 value: 160.0,
                 unit: HashRateUnit::TeraHash,
-                algo: String::from("SHA256"),
+                algo: HashAlgorithm::SHA256,
             })
         );
 

@@ -201,7 +201,8 @@ def test_hashrate_validates_and_serializes_as_pydantic_field() -> None:
     assert isinstance(model.hashrate, HashRate)
     assert model.hashrate.value == 100.0
     assert str(model.hashrate.unit) == "TH/s"
-    assert model.hashrate.algo == "SHA256"
+    assert model.hashrate.algo == HashAlgorithm.SHA256
+    assert model.hashrate.algo == "SHA256"  # still compares to the name
     assert model.model_dump() == {
         "hashrate": {"value": 100.0, "unit": "TH/s", "algo": "SHA256"}
     }
@@ -502,7 +503,8 @@ def test_hashrate_accepts_hash_algorithm_enum() -> None:
         }
     )
 
-    assert constructed.algo == "Scrypt"
+    assert constructed.algo == HashAlgorithm.Scrypt
+    assert constructed.algo == "Scrypt"  # still compares to the name
     assert model.model_dump() == {
         "hashrate": {"value": 1.5, "unit": "TH/s", "algo": "Scrypt"}
     }

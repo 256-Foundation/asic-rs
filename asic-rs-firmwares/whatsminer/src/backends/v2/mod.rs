@@ -353,7 +353,7 @@ impl GetHashboards for WhatsMinerV2 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::MegaHash,
-                        algo: "SHA256".to_string(),
+                        algo: HashAlgorithm::SHA256,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -364,7 +364,7 @@ impl GetHashboards for WhatsMinerV2 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::GigaHash,
-                        algo: "SHA256".to_string(),
+                        algo: HashAlgorithm::SHA256,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -410,7 +410,7 @@ impl GetHashrate for WhatsMinerV2 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -422,7 +422,7 @@ impl GetExpectedHashrate for WhatsMinerV2 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -933,7 +933,7 @@ mod tests {
         let config = TuningConfig::new(TuningTarget::HashRate(HashRate {
             value: 200.0,
             unit: HashRateUnit::TeraHash,
-            algo: "SHA256".to_string(),
+            algo: HashAlgorithm::SHA256,
         }));
         let result = tuning_config_to_rpc(&config);
 
@@ -1098,7 +1098,7 @@ mod integration_tests {
             Some(HashRate {
                 value: 124.5,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             })
         );
         assert_eq!(
@@ -1106,7 +1106,7 @@ mod integration_tests {
             Some(HashRate {
                 value: 126.0,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             })
         );
         assert_eq!(miner_data.wattage, Some(Power::from_watts(3200.0)));

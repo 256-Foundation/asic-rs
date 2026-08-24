@@ -633,7 +633,7 @@ impl GetHashboards for PowerPlayV1 {
                             HashRate {
                                 value: h,
                                 unit: HashRateUnit::MegaHash,
-                                algo: "SHA256".to_string(),
+                                algo: HashAlgorithm::SHA256,
                             }
                             .as_unit(HashRateUnit::default())
                         });
@@ -652,7 +652,7 @@ impl GetHashboards for PowerPlayV1 {
                             HashRate {
                                 value: chips as f64 * hashes_per_clock * frequency.as_megahertz(),
                                 unit: HashRateUnit::MegaHash,
-                                algo: "SHA256".to_string(),
+                                algo: HashAlgorithm::SHA256,
                             }
                             .as_unit(HashRateUnit::default())
                         });
@@ -784,7 +784,7 @@ impl GetHashboards for PowerPlayV1 {
                                 HashRate {
                                     value: hr,
                                     unit: HashRateUnit::MegaHash,
-                                    algo: "SHA256".to_string(),
+                                    algo: HashAlgorithm::SHA256,
                                 }
                                 .as_unit(HashRateUnit::default()),
                             );
@@ -835,7 +835,7 @@ impl GetHashrate for PowerPlayV1 {
             HashRate {
                 value: total_hashrate,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default()),
         )
@@ -848,7 +848,7 @@ impl GetExpectedHashrate for PowerPlayV1 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -955,11 +955,15 @@ fn parse_tuning_target_value_from_stats(
     }
 
     let hr_unit = unit.parse::<HashRateUnit>().ok()?;
+    // ePIC is the one backend that learns its algorithm from the device at
+    // runtime rather than from the model. A value we cannot name is reported
+    // as `Unknown` rather than being flattened into SHA-256; an absent field
+    // keeps the SHA-256 default that was already applied here.
     let algo = summary
         .pointer("/Mining/Algorithm")
         .and_then(Value::as_str)
-        .unwrap_or("SHA256")
-        .to_string();
+        .map(|algo| HashAlgorithm::from_str(algo).unwrap_or(HashAlgorithm::Unknown))
+        .unwrap_or(HashAlgorithm::SHA256);
 
     Some(TuningTarget::HashRate(
         HashRate {
@@ -1754,7 +1758,7 @@ mod tests {
             Some(HashRate {
                 value: 305937.8,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             })
         );
         assert_eq!(
@@ -1762,7 +1766,7 @@ mod tests {
             Some(HashRate {
                 value: 487695.28,
                 unit: HashRateUnit::MegaHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             })
         );
 
@@ -1833,7 +1837,7 @@ mod tests {
             Some(TuningTarget::HashRate(HashRate {
                 value: 95.0,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA-256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }))
         );
     }
@@ -1966,7 +1970,7 @@ mod tests {
                 TuningConfig::new(TuningTarget::HashRate(HashRate {
                     value: target,
                     unit: HashRateUnit::TeraHash,
-                    algo: "SHA256".to_string(),
+                    algo: HashAlgorithm::SHA256,
                 }))
                 .with_algorithm("ChipTune")
             }
