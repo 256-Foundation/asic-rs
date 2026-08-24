@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use asic_rs_core::data::device::HashAlgorithm;
 use asic_rs_core::errors::ModelSelectionError;
 use asic_rs_core::traits::model::MinerModel;
 use serde::{Deserialize, Serialize};
@@ -149,6 +150,28 @@ impl MinerModel for AntMinerModel {
     fn is_known(&self) -> bool {
         !matches!(self, Self::Unknown(_))
     }
+
+    /// AntMiner is a mixed-algorithm make: the L-series mines Scrypt and the
+    /// D-series X11, while the S/T-series mines SHA-256. Without this the make
+    /// inherits the trait's SHA-256 default and every L9/L11 reports itself as
+    /// a SHA-256 miner regardless of firmware.
+    ///
+    /// Models whose algorithm [`HashAlgorithm`] cannot yet name — KS3/KS5
+    /// (kHeavyHash), K7 (Eaglesong), E9 Pro (Ethash), Z15 (Equihash), HS3
+    /// (Handshake), DR5 (Blake256R14) — keep reporting SHA-256. That is still
+    /// wrong for them, but it is unchanged from today; naming those algorithms
+    /// needs new `HashAlgorithm` variants, which is a public API change and is
+    /// left to a follow-up.
+    fn hash_algorithm(&self) -> HashAlgorithm {
+        match self {
+            Self::L3Plus | Self::L3PlusPlus | Self::L7 | Self::L9 | Self::L11 => {
+                HashAlgorithm::Scrypt
+            }
+            Self::D3 | Self::D7 | Self::D9 => HashAlgorithm::X11,
+            Self::KA3 => HashAlgorithm::Kadena,
+            _ => HashAlgorithm::SHA256,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -173,5 +196,56 @@ mod tests {
 
         // Assert
         assert_eq!(result, AntMinerModel::Unknown("ANTMINER S99".to_string()));
+    }
+
+    #[test]
+    fn l_series_is_scrypt() {
+        for model in [
+            AntMinerModel::L3Plus,
+            AntMinerModel::L3PlusPlus,
+            AntMinerModel::L7,
+            AntMinerModel::L9,
+            AntMinerModel::L11,
+        ] {
+            assert_eq!(
+                model.hash_algorithm(),
+                HashAlgorithm::Scrypt,
+                "{model} should be Scrypt"
+            );
+        }
+    }
+
+    #[test]
+    fn d_series_is_x11() {
+        for model in [AntMinerModel::D3, AntMinerModel::D7, AntMinerModel::D9] {
+            assert_eq!(
+                model.hash_algorithm(),
+                HashAlgorithm::X11,
+                "{model} should be X11"
+            );
+        }
+    }
+
+    #[test]
+    fn sha256_models_are_unchanged() {
+        for model in [
+            AntMinerModel::S9,
+            AntMinerModel::S19,
+            AntMinerModel::S21,
+            AntMinerModel::T21,
+        ] {
+            assert_eq!(
+                model.hash_algorithm(),
+                HashAlgorithm::SHA256,
+                "{model} should be SHA256"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_model_defaults_to_sha256() {
+        let model = AntMinerModel::from_str("ANTMINER S99").unwrap();
+
+        assert_eq!(model.hash_algorithm(), HashAlgorithm::SHA256);
     }
 }

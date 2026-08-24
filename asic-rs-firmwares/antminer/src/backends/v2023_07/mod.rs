@@ -16,7 +16,7 @@ use asic_rs_core::{
             DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_pointer,
         },
         command::MinerCommand,
-        device::{DeviceInfo, HashAlgorithm},
+        device::DeviceInfo,
         fan::FanData,
         firmware::FirmwareImage,
         hashrate::{HashRate, HashRateUnit},
@@ -180,16 +180,24 @@ fn u64_from_value(value: &Value) -> Option<u64> {
 impl AntMinerV202307 {
     pub fn new(ip: IpAddr, model: impl MinerModel) -> Self {
         let auth = Self::default_auth();
+        let algo = model.hash_algorithm();
         AntMinerV202307 {
             ip,
             rpc: AntMinerRPCAPI::new(ip),
             web: AntMinerWebAPI::new(ip, auth),
-            device_info: DeviceInfo::new(
-                model,
-                AntMinerStockFirmware::default(),
-                HashAlgorithm::SHA256,
-            ),
+            device_info: DeviceInfo::new(model, AntMinerStockFirmware::default(), algo),
         }
+    }
+
+    /// cgminer states the scale of its hashrate figures in STATS' `rate_unit`
+    /// (`"GH"` on SHA-256 models, `"MH"` on Scrypt ones). `None` when the
+    /// firmware omits it or reports something unparseable, leaving the caller
+    /// to fall back.
+    fn hashrate_unit(field: Option<&Value>) -> Option<HashRateUnit> {
+        field
+            .and_then(|v| v.pointer("/unit"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| HashRateUnit::from_str(s).ok())
     }
 
     /// Read a numeric field that some firmware generations emit as a JSON
@@ -421,22 +429,37 @@ impl GetDataLocations for AntMinerV202307 {
                     tag: None,
                 },
             )],
+            // cgminer names its summary keys after the unit they are in —
+            // `GHS 5s` on SHA-256 models, `MHS 5s` on Scrypt ones — so keep
+            // the whole entry and let the parse pick the key that is present.
             DataField::Hashrate => vec![(
                 RPC_SUMMARY,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/SUMMARY/0/GHS 5s"),
+                    key: Some("/SUMMARY/0"),
                     tag: None,
                 },
             )],
-            DataField::ExpectedHashrate => vec![(
-                RPC_STATS,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/STATS/1/total_rateideal"),
-                    tag: None,
-                },
-            )],
+            // `total_rateideal`, by contrast, says nothing about its own
+            // scale, so carry STATS' `rate_unit` alongside it.
+            DataField::ExpectedHashrate => vec![
+                (
+                    RPC_STATS,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/STATS/1/total_rateideal"),
+                        tag: Some("hashrate"),
+                    },
+                ),
+                (
+                    RPC_STATS,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/STATS/1/rate_unit"),
+                        tag: Some("unit"),
+                    },
+                ),
+            ],
             DataField::Fans => vec![(
                 RPC_STATS,
                 DataExtractor {
@@ -606,6 +629,13 @@ impl GetHashboards for AntMinerV202307 {
             return hashboards;
         };
 
+        let unit = stats_data
+            .get("rate_unit")
+            .and_then(|v| v.as_str())
+            .and_then(|s| HashRateUnit::from_str(s).ok())
+            .unwrap_or(HashRateUnit::GigaHash);
+        let algo = self.device_info.algo.to_string();
+
         for board in hashboards.iter_mut() {
             let idx = board.position + 1;
 
@@ -615,8 +645,8 @@ impl GetHashboards for AntMinerV202307 {
                 .map(|r| {
                     HashRate {
                         value: r,
-                        unit: HashRateUnit::GigaHash,
-                        algo: "SHA256".to_string(),
+                        unit,
+                        algo: algo.clone(),
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -661,27 +691,48 @@ impl GetHashboards for AntMinerV202307 {
 
 impl GetHashrate for AntMinerV202307 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::Hashrate, |f| {
+        let summary = data.get(&DataField::Hashrate)?;
+
+        // Preferred key first. `GHS 5s` is what every SHA-256 model reports, so
+        // those keep taking exactly the path they did before.
+        let (value, unit) = [
+            ("GHS 5s", HashRateUnit::GigaHash),
+            ("MHS 5s", HashRateUnit::MegaHash),
+            ("MHS av", HashRateUnit::MegaHash),
+        ]
+        .into_iter()
+        .find_map(|(key, unit)| {
+            summary
+                .get(key)
+                .and_then(Self::parse_f64_field)
+                .map(|value| (value, unit))
+        })?;
+
+        Some(
             HashRate {
-                value: f,
-                unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                value,
+                unit,
+                algo: self.device_info.algo.to_string(),
             }
-            .as_unit(HashRateUnit::default())
-        })
+            .as_unit(HashRateUnit::default()),
+        )
     }
 }
 
 impl GetExpectedHashrate for AntMinerV202307 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| {
+        let field = data.get(&DataField::ExpectedHashrate);
+        let value = field?
+            .pointer("/hashrate")
+            .and_then(Self::parse_f64_field)?;
+        Some(
             HashRate {
-                value: f,
-                unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                value,
+                unit: Self::hashrate_unit(field).unwrap_or(HashRateUnit::GigaHash),
+                algo: self.device_info.algo.to_string(),
             }
-            .as_unit(HashRateUnit::default())
-        })
+            .as_unit(HashRateUnit::default()),
+        )
     }
 }
 

@@ -13,7 +13,7 @@ use asic_rs_core::{
             DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_pointer,
         },
         command::MinerCommand,
-        device::{DeviceInfo, HashAlgorithm},
+        device::DeviceInfo,
         fan::FanData,
         hashrate::{HashRate, HashRateUnit},
         message::{MessageSeverity, MinerMessage},
@@ -43,10 +43,11 @@ pub struct VnishV130 {
 impl VnishV130 {
     pub fn new(ip: IpAddr, model: impl MinerModel) -> Self {
         let auth = Self::default_auth();
+        let algo = model.hash_algorithm();
         VnishV130 {
             ip,
             web: VnishWebAPI::new(ip, 80, auth),
-            device_info: DeviceInfo::new(model, VnishFirmware::default(), HashAlgorithm::SHA256),
+            device_info: DeviceInfo::new(model, VnishFirmware::default(), algo),
         }
     }
 }
@@ -177,21 +178,35 @@ impl GetDataLocations for VnishV130 {
                     tag: None,
                 },
             )],
-            DataField::Hashrate => vec![(
-                WEB_SUMMARY,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/miner/hr_realtime"),
-                    tag: None,
-                },
-            )],
+            // `/info`'s `hr_measure` rides along with every hashrate figure so
+            // the value can be scaled by the unit VNish actually reports —
+            // GH/s on SHA-256 models, MH/s on Scrypt ones — rather than a
+            // hardcoded assumption.
+            DataField::Hashrate => vec![
+                (
+                    WEB_SUMMARY,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/miner/hr_realtime"),
+                        tag: Some("hashrate"),
+                    },
+                ),
+                (
+                    WEB_INFO,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/hr_measure"),
+                        tag: Some("unit"),
+                    },
+                ),
+            ],
             DataField::ExpectedHashrate => vec![
                 (
                     WEB_FACTORY_INFO,
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/hr_stock"),
-                        tag: None,
+                        tag: Some("hashrate"),
                     },
                 ),
                 (
@@ -199,7 +214,15 @@ impl GetDataLocations for VnishV130 {
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/miner/hr_stock"),
-                        tag: None,
+                        tag: Some("hashrate"),
+                    },
+                ),
+                (
+                    WEB_INFO,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/hr_measure"),
+                        tag: Some("unit"),
                     },
                 ),
             ],
@@ -225,7 +248,7 @@ impl GetDataLocations for VnishV130 {
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some("/miner/chains"),
-                        tag: None,
+                        tag: Some("chains"),
                     },
                 ),
                 (
@@ -233,7 +256,15 @@ impl GetDataLocations for VnishV130 {
                     DataExtractor {
                         func: get_by_pointer,
                         key: Some(""),
-                        tag: None,
+                        tag: Some("chains"),
+                    },
+                ),
+                (
+                    WEB_INFO,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/hr_measure"),
+                        tag: Some("unit"),
                     },
                 ),
             ],
@@ -367,9 +398,15 @@ impl GetControlBoardVersion for VnishV130 {
 
 impl GetHashboards for VnishV130 {
     fn parse_hashboards(&self, data: &HashMap<DataField, Value>) -> Vec<BoardData> {
-        let Some(all_chains) = data.get(&DataField::Hashboards).and_then(|v| v.as_array()) else {
+        let hashboards_data = data.get(&DataField::Hashboards);
+        let Some(all_chains) = hashboards_data
+            .and_then(|v| v.pointer("/chains"))
+            .and_then(|v| v.as_array())
+        else {
             return Vec::new();
         };
+        let unit = Self::hashrate_unit(hashboards_data);
+        let algo = self.device_info.algo.to_string();
         let chip_chains = data.get(&DataField::Chips).and_then(|v| v.as_array());
 
         let mut hashboards: Vec<BoardData> =
@@ -406,8 +443,8 @@ impl GetHashboards for VnishV130 {
                 .map(|f| {
                     HashRate {
                         value: f,
-                        unit: HashRateUnit::GigaHash,
-                        algo: "SHA256".to_string(),
+                        unit,
+                        algo: algo.clone(),
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -417,8 +454,8 @@ impl GetHashboards for VnishV130 {
                 .map(|f| {
                     HashRate {
                         value: f,
-                        unit: HashRateUnit::GigaHash,
-                        algo: "SHA256".to_string(),
+                        unit,
+                        algo: algo.clone(),
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -465,8 +502,8 @@ impl GetHashboards for VnishV130 {
                                         {
                                             HashRate {
                                                 value: f,
-                                                unit: HashRateUnit::GigaHash,
-                                                algo: "SHA256".to_string(),
+                                                unit,
+                                                algo: algo.clone(),
                                             }
                                         }
                                         .as_unit(HashRateUnit::default())
@@ -528,27 +565,31 @@ impl GetHashboards for VnishV130 {
 
 impl GetHashrate for VnishV130 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::Hashrate, |f| {
+        let field = data.get(&DataField::Hashrate);
+        let value = field?.pointer("/hashrate")?.as_f64()?;
+        Some(
             HashRate {
-                value: f,
-                unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                value,
+                unit: Self::hashrate_unit(field),
+                algo: self.device_info.algo.to_string(),
             }
-            .as_unit(HashRateUnit::default())
-        })
+            .as_unit(HashRateUnit::default()),
+        )
     }
 }
 
 impl GetExpectedHashrate for VnishV130 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| {
+        let field = data.get(&DataField::ExpectedHashrate);
+        let value = field?.pointer("/hashrate")?.as_f64()?;
+        Some(
             HashRate {
-                value: f,
-                unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                value,
+                unit: Self::hashrate_unit(field),
+                algo: self.device_info.algo.to_string(),
             }
-            .as_unit(HashRateUnit::default())
-        })
+            .as_unit(HashRateUnit::default()),
+        )
     }
 }
 
@@ -764,6 +805,18 @@ impl GetPools for VnishV130 {
 }
 
 impl VnishV130 {
+    /// VNish reports which unit its hashrate figures are in via `/info`'s
+    /// `hr_measure` (`"GH/s"`, `"MH/s"` or `"N/A"`). Fall back to GH/s — what
+    /// every SHA-256 model reports — when it is absent or unusable, so this
+    /// cannot regress the models that worked before.
+    fn hashrate_unit(field: Option<&Value>) -> HashRateUnit {
+        field
+            .and_then(|v| v.pointer("/unit"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| HashRateUnit::from_str(s).ok())
+            .unwrap_or(HashRateUnit::GigaHash)
+    }
+
     fn parse_pool_status(status: Option<&str>) -> (Option<bool>, Option<bool>) {
         match status {
             Some("active" | "working") => (Some(true), Some(true)),
@@ -1058,5 +1111,138 @@ impl SupportsTuningConfig for VnishV130 {
 impl SupportsFanConfig for VnishV130 {
     fn supports_fan_config(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use asic_rs_core::test::api::MockAPIClient;
+    use asic_rs_makes_antminer::models::AntMinerModel;
+
+    use super::*;
+
+    fn web(command: &'static str) -> MinerCommand {
+        MinerCommand::WebAPI {
+            command,
+            parameters: None,
+        }
+    }
+
+    #[track_caller]
+    fn assert_unit(hashrate: HashRate, unit: HashRateUnit, expected: f64) {
+        let value = hashrate.as_unit(unit).value;
+        assert!(
+            (value - expected).abs() < 1e-6,
+            "expected {expected} {unit}, got {value}"
+        );
+    }
+
+    /// An L9 is a Scrypt miner and VNish says so in `/info`, both in
+    /// `algorithm` and by reporting `hr_measure: MH/s`. Before this was wired
+    /// up it came back as a SHA-256 miner and every figure was read as GH/s,
+    /// putting the hashrate out by a factor of 1000.
+    #[tokio::test]
+    async fn scrypt_model_is_read_in_the_unit_it_reports() {
+        let miner = VnishV130::new(IpAddr::from([127, 0, 0, 1]), AntMinerModel::L9);
+
+        let mut results = HashMap::new();
+        results.insert(
+            web("info"),
+            json!({
+                "miner": "Antminer L9",
+                "model": "L9",
+                "algorithm": "scrypt",
+                "hr_measure": "MH/s",
+                "fw_version": "1.3.4"
+            }),
+        );
+        results.insert(
+            web("summary"),
+            json!({
+                "miner": {
+                    "hr_realtime": 16200.0,
+                    "hr_stock": 16000.0,
+                    "chains": [
+                        { "id": 1, "hashrate_rt": 5400.0 },
+                        { "id": 2, "hashrate_rt": 5400.0 },
+                        { "id": 3, "hashrate_rt": 5400.0 }
+                    ]
+                }
+            }),
+        );
+
+        let mock_api = MockAPIClient::new(results);
+        let mut collector = DataCollector::new_with_client(&miner, &mock_api);
+        let miner_data = miner.parse_data(collector.collect_all().await);
+
+        let hashrate = miner_data.hashrate.expect("hashrate");
+        assert_eq!(hashrate.algo, "Scrypt");
+        assert_unit(hashrate, HashRateUnit::MegaHash, 16200.0);
+
+        let expected = miner_data.expected_hashrate.expect("expected hashrate");
+        assert_eq!(expected.algo, "Scrypt");
+        assert_unit(expected, HashRateUnit::MegaHash, 16000.0);
+
+        let board = miner_data.hashboards[0].hashrate.clone().expect("board 0");
+        assert_eq!(board.algo, "Scrypt");
+        assert_unit(board, HashRateUnit::MegaHash, 5400.0);
+    }
+
+    /// The SHA-256 path is unchanged: GH/s in, TH/s out, labelled SHA256.
+    #[tokio::test]
+    async fn sha256_model_is_unchanged() {
+        let miner = VnishV130::new(IpAddr::from([127, 0, 0, 1]), AntMinerModel::S21);
+
+        let mut results = HashMap::new();
+        results.insert(
+            web("info"),
+            json!({
+                "miner": "Antminer S21",
+                "model": "S21",
+                "algorithm": "sha256d",
+                "hr_measure": "GH/s",
+                "fw_version": "1.3.4"
+            }),
+        );
+        results.insert(
+            web("summary"),
+            json!({ "miner": { "hr_realtime": 110000.0, "hr_stock": 110000.0 } }),
+        );
+
+        let mock_api = MockAPIClient::new(results);
+        let mut collector = DataCollector::new_with_client(&miner, &mock_api);
+        let miner_data = miner.parse_data(collector.collect_all().await);
+
+        let hashrate = miner_data.hashrate.expect("hashrate");
+        assert_eq!(hashrate.algo, "SHA256");
+        assert_eq!(hashrate.unit, HashRateUnit::TeraHash);
+        assert_unit(hashrate, HashRateUnit::TeraHash, 110.0);
+    }
+
+    /// VNish reports `N/A` on models where it cannot say. Falling back to GH/s
+    /// keeps those on exactly the path they took before.
+    #[tokio::test]
+    async fn unusable_unit_falls_back_to_gigahash() {
+        let miner = VnishV130::new(IpAddr::from([127, 0, 0, 1]), AntMinerModel::S21);
+
+        let mut results = HashMap::new();
+        results.insert(
+            web("info"),
+            json!({ "miner": "Antminer S21", "hr_measure": "N/A", "fw_version": "1.3.4" }),
+        );
+        results.insert(
+            web("summary"),
+            json!({ "miner": { "hr_realtime": 110000.0 } }),
+        );
+
+        let mock_api = MockAPIClient::new(results);
+        let mut collector = DataCollector::new_with_client(&miner, &mock_api);
+        let miner_data = miner.parse_data(collector.collect_all().await);
+
+        assert_unit(
+            miner_data.hashrate.expect("hashrate"),
+            HashRateUnit::TeraHash,
+            110.0,
+        );
     }
 }
