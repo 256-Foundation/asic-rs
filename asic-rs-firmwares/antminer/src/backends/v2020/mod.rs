@@ -14,7 +14,7 @@ use asic_rs_core::{
             DataCollector, DataExtensions, DataExtractor, DataField, DataLocation, get_by_pointer,
         },
         command::MinerCommand,
-        device::{DeviceInfo, HashAlgorithm},
+        device::DeviceInfo,
         fan::FanData,
         firmware::FirmwareImage,
         hashrate::{HashRate, HashRateUnit},
@@ -204,15 +204,12 @@ fn miner_conf_with_fan_config(miner_conf: &Value, config: FanConfig) -> Value {
 impl AntMinerV2020 {
     pub fn new(ip: IpAddr, model: impl MinerModel) -> Self {
         let auth = Self::default_auth();
+        let algo = model.hash_algorithm();
         AntMinerV2020 {
             ip,
             rpc: AntMinerRPCAPI::new(ip),
             web: AntMinerWebAPI::new(ip, auth),
-            device_info: DeviceInfo::new(
-                model,
-                AntMinerStockFirmware::default(),
-                HashAlgorithm::SHA256,
-            ),
+            device_info: DeviceInfo::new(model, AntMinerStockFirmware::default(), algo),
         }
     }
 
@@ -445,22 +442,37 @@ impl GetDataLocations for AntMinerV2020 {
                     tag: None,
                 },
             )],
+            // cgminer names its summary keys after the unit they are in —
+            // `GHS 5s` on SHA-256 models, `MHS 5s` on Scrypt ones — so keep
+            // the whole entry and let the parse pick the key that is present.
             DataField::Hashrate => vec![(
                 RPC_SUMMARY,
                 DataExtractor {
                     func: get_by_pointer,
-                    key: Some("/SUMMARY/0/GHS 5s"),
+                    key: Some("/SUMMARY/0"),
                     tag: None,
                 },
             )],
-            DataField::ExpectedHashrate => vec![(
-                RPC_STATS,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some("/STATS/1/total_rateideal"),
-                    tag: None,
-                },
-            )],
+            // `total_rateideal`, by contrast, says nothing about its own
+            // scale, so carry STATS' `rate_unit` alongside it.
+            DataField::ExpectedHashrate => vec![
+                (
+                    RPC_STATS,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/STATS/1/total_rateideal"),
+                        tag: Some("hashrate"),
+                    },
+                ),
+                (
+                    RPC_STATS,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some("/STATS/1/rate_unit"),
+                        tag: Some("unit"),
+                    },
+                ),
+            ],
             DataField::Fans => vec![(
                 RPC_STATS,
                 DataExtractor {
@@ -630,6 +642,13 @@ impl GetHashboards for AntMinerV2020 {
             return hashboards;
         };
 
+        let unit = stats_data
+            .get("rate_unit")
+            .and_then(|v| v.as_str())
+            .and_then(|s| HashRateUnit::from_str(s).ok())
+            .unwrap_or(HashRateUnit::GigaHash);
+        let algo = self.device_info.algo.to_string();
+
         for board in hashboards.iter_mut() {
             let idx = board.position + 1;
 
@@ -639,8 +658,8 @@ impl GetHashboards for AntMinerV2020 {
                 .map(|r| {
                     HashRate {
                         value: r,
-                        unit: HashRateUnit::GigaHash,
-                        algo: "SHA256".to_string(),
+                        unit,
+                        algo: algo.clone(),
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -685,27 +704,55 @@ impl GetHashboards for AntMinerV2020 {
 
 impl GetHashrate for AntMinerV2020 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::Hashrate, |f| {
+        let summary = data.get(&DataField::Hashrate)?.as_object()?;
+
+        // cgminer names its rate keys `<unit> <window>` — `GHS 5s` on SHA-256
+        // models, `MHS 5s` on Scrypt ones — so the key states its own unit.
+        // Prefer the 5-second window and fall back to the average.
+        let (value, unit) = ["5s", "av"].into_iter().find_map(|window| {
+            summary.iter().find_map(|(key, raw)| {
+                let (unit, key_window) = key.split_once(' ')?;
+                if key_window != window {
+                    return None;
+                }
+                Some((
+                    Self::parse_f64_field(raw)?,
+                    HashRateUnit::from_str(unit).ok()?,
+                ))
+            })
+        })?;
+
+        Some(
             HashRate {
-                value: f,
-                unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                value,
+                unit,
+                algo: self.device_info.algo.to_string(),
             }
-            .as_unit(HashRateUnit::default())
-        })
+            .as_unit(HashRateUnit::default()),
+        )
     }
 }
 
 impl GetExpectedHashrate for AntMinerV2020 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        data.extract_map::<f64, _>(DataField::ExpectedHashrate, |f| {
+        let field = data.get(&DataField::ExpectedHashrate);
+        let value = field?
+            .pointer("/hashrate")
+            .and_then(Self::parse_f64_field)?;
+        Some(
             HashRate {
-                value: f,
-                unit: HashRateUnit::GigaHash,
-                algo: "SHA256".to_string(),
+                value,
+                // `total_rateideal` does not name its own scale, so take it
+                // from STATS' `rate_unit` (`"GH"` / `"MH"`).
+                unit: field
+                    .and_then(|v| v.pointer("/unit"))
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| HashRateUnit::from_str(s).ok())
+                    .unwrap_or(HashRateUnit::GigaHash),
+                algo: self.device_info.algo.to_string(),
             }
-            .as_unit(HashRateUnit::default())
-        })
+            .as_unit(HashRateUnit::default()),
+        )
     }
 }
 
@@ -1330,6 +1377,66 @@ mod tests {
         assert_eq!(
             miner_conf_with_miner_mode(&pre, MinerMode::Normal).unwrap()["miner-mode"],
             json!(0)
+        );
+    }
+
+    /// An L9 is a Scrypt miner reporting in MH/s. Before this was wired up it
+    /// came back as a SHA-256 miner and every figure was read as GH/s, putting
+    /// the hashrate out by a factor of 1000.
+    #[tokio::test]
+    async fn scrypt_model_is_read_in_the_unit_it_reports() {
+        let miner = AntMinerV2020::new(IpAddr::from([127, 0, 0, 1]), AntMinerModel::L9);
+
+        let mut results = HashMap::new();
+        results.insert(
+            MinerCommand::RPC {
+                command: "summary",
+                parameters: None,
+            },
+            json!({ "SUMMARY": [{ "MHS 5s": 16200.0, "MHS av": 16150.0 }] }),
+        );
+        results.insert(
+            MinerCommand::RPC {
+                command: "stats",
+                parameters: None,
+            },
+            json!({
+                "STATS": [
+                    {},
+                    {
+                        "rate_unit": "MH",
+                        "total_rateideal": 16000.0,
+                        "chain_rate1": 5400.0,
+                        "chain_rate2": 5400.0,
+                        "chain_rate3": 5400.0
+                    }
+                ]
+            }),
+        );
+
+        let mock_api = MockAPIClient::new(results);
+        let mut collector = DataCollector::new_with_client(&miner, &mock_api);
+        let miner_data = miner.parse_data(collector.collect_all().await);
+
+        let hashrate = miner_data.hashrate.expect("hashrate");
+        assert_eq!(hashrate.algo, "Scrypt");
+        assert_mega_hash(hashrate, 16200.0);
+
+        let expected = miner_data.expected_hashrate.expect("expected hashrate");
+        assert_eq!(expected.algo, "Scrypt");
+        assert_mega_hash(expected, 16000.0);
+
+        let board = miner_data.hashboards[0].hashrate.clone().expect("board 0");
+        assert_eq!(board.algo, "Scrypt");
+        assert_mega_hash(board, 5400.0);
+    }
+
+    #[track_caller]
+    fn assert_mega_hash(hashrate: HashRate, expected: f64) {
+        let value = hashrate.as_unit(HashRateUnit::MegaHash).value;
+        assert!(
+            (value - expected).abs() < 1e-6,
+            "expected {expected} MH/s, got {value}"
         );
     }
 

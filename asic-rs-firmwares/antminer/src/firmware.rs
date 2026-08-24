@@ -1,6 +1,6 @@
 use std::{fmt, fmt::Display, net::IpAddr};
 
-use asic_rs_core::data::device::MinerHardware;
+use asic_rs_core::data::device::{HashAlgorithm, MinerHardware};
 use asic_rs_core::traits::model::UnknownMinerModel;
 use asic_rs_core::{
     data::command::MinerCommand,
@@ -60,6 +60,13 @@ impl MinerModel for AntMinerCompatibleModel {
         match self {
             Self::AntMiner(m) => m.is_known(),
             Self::Unknown(m) => m.is_known(),
+        }
+    }
+
+    fn hash_algorithm(&self) -> HashAlgorithm {
+        match self {
+            Self::AntMiner(m) => m.hash_algorithm(),
+            Self::Unknown(m) => m.hash_algorithm(),
         }
     }
 }
@@ -207,5 +214,39 @@ impl FirmwareEntry for AntMinerStockFirmware {
             miner.set_auth(auth.clone());
         }
         Ok(miner)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use asic_rs_makes_antminer::models::AntMinerModel;
+
+    use super::*;
+
+    /// Live model detection always yields an [`AntMinerCompatibleModel`], never
+    /// a bare [`AntMinerModel`]. When this wrapper failed to forward
+    /// `hash_algorithm` every miner reported SHA-256 on real hardware while the
+    /// make-level tests passed, so the forwarding is asserted here directly.
+    #[test]
+    fn wrapper_forwards_hash_algorithm() {
+        assert_eq!(
+            AntMinerCompatibleModel::AntMiner(AntMinerModel::L9).hash_algorithm(),
+            HashAlgorithm::Scrypt
+        );
+        assert_eq!(
+            AntMinerCompatibleModel::AntMiner(AntMinerModel::L11).hash_algorithm(),
+            HashAlgorithm::Scrypt
+        );
+        assert_eq!(
+            AntMinerCompatibleModel::AntMiner(AntMinerModel::S21).hash_algorithm(),
+            HashAlgorithm::SHA256
+        );
+        assert_eq!(
+            AntMinerCompatibleModel::Unknown(UnknownMinerModel {
+                name: "ANTMINER S99".to_string(),
+            })
+            .hash_algorithm(),
+            HashAlgorithm::SHA256
+        );
     }
 }

@@ -1,22 +1,27 @@
 use std::str::FromStr;
 
+use asic_rs_core::data::device::HashAlgorithm;
 use asic_rs_core::errors::ModelSelectionError;
 use asic_rs_core::traits::model::MinerModel;
 use serde::{Deserialize, Serialize};
-use strum::Display;
+use strum::{Display, EnumProperty};
 use ts_rs::TS;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, TS)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, EnumProperty, TS)]
 pub enum AntMinerModel {
     #[serde(alias = "ANTMINER D3")]
+    #[strum(props(algo = "X11"))]
     D3,
     #[serde(alias = "ANTMINER HS3")]
     HS3,
     #[serde(alias = "ANTMINER L3+")]
+    #[strum(props(algo = "Scrypt"))]
     L3Plus,
     #[serde(alias = "ANTMINER L3++")]
+    #[strum(props(algo = "Scrypt"))]
     L3PlusPlus,
     #[serde(alias = "ANTMINER KA3")]
+    #[strum(props(algo = "Kadena"))]
     KA3,
     #[serde(alias = "ANTMINER KS3")]
     KS3,
@@ -27,14 +32,17 @@ pub enum AntMinerModel {
     #[serde(alias = "ANTMINER KS5 PRO")]
     KS5Pro,
     #[serde(alias = "ANTMINER L7")]
+    #[strum(props(algo = "Scrypt"))]
     L7,
     #[serde(alias = "ANTMINER K7")]
     K7,
     #[serde(alias = "ANTMINER D7")]
+    #[strum(props(algo = "X11"))]
     D7,
     #[serde(alias = "ANTMINER E9 PRO")]
     E9Pro,
     #[serde(alias = "ANTMINER D9")]
+    #[strum(props(algo = "X11"))]
     D9,
     #[serde(alias = "ANTMINER S9")]
     S9,
@@ -45,8 +53,10 @@ pub enum AntMinerModel {
     #[serde(alias = "ANTMINER T9")]
     T9,
     #[serde(alias = "ANTMINER L9")]
+    #[strum(props(algo = "Scrypt"))]
     L9,
     #[serde(alias = "ANTMINER L11")]
+    #[strum(props(algo = "Scrypt"))]
     L11,
     #[serde(alias = "ANTMINER Z15")]
     Z15,
@@ -149,6 +159,29 @@ impl MinerModel for AntMinerModel {
     fn is_known(&self) -> bool {
         !matches!(self, Self::Unknown(_))
     }
+
+    /// AntMiner is a mixed-algorithm make: the L-series mines Scrypt and the
+    /// D-series X11, while the S/T-series mines SHA-256. Without this the make
+    /// inherits the trait's SHA-256 default and every L9/L11 reports itself as
+    /// a SHA-256 miner regardless of firmware.
+    ///
+    /// The algorithm is declared on the variant itself via `strum`'s `algo`
+    /// property rather than in a second `match`, so adding a model means
+    /// touching one place and the value sits next to its siblings where it is
+    /// hard to miss. An absent property means SHA-256, which covers the bulk
+    /// of the make.
+    ///
+    /// Models whose algorithm [`HashAlgorithm`] cannot yet name — KS3/KS5
+    /// (kHeavyHash), K7 (Eaglesong), E9 Pro (Ethash), Z15 (Equihash), HS3
+    /// (Handshake), DR5 (Blake256R14) — carry no property and so keep
+    /// reporting SHA-256. That is still wrong for them, but it is unchanged
+    /// from today; naming those algorithms needs new `HashAlgorithm` variants,
+    /// which is a public API change and is left to a follow-up.
+    fn hash_algorithm(&self) -> HashAlgorithm {
+        self.get_str("algo")
+            .and_then(|algo| HashAlgorithm::from_str(algo).ok())
+            .unwrap_or(HashAlgorithm::SHA256)
+    }
 }
 
 #[cfg(test)]
@@ -173,5 +206,56 @@ mod tests {
 
         // Assert
         assert_eq!(result, AntMinerModel::Unknown("ANTMINER S99".to_string()));
+    }
+
+    #[test]
+    fn l_series_is_scrypt() {
+        for model in [
+            AntMinerModel::L3Plus,
+            AntMinerModel::L3PlusPlus,
+            AntMinerModel::L7,
+            AntMinerModel::L9,
+            AntMinerModel::L11,
+        ] {
+            assert_eq!(
+                model.hash_algorithm(),
+                HashAlgorithm::Scrypt,
+                "{model} should be Scrypt"
+            );
+        }
+    }
+
+    #[test]
+    fn d_series_is_x11() {
+        for model in [AntMinerModel::D3, AntMinerModel::D7, AntMinerModel::D9] {
+            assert_eq!(
+                model.hash_algorithm(),
+                HashAlgorithm::X11,
+                "{model} should be X11"
+            );
+        }
+    }
+
+    #[test]
+    fn sha256_models_are_unchanged() {
+        for model in [
+            AntMinerModel::S9,
+            AntMinerModel::S19,
+            AntMinerModel::S21,
+            AntMinerModel::T21,
+        ] {
+            assert_eq!(
+                model.hash_algorithm(),
+                HashAlgorithm::SHA256,
+                "{model} should be SHA256"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_model_defaults_to_sha256() {
+        let model = AntMinerModel::from_str("ANTMINER S99").unwrap();
+
+        assert_eq!(model.hash_algorithm(), HashAlgorithm::SHA256);
     }
 }

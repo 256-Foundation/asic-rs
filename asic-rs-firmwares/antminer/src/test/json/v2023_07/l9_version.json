@@ -1,0 +1,21 @@
+{
+  "STATUS": [
+    {
+      "STATUS": "S",
+      "When": 1787597827,
+      "Code": 22,
+      "Msg": "CGMiner versions",
+      "Description": "jansson 2.12"
+    }
+  ],
+  "VERSION": [
+    {
+      "BMMiner": "2.12",
+      "API": "3.1",
+      "Miner": "86.48-2.0.0",
+      "CompileTime": "Mon Mar  2 17:06:41 CST 2026",
+      "Type": "Antminer L9"
+    }
+  ],
+  "id": 1
+}
