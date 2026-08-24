@@ -168,6 +168,38 @@ impl HashAlgorithm {
     pub fn __str__(&self) -> String {
         self.to_string()
     }
+
+    /// Compare against another [`HashAlgorithm`] or against its name.
+    ///
+    /// Without this, `hashrate.algo == "SHA256"` would evaluate to `False`
+    /// rather than raising -- a silently wrong branch with no traceback. The
+    /// string form is accepted so that callers who treated this as a plain
+    /// string keep working.
+    #[cfg(feature = "python")]
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        if let Ok(other) = other.extract::<HashAlgorithm>() {
+            return *self == other;
+        }
+        other
+            .extract::<String>()
+            .is_ok_and(|name| name == self.to_string())
+    }
+
+    #[cfg(feature = "python")]
+    fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {
+        !self.__eq__(other)
+    }
+
+    /// Defining `__eq__` drops the inherited hash, so restore it explicitly --
+    /// these are used as dict keys and in sets.
+    #[cfg(feature = "python")]
+    fn __hash__(&self) -> u64 {
+        use std::hash::{DefaultHasher, Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 #[cfg(test)]
