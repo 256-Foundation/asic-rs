@@ -213,17 +213,6 @@ impl AntMinerV2020 {
         }
     }
 
-    /// cgminer states the scale of its hashrate figures in STATS' `rate_unit`
-    /// (`"GH"` on SHA-256 models, `"MH"` on Scrypt ones). `None` when the
-    /// firmware omits it or reports something unparseable, leaving the caller
-    /// to fall back.
-    fn hashrate_unit(field: Option<&Value>) -> Option<HashRateUnit> {
-        field
-            .and_then(|v| v.pointer("/unit"))
-            .and_then(|v| v.as_str())
-            .and_then(|s| HashRateUnit::from_str(s).ok())
-    }
-
     /// Read a numeric field that some firmware generations emit as a JSON
     /// number and others as a quoted string.
     fn parse_f64_field(value: &Value) -> Option<f64> {
@@ -715,21 +704,22 @@ impl GetHashboards for AntMinerV2020 {
 
 impl GetHashrate for AntMinerV2020 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        let summary = data.get(&DataField::Hashrate)?;
+        let summary = data.get(&DataField::Hashrate)?.as_object()?;
 
-        // Preferred key first. `GHS 5s` is what every SHA-256 model reports, so
-        // those keep taking exactly the path they did before.
-        let (value, unit) = [
-            ("GHS 5s", HashRateUnit::GigaHash),
-            ("MHS 5s", HashRateUnit::MegaHash),
-            ("MHS av", HashRateUnit::MegaHash),
-        ]
-        .into_iter()
-        .find_map(|(key, unit)| {
-            summary
-                .get(key)
-                .and_then(Self::parse_f64_field)
-                .map(|value| (value, unit))
+        // cgminer names its rate keys `<unit> <window>` — `GHS 5s` on SHA-256
+        // models, `MHS 5s` on Scrypt ones — so the key states its own unit.
+        // Prefer the 5-second window and fall back to the average.
+        let (value, unit) = ["5s", "av"].into_iter().find_map(|window| {
+            summary.iter().find_map(|(key, raw)| {
+                let (unit, key_window) = key.split_once(' ')?;
+                if key_window != window {
+                    return None;
+                }
+                Some((
+                    Self::parse_f64_field(raw)?,
+                    HashRateUnit::from_str(unit).ok()?,
+                ))
+            })
         })?;
 
         Some(
@@ -752,7 +742,13 @@ impl GetExpectedHashrate for AntMinerV2020 {
         Some(
             HashRate {
                 value,
-                unit: Self::hashrate_unit(field).unwrap_or(HashRateUnit::GigaHash),
+                // `total_rateideal` does not name its own scale, so take it
+                // from STATS' `rate_unit` (`"GH"` / `"MH"`).
+                unit: field
+                    .and_then(|v| v.pointer("/unit"))
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| HashRateUnit::from_str(s).ok())
+                    .unwrap_or(HashRateUnit::GigaHash),
                 algo: self.device_info.algo.to_string(),
             }
             .as_unit(HashRateUnit::default()),

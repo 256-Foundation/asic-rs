@@ -1,7 +1,10 @@
 use std::{fmt, fmt::Display, net::IpAddr};
 
 use asic_rs_core::{
-    data::{command::MinerCommand, device::MinerHardware},
+    data::{
+        command::MinerCommand,
+        device::{HashAlgorithm, MinerHardware},
+    },
     discovery::{HTTP_WEB_ROOT, RPC_VERSION},
     errors::ModelSelectionError,
     traits::{
@@ -59,6 +62,14 @@ impl MinerModel for BraiinsCompatibleModel {
             Self::AntMiner(m) => m.is_known(),
             Self::Braiins(m) => m.is_known(),
             Self::Unknown(m) => m.is_known(),
+        }
+    }
+
+    fn hash_algorithm(&self) -> HashAlgorithm {
+        match self {
+            Self::AntMiner(m) => m.hash_algorithm(),
+            Self::Braiins(m) => m.hash_algorithm(),
+            Self::Unknown(m) => m.hash_algorithm(),
         }
     }
 }

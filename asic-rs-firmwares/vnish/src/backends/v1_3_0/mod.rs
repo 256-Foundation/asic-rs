@@ -405,7 +405,11 @@ impl GetHashboards for VnishV130 {
         else {
             return Vec::new();
         };
-        let unit = Self::hashrate_unit(hashboards_data);
+        let unit = hashboards_data
+            .and_then(|v| v.pointer("/unit"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| HashRateUnit::from_str(s).ok())
+            .unwrap_or(HashRateUnit::GigaHash);
         let algo = self.device_info.algo.to_string();
         let chip_chains = data.get(&DataField::Chips).and_then(|v| v.as_array());
 
@@ -570,7 +574,13 @@ impl GetHashrate for VnishV130 {
         Some(
             HashRate {
                 value,
-                unit: Self::hashrate_unit(field),
+                // `/info`'s `hr_measure`: `"GH/s"`, `"MH/s"` or `"N/A"`. GH/s
+                // when it cannot say, which is what SHA-256 models report.
+                unit: field
+                    .and_then(|v| v.pointer("/unit"))
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| HashRateUnit::from_str(s).ok())
+                    .unwrap_or(HashRateUnit::GigaHash),
                 algo: self.device_info.algo.to_string(),
             }
             .as_unit(HashRateUnit::default()),
@@ -585,7 +595,13 @@ impl GetExpectedHashrate for VnishV130 {
         Some(
             HashRate {
                 value,
-                unit: Self::hashrate_unit(field),
+                // `/info`'s `hr_measure`: `"GH/s"`, `"MH/s"` or `"N/A"`. GH/s
+                // when it cannot say, which is what SHA-256 models report.
+                unit: field
+                    .and_then(|v| v.pointer("/unit"))
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| HashRateUnit::from_str(s).ok())
+                    .unwrap_or(HashRateUnit::GigaHash),
                 algo: self.device_info.algo.to_string(),
             }
             .as_unit(HashRateUnit::default()),
@@ -805,18 +821,6 @@ impl GetPools for VnishV130 {
 }
 
 impl VnishV130 {
-    /// VNish reports which unit its hashrate figures are in via `/info`'s
-    /// `hr_measure` (`"GH/s"`, `"MH/s"` or `"N/A"`). Fall back to GH/s — what
-    /// every SHA-256 model reports — when it is absent or unusable, so this
-    /// cannot regress the models that worked before.
-    fn hashrate_unit(field: Option<&Value>) -> HashRateUnit {
-        field
-            .and_then(|v| v.pointer("/unit"))
-            .and_then(|v| v.as_str())
-            .and_then(|s| HashRateUnit::from_str(s).ok())
-            .unwrap_or(HashRateUnit::GigaHash)
-    }
-
     fn parse_pool_status(status: Option<&str>) -> (Option<bool>, Option<bool>) {
         match status {
             Some("active" | "working") => (Some(true), Some(true)),

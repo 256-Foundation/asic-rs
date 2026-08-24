@@ -1,0 +1,46 @@
+{
+  "STATUS": [
+    {
+      "STATUS": "S",
+      "When": 1787597826,
+      "Code": 11,
+      "Msg": "Summary",
+      "Description": "jansson 2.12"
+    }
+  ],
+  "SUMMARY": [
+    {
+      "Elapsed": 9153,
+      "GHS 5s": 11.48,
+      "GHS av": 12.85,
+      "GHS 30m": 11.47,
+      "Found Blocks": 0,
+      "Getwork": 488,
+      "Accepted": 1757,
+      "Rejected": 5,
+      "Hardware Errors": 84799,
+      "Utility": 11.51,
+      "Discarded": 0,
+      "Stale": 4,
+      "Get Failures": 11,
+      "Local Work": 237092,
+      "Remote Failures": 0,
+      "Network Blocks": 0,
+      "Total MH": 0.0,
+      "Work Utility": 11788317.5352,
+      "Difficulty Accepted": 1788870656.0,
+      "Difficulty Rejected": 5242880.0,
+      "Difficulty Stale": 4194304.0,
+      "Best Share": 0,
+      "Device Hardware%": 0.16,
+      "Device Rejected%": 11.95,
+      "Pool Rejected%": 0.0,
+      "Pool Stale%": 0.0,
+      "Last getwork": 1787597826,
+      "RT HASHRATE": "11.49 GH/s",
+      "AV HASHRATE": "12.85 GH/s",
+      "THEORY HASHRATE": "17.04 GH/s"
+    }
+  ],
+  "id": 1
+}

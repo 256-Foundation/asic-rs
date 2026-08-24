@@ -189,17 +189,6 @@ impl AntMinerV202307 {
         }
     }
 
-    /// cgminer states the scale of its hashrate figures in STATS' `rate_unit`
-    /// (`"GH"` on SHA-256 models, `"MH"` on Scrypt ones). `None` when the
-    /// firmware omits it or reports something unparseable, leaving the caller
-    /// to fall back.
-    fn hashrate_unit(field: Option<&Value>) -> Option<HashRateUnit> {
-        field
-            .and_then(|v| v.pointer("/unit"))
-            .and_then(|v| v.as_str())
-            .and_then(|s| HashRateUnit::from_str(s).ok())
-    }
-
     /// Read a numeric field that some firmware generations emit as a JSON
     /// number and others as a quoted string.
     fn parse_f64_field(value: &Value) -> Option<f64> {
@@ -691,21 +680,22 @@ impl GetHashboards for AntMinerV202307 {
 
 impl GetHashrate for AntMinerV202307 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        let summary = data.get(&DataField::Hashrate)?;
+        let summary = data.get(&DataField::Hashrate)?.as_object()?;
 
-        // Preferred key first. `GHS 5s` is what every SHA-256 model reports, so
-        // those keep taking exactly the path they did before.
-        let (value, unit) = [
-            ("GHS 5s", HashRateUnit::GigaHash),
-            ("MHS 5s", HashRateUnit::MegaHash),
-            ("MHS av", HashRateUnit::MegaHash),
-        ]
-        .into_iter()
-        .find_map(|(key, unit)| {
-            summary
-                .get(key)
-                .and_then(Self::parse_f64_field)
-                .map(|value| (value, unit))
+        // cgminer names its rate keys `<unit> <window>` — `GHS 5s` on SHA-256
+        // models, `MHS 5s` on Scrypt ones — so the key states its own unit.
+        // Prefer the 5-second window and fall back to the average.
+        let (value, unit) = ["5s", "av"].into_iter().find_map(|window| {
+            summary.iter().find_map(|(key, raw)| {
+                let (unit, key_window) = key.split_once(' ')?;
+                if key_window != window {
+                    return None;
+                }
+                Some((
+                    Self::parse_f64_field(raw)?,
+                    HashRateUnit::from_str(unit).ok()?,
+                ))
+            })
         })?;
 
         Some(
@@ -728,7 +718,13 @@ impl GetExpectedHashrate for AntMinerV202307 {
         Some(
             HashRate {
                 value,
-                unit: Self::hashrate_unit(field).unwrap_or(HashRateUnit::GigaHash),
+                // `total_rateideal` does not name its own scale, so take it
+                // from STATS' `rate_unit` (`"GH"` / `"MH"`).
+                unit: field
+                    .and_then(|v| v.pointer("/unit"))
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| HashRateUnit::from_str(s).ok())
+                    .unwrap_or(HashRateUnit::GigaHash),
                 algo: self.device_info.algo.to_string(),
             }
             .as_unit(HashRateUnit::default()),
@@ -1335,6 +1331,7 @@ mod tests {
     use crate::test::json::v2020::{
         AM_DEVS, AM_POOLS, AM_STATS, AM_SUMMARY, AM_SYSTEM_INFO, AM_VERSION,
     };
+    use crate::test::json::v2023_07::{L9_STATS, L9_SUMMARY, L11_STATS, L11_SUMMARY};
 
     #[test]
     fn set_miner_conf_payload_matches_cgi_contract_for_pause_resume() {
@@ -1370,6 +1367,83 @@ mod tests {
         assert_eq!(
             miner_conf_with_miner_mode(&pre, MinerMode::Normal).unwrap()["miner-mode"],
             json!(0)
+        );
+    }
+
+    /// Captured from live L9 and L11 hardware on stock firmware. Both are
+    /// Scrypt, both report in GH/s, and neither emits STATS' `rate_unit` --
+    /// only the S21 fixture does -- so the GH/s fallback carries these models.
+    #[tokio::test]
+    async fn scrypt_models_from_live_hardware() {
+        for (model, summary, stats, hashrate, expected, board0, chips) in [
+            (
+                AntMinerModel::L9,
+                L9_SUMMARY,
+                L9_STATS,
+                11.48,
+                17.03,
+                5.659831296,
+                [110u16, 110, 25],
+            ),
+            (
+                AntMinerModel::L11,
+                L11_SUMMARY,
+                L11_STATS,
+                19.21,
+                20.52,
+                6.80496896,
+                [88, 88, 88],
+            ),
+        ] {
+            let miner = AntMinerV202307::new(IpAddr::from([127, 0, 0, 1]), model.clone());
+
+            let mut results = HashMap::new();
+            results.insert(
+                MinerCommand::RPC {
+                    command: "summary",
+                    parameters: None,
+                },
+                Value::from_str(summary).unwrap(),
+            );
+            results.insert(
+                MinerCommand::RPC {
+                    command: "stats",
+                    parameters: None,
+                },
+                Value::from_str(stats).unwrap(),
+            );
+
+            let mock_api = MockAPIClient::new(results);
+            let mut collector = DataCollector::new_with_client(&miner, &mock_api);
+            let miner_data = miner.parse_data(collector.collect_all().await);
+
+            let hr = miner_data.hashrate.clone().expect("hashrate");
+            assert_eq!(hr.algo, "Scrypt", "{model}");
+            assert_giga_hash(hr, hashrate, model.to_string());
+
+            let ex = miner_data.expected_hashrate.clone().expect("expected");
+            assert_eq!(ex.algo, "Scrypt", "{model}");
+            assert_giga_hash(ex, expected, model.to_string());
+
+            let b0 = miner_data.hashboards[0].hashrate.clone().expect("board 0");
+            assert_eq!(b0.algo, "Scrypt", "{model}");
+            assert_giga_hash(b0, board0, model.to_string());
+
+            let working: Vec<u16> = miner_data
+                .hashboards
+                .iter()
+                .filter_map(|b| b.working_chips)
+                .collect();
+            assert_eq!(working, chips.to_vec(), "{model} working chips");
+        }
+    }
+
+    #[track_caller]
+    fn assert_giga_hash(hashrate: HashRate, expected: f64, label: String) {
+        let value = hashrate.as_unit(HashRateUnit::GigaHash).value;
+        assert!(
+            (value - expected).abs() < 1e-6,
+            "{label}: expected {expected} GH/s, got {value}"
         );
     }
 
