@@ -5,3 +5,21 @@
 /.git
 CLAUDE.md
 .DS_Store
+
+# Python build and test artifacts.
+#
+# `scripts/run_python_tests.py` runs `maturin develop`, which writes a compiled
+# extension module into python/pyasic_rs/ -- several hundred MB in a debug
+# build, well past GitHub's 100 MB file limit -- and pytest leaves bytecode
+# caches beside the sources. None of it belongs in the tree, and `git add -A`
+# after running the documented test command will otherwise pick all of it up.
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.dylib
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
