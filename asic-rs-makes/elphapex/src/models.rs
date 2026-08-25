@@ -3,25 +3,26 @@ use std::str::FromStr;
 use asic_rs_core::{
     data::device::HashAlgorithm, errors::ModelSelectionError, traits::model::MinerModel,
 };
+use asic_rs_macros::ModelAlgorithm;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumIter, EnumProperty};
+use strum::Display;
 use ts_rs::TS;
 
 #[derive(
-    Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, EnumIter, EnumProperty, TS,
+    Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, ModelAlgorithm, TS,
 )]
 pub enum ElphapexModel {
     #[serde(alias = "DG1")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Scrypt)]
     DG1,
     #[serde(alias = "DG1+", alias = "DG1Plus")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Scrypt)]
     DG1Plus,
     #[serde(alias = "DG-Home1")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Scrypt)]
     DG1Home,
     #[strum(to_string = "{0}")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Unknown)]
     Unknown(String),
 }
 
@@ -43,26 +44,11 @@ impl MinerModel for ElphapexModel {
     fn is_known(&self) -> bool {
         !matches!(self, Self::Unknown(_))
     }
-
-    fn hash_algorithm(&self) -> HashAlgorithm {
-        HashAlgorithm::Scrypt
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use strum::IntoEnumIterator;
-
     use super::*;
-
-    #[test]
-    fn every_model_declares_a_valid_algorithm() {
-        for model in ElphapexModel::iter() {
-            let declared = model.get_str("algo").expect("property declared");
-            let expected = declared.parse::<HashAlgorithm>().expect("valid algorithm");
-            assert_eq!(model.hash_algorithm(), expected, "{model}");
-        }
-    }
 
     #[test]
     fn known_models_parse() {

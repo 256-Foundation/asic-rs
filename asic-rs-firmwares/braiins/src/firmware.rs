@@ -64,8 +64,10 @@ impl MinerModel for BraiinsCompatibleModel {
             Self::Unknown(m) => m.is_known(),
         }
     }
+}
 
-    fn hash_algorithm(&self) -> HashAlgorithm {
+impl asic_rs_core::traits::model::MinerModelAlgorithm for BraiinsCompatibleModel {
+    fn declared_hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::AntMiner(m) => m.hash_algorithm(),
             Self::Braiins(m) => m.hash_algorithm(),

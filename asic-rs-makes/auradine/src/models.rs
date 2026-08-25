@@ -1,32 +1,34 @@
 use std::str::FromStr;
 
+use asic_rs_core::data::device::HashAlgorithm;
 use asic_rs_core::errors::ModelSelectionError;
 use asic_rs_core::traits::model::MinerModel;
+use asic_rs_macros::ModelAlgorithm;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumIter, EnumProperty};
+use strum::Display;
 use ts_rs::TS;
 
 #[derive(
-    Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, EnumIter, EnumProperty, TS,
+    Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, ModelAlgorithm, TS,
 )]
 pub enum AuradineModel {
     #[serde(alias = "AI2500")]
-    #[strum(props(algo = "SHA256"))]
+    #[algorithm(HashAlgorithm::SHA256)]
     AI2500,
     #[serde(alias = "AT1500")]
-    #[strum(props(algo = "SHA256"))]
+    #[algorithm(HashAlgorithm::SHA256)]
     AT1500,
     #[serde(alias = "AI3680")]
-    #[strum(props(algo = "SHA256"))]
+    #[algorithm(HashAlgorithm::SHA256)]
     AI3680,
     #[serde(alias = "AT2880")]
-    #[strum(props(algo = "SHA256"))]
+    #[algorithm(HashAlgorithm::SHA256)]
     AT2880,
     #[serde(alias = "AH3880")]
-    #[strum(props(algo = "SHA256"))]
+    #[algorithm(HashAlgorithm::SHA256)]
     AH3880,
     #[strum(to_string = "{0}")]
-    #[strum(props(algo = "SHA256"))]
+    #[algorithm(HashAlgorithm::Unknown)]
     Unknown(String),
 }
 
@@ -51,19 +53,7 @@ impl MinerModel for AuradineModel {
 
 #[cfg(test)]
 mod tests {
-    use asic_rs_core::data::device::HashAlgorithm;
-    use strum::IntoEnumIterator;
-
     use super::*;
-
-    #[test]
-    fn every_model_declares_a_valid_algorithm() {
-        for model in AuradineModel::iter() {
-            let declared = model.get_str("algo").expect("property declared");
-            let expected = declared.parse::<HashAlgorithm>().expect("valid algorithm");
-            assert_eq!(model.hash_algorithm(), expected, "{model}");
-        }
-    }
 
     #[test]
     fn known_model_parses() {

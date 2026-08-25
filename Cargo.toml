@@ -26,6 +26,7 @@ keywords = [
 [workspace]
 members = [
     "asic-rs-core",
+    "asic-rs-macros",
     "asic-rs-makes/antminer",
     "asic-rs-makes/auradine",
     "asic-rs-makes/avalon",
@@ -62,6 +63,7 @@ members = [
 
 [workspace.dependencies]
 asic-rs-core = { path = "asic-rs-core", version = "0.7.3" }
+asic-rs-macros = { path = "asic-rs-macros", version = "0.7.3" }
 asic-rs-pydantic = { path = "asic-rs-pydantic", version = "0.7.3" }
 asic-rs-pydantic-macros = { path = "asic-rs-pydantic-macros", version = "0.7.3" }
 

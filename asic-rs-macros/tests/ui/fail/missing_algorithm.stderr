@@ -1,0 +1,5 @@
+error: missing #[algorithm(HashAlgorithm::Variant)] attribute
+ --> tests/ui/fail/missing_algorithm.rs:5:5
+  |
+5 |     Missing,
+  |     ^^^^^^^

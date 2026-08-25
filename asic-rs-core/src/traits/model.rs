@@ -9,11 +9,15 @@ use crate::{
     errors::ModelSelectionError,
 };
 
-pub trait MinerModel: Display + Into<MinerHardware> + Clone + Any {
+pub trait MinerModelAlgorithm {
+    fn declared_hash_algorithm(&self) -> HashAlgorithm;
+}
+
+pub trait MinerModel: Display + Into<MinerHardware> + Clone + Any + MinerModelAlgorithm {
     fn make_name(&self) -> String;
     fn is_known(&self) -> bool;
     fn hash_algorithm(&self) -> HashAlgorithm {
-        HashAlgorithm::SHA256
+        self.declared_hash_algorithm()
     }
 }
 
@@ -31,6 +35,12 @@ impl Display for UnknownMinerModel {
 impl From<UnknownMinerModel> for MinerHardware {
     fn from(_: UnknownMinerModel) -> Self {
         Default::default()
+    }
+}
+
+impl MinerModelAlgorithm for UnknownMinerModel {
+    fn declared_hash_algorithm(&self) -> HashAlgorithm {
+        HashAlgorithm::Unknown
     }
 }
 

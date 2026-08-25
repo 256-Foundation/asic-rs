@@ -76,8 +76,10 @@ impl MinerModel for EPicCompatibleModel {
             Self::Unknown(m) => m.is_known(),
         }
     }
+}
 
-    fn hash_algorithm(&self) -> HashAlgorithm {
+impl asic_rs_core::traits::model::MinerModelAlgorithm for EPicCompatibleModel {
+    fn declared_hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::AntMiner(m) => m.hash_algorithm(),
             Self::VolcMiner(m) => m.hash_algorithm(),

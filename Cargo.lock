@@ -437,10 +437,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "asic-rs-macros"
+version = "0.7.3"
+dependencies = [
+ "asic-rs-core",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "trybuild",
+]
+
+[[package]]
 name = "asic-rs-makes-antminer"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -453,6 +465,7 @@ name = "asic-rs-makes-auradine"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -465,6 +478,7 @@ name = "asic-rs-makes-avalon"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -477,6 +491,7 @@ name = "asic-rs-makes-bitaxe"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -489,6 +504,7 @@ name = "asic-rs-makes-braiins"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -501,6 +517,7 @@ name = "asic-rs-makes-elphapex"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -513,6 +530,7 @@ name = "asic-rs-makes-epic"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -525,6 +543,7 @@ name = "asic-rs-makes-futurebit"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -549,6 +568,7 @@ name = "asic-rs-makes-nerdaxe"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -561,6 +581,7 @@ name = "asic-rs-makes-proto"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -573,6 +594,7 @@ name = "asic-rs-makes-sealminer"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -585,6 +607,7 @@ name = "asic-rs-makes-volcminer"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
@@ -597,6 +620,7 @@ name = "asic-rs-makes-whatsminer"
 version = "0.7.3"
 dependencies = [
  "asic-rs-core",
+ "asic-rs-macros",
  "pyo3",
  "serde",
  "serde_json",
