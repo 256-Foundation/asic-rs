@@ -210,6 +210,10 @@ impl From<AntMinerModel> for MinerHardware {
                 fans: Some(4),
                 boards: Some(vec![Some(55), Some(55), Some(55)]),
             },
+            AntMinerModel::S21PlusPlus => Self {
+                fans: Some(4),
+                boards: Some(vec![Some(55), Some(55), Some(55)]),
+            },
             AntMinerModel::S21PlusHydro => Self {
                 fans: Some(0),
                 boards: Some(vec![Some(95), Some(95), Some(95)]),

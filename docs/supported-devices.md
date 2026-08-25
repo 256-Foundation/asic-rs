@@ -34,7 +34,7 @@ Legend:
 
 ## Exact Supported Models
 
-??? quote "AntMiner (57 models across 23 families)"
+??? quote "AntMiner (58 models across 23 families)"
 
 	??? note "D3 family (1 model)"
 		 - [x] `ANTMINER D3`
@@ -94,7 +94,7 @@ Legend:
 		 - [x] `ANTMINER S19K PRO`
 		 - [x] `ANTMINER S19L`
 		 - [x] `ANTMINER S19PRO+`
-	??? note "S21 family (8 models)"
+	??? note "S21 family (9 models)"
 		 - [x] `ANTMINER S21` (also: `ANTMINER BHB68601`, `ANTMINER BHB68606`)
 		 - [x] `ANTMINER S21 HYD.` (also: `ANTMINER S21 HYDRO`)
 		 - [x] `ANTMINER S21 PRO`
@@ -102,6 +102,7 @@ Legend:
 		 - [x] `ANTMINER S21 XP`
 		 - [x] `ANTMINER S21+`
 		 - [x] `ANTMINER S21+ HYD.` (also: `ANTMINER S21+ HYDRO`)
+		 - [x] `ANTMINER S21++`
 		 - [x] `ANTMINER S21E XP HYD.` (also: `ANTMINER S21E XP HYDRO`)
 	??? note "T9 family (1 model)"
 		 - [x] `ANTMINER T9`

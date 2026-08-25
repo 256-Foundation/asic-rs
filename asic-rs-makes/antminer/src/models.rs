@@ -137,6 +137,8 @@ pub enum AntMinerModel {
     S21XP,
     #[serde(alias = "ANTMINER S21+")]
     S21Plus,
+    #[serde(alias = "ANTMINER S21++")]
+    S21PlusPlus,
     #[serde(alias = "ANTMINER S21 HYD.")]
     #[serde(alias = "ANTMINER S21 HYDRO")]
     S21Hydro,
