@@ -677,7 +677,7 @@ impl GetHashboards for LuxMinerV1 {
                         HashRate {
                             value: f,
                             unit: HashRateUnit::MegaHash,
-                            algo: HashAlgorithm::SHA256,
+                            algo: self.device_info.algo,
                         }
                         .as_unit(HashRateUnit::default())
                     });
@@ -695,7 +695,7 @@ impl GetHashboards for LuxMinerV1 {
                         HashRate {
                             value: f,
                             unit: HashRateUnit::GigaHash,
-                            algo: HashAlgorithm::SHA256,
+                            algo: self.device_info.algo,
                         }
                         .as_unit(HashRateUnit::default())
                     });
@@ -765,7 +765,7 @@ impl GetHashboards for LuxMinerV1 {
                                     HashRate {
                                         value: hr,
                                         unit: HashRateUnit::GigaHash,
-                                        algo: HashAlgorithm::SHA256,
+                                        algo: self.device_info.algo,
                                     }
                                     .as_unit(HashRateUnit::default())
                                 }),
@@ -820,7 +820,7 @@ impl GetHashrate for LuxMinerV1 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -850,7 +850,7 @@ impl GetExpectedHashrate for LuxMinerV1 {
             HashRate {
                 value: expected_hashrate,
                 unit: HashRateUnit::MegaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default()),
         )

@@ -1,18 +1,25 @@
 use std::str::FromStr;
 
+use asic_rs_core::data::device::HashAlgorithm;
 use asic_rs_core::errors::ModelSelectionError;
 use asic_rs_core::traits::model::MinerModel;
+use asic_rs_macros::ModelAlgorithm;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use ts_rs::TS;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, TS)]
+#[derive(
+    Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, ModelAlgorithm, TS,
+)]
 pub enum BraiinsModel {
     #[serde(alias = "BRAIINS MINI MINER BMM 100")]
+    #[algorithm(HashAlgorithm::SHA256)]
     BMM100,
     #[serde(alias = "BRAIINS MINI MINER BMM 101")]
+    #[algorithm(HashAlgorithm::SHA256)]
     BMM101,
     #[strum(to_string = "{0}")]
+    #[algorithm(HashAlgorithm::Unknown)]
     Unknown(String),
 }
 

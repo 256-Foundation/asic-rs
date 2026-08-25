@@ -1,12 +1,16 @@
 use std::str::FromStr;
 
+use asic_rs_core::data::device::HashAlgorithm;
 use asic_rs_core::errors::ModelSelectionError;
 use asic_rs_core::traits::model::MinerModel;
+use asic_rs_macros::ModelAlgorithm;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use ts_rs::TS;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, TS)]
+#[derive(
+    Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, ModelAlgorithm, TS,
+)]
 pub enum FutureBitModel {
     #[serde(
         alias = "Apollo",
@@ -15,6 +19,7 @@ pub enum FutureBitModel {
         alias = "Apollo I",
         alias = "Apollo 1"
     )]
+    #[algorithm(HashAlgorithm::SHA256)]
     Apollo1,
     #[serde(
         alias = "Apollo II",
@@ -23,8 +28,10 @@ pub enum FutureBitModel {
         alias = "Apollo-BTC II",
         alias = "Apollo BTC II"
     )]
+    #[algorithm(HashAlgorithm::SHA256)]
     Apollo2,
     #[strum(to_string = "{0}")]
+    #[algorithm(HashAlgorithm::Unknown)]
     Unknown(String),
 }
 

@@ -633,7 +633,7 @@ impl GetHashboards for PowerPlayV1 {
                             HashRate {
                                 value: h,
                                 unit: HashRateUnit::MegaHash,
-                                algo: HashAlgorithm::SHA256,
+                                algo: self.device_info.algo,
                             }
                             .as_unit(HashRateUnit::default())
                         });
@@ -652,7 +652,7 @@ impl GetHashboards for PowerPlayV1 {
                             HashRate {
                                 value: chips as f64 * hashes_per_clock * frequency.as_megahertz(),
                                 unit: HashRateUnit::MegaHash,
-                                algo: HashAlgorithm::SHA256,
+                                algo: self.device_info.algo,
                             }
                             .as_unit(HashRateUnit::default())
                         });
@@ -784,7 +784,7 @@ impl GetHashboards for PowerPlayV1 {
                                 HashRate {
                                     value: hr,
                                     unit: HashRateUnit::MegaHash,
-                                    algo: HashAlgorithm::SHA256,
+                                    algo: self.device_info.algo,
                                 }
                                 .as_unit(HashRateUnit::default()),
                             );
@@ -835,7 +835,7 @@ impl GetHashrate for PowerPlayV1 {
             HashRate {
                 value: total_hashrate,
                 unit: HashRateUnit::MegaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default()),
         )
@@ -848,7 +848,7 @@ impl GetExpectedHashrate for PowerPlayV1 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::TeraHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -909,20 +909,20 @@ fn first_perpetual_tune_algorithm(summary: &Value) -> Option<(&str, &Value)> {
 }
 
 fn parse_tuning_target_from_stats(
-    summary: &Value,
     algorithm: &str,
     stats: &Value,
     algorithm_drives_power: bool,
+    algo: HashAlgorithm,
 ) -> Option<TuningTarget> {
     let target = tuning_value_as_f64(stats.get("Target")?)?;
-    parse_tuning_target_value_from_stats(summary, algorithm, stats, target, algorithm_drives_power)
+    parse_tuning_target_value_from_stats(algorithm, stats, target, algorithm_drives_power, algo)
 }
 
 fn parse_scaled_tuning_target_from_stats(
-    summary: &Value,
     algorithm: &str,
     stats: &Value,
     algorithm_drives_power: bool,
+    algo: HashAlgorithm,
 ) -> Option<TuningTarget> {
     let throttle_target = stats.get("Throttle Target").and_then(tuning_value_as_f64);
     let error_throttle_target = stats
@@ -933,15 +933,15 @@ fn parse_scaled_tuning_target_from_stats(
         .flatten()
         .min_by(f64::total_cmp)?;
 
-    parse_tuning_target_value_from_stats(summary, algorithm, stats, target, algorithm_drives_power)
+    parse_tuning_target_value_from_stats(algorithm, stats, target, algorithm_drives_power, algo)
 }
 
 fn parse_tuning_target_value_from_stats(
-    summary: &Value,
     algorithm: &str,
     stats: &Value,
     target: f64,
     algorithm_drives_power: bool,
+    algo: HashAlgorithm,
 ) -> Option<TuningTarget> {
     let unit = stats
         .get("Unit")
@@ -955,16 +955,6 @@ fn parse_tuning_target_value_from_stats(
     }
 
     let hr_unit = unit.parse::<HashRateUnit>().ok()?;
-    // ePIC is the one backend that learns its algorithm from the device at
-    // runtime rather than from the model. A value we cannot name is reported
-    // as `Unknown` rather than being flattened into SHA-256; an absent field
-    // keeps the SHA-256 default that was already applied here.
-    let algo = summary
-        .pointer("/Mining/Algorithm")
-        .and_then(Value::as_str)
-        .map(|algo| HashAlgorithm::from_str(algo).unwrap_or(HashAlgorithm::Unknown))
-        .unwrap_or(HashAlgorithm::SHA256);
-
     Some(TuningTarget::HashRate(
         HashRate {
             value: target,
@@ -999,7 +989,7 @@ impl GetTuningTarget for PowerPlayV1 {
             }
 
             let (algorithm, stats) = first_perpetual_tune_algorithm(summary)?;
-            parse_tuning_target_from_stats(summary, algorithm, stats, true)
+            parse_tuning_target_from_stats(algorithm, stats, true, self.device_info.algo)
         })
     }
 }
@@ -1015,7 +1005,7 @@ impl GetScaledTuningTarget for PowerPlayV1 {
             }
 
             let (algorithm, stats) = first_perpetual_tune_algorithm(summary)?;
-            parse_scaled_tuning_target_from_stats(summary, algorithm, stats, true)
+            parse_scaled_tuning_target_from_stats(algorithm, stats, true, self.device_info.algo)
         })
     }
 }
@@ -1461,7 +1451,7 @@ impl SupportsTuningConfig for PowerPlayV1 {
             .and_then(|summary| {
                 let (algorithm, stats) = first_perpetual_tune_algorithm(summary)?;
                 let tuning_target =
-                    parse_tuning_target_from_stats(summary, algorithm, stats, false)?;
+                    parse_tuning_target_from_stats(algorithm, stats, false, self.device_info.algo)?;
                 Some(TuningConfig::new(tuning_target).with_algorithm(algorithm))
             })
             .ok_or_else(|| {

@@ -604,7 +604,7 @@ impl GetHashboards for AvalonAMiner {
                     HashRate {
                         value: rate,
                         unit: HashRateUnit::GigaHash,
-                        algo: HashAlgorithm::SHA256,
+                        algo: self.device_info.algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -714,7 +714,7 @@ impl GetHashboards for AvalonAMiner {
                 HashRate {
                     value: r,
                     unit: HashRateUnit::GigaHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -803,7 +803,7 @@ impl GetHashrate for AvalonAMiner {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -816,7 +816,7 @@ impl GetExpectedHashrate for AvalonAMiner {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })

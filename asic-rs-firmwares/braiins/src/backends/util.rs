@@ -31,7 +31,10 @@ pub(crate) fn power_target_capabilities(power_target: &Value) -> TuningCapabilit
 /// (`power_target` as `PowerConstraints` in watts, `hashrate_target` as
 /// `HashrateConstraints` in TH/s). Used by the REST BraiinsOS backends
 /// (25.07 and newer).
-pub(crate) fn tuner_constraints_capabilities(tuner: &Value) -> TuningCapabilities {
+pub(crate) fn tuner_constraints_capabilities(
+    tuner: &Value,
+    algo: HashAlgorithm,
+) -> TuningCapabilities {
     let power = tuner.get("power_target").map(|target| {
         let watts = |key: &str| {
             target
@@ -55,7 +58,7 @@ pub(crate) fn tuner_constraints_capabilities(tuner: &Value) -> TuningCapabilitie
                     TuningTarget::HashRate(HashRate {
                         value,
                         unit: HashRateUnit::TeraHash,
-                        algo: HashAlgorithm::SHA256,
+                        algo,
                     })
                 })
         };
@@ -73,15 +76,25 @@ pub(crate) fn tuner_constraints_capabilities(tuner: &Value) -> TuningCapabilitie
     }
 }
 
-pub(crate) fn parse_configured_tuning_target(value: &Value) -> Option<TuningTarget> {
-    parse_tagged_tuning_target(value, "configured")
+pub(crate) fn parse_configured_tuning_target(
+    value: &Value,
+    algo: HashAlgorithm,
+) -> Option<TuningTarget> {
+    parse_tagged_tuning_target(value, "configured", algo)
 }
 
-pub(crate) fn parse_scaled_tuning_target(value: &Value) -> Option<TuningTarget> {
-    parse_tagged_tuning_target(value, "scaled")
+pub(crate) fn parse_scaled_tuning_target(
+    value: &Value,
+    algo: HashAlgorithm,
+) -> Option<TuningTarget> {
+    parse_tagged_tuning_target(value, "scaled", algo)
 }
 
-fn parse_tagged_tuning_target(value: &Value, prefix: &str) -> Option<TuningTarget> {
+fn parse_tagged_tuning_target(
+    value: &Value,
+    prefix: &str,
+    algo: HashAlgorithm,
+) -> Option<TuningTarget> {
     let power_key = format!("{prefix}_power");
     let hashrate_key = format!("{prefix}_hashrate");
 
@@ -98,7 +111,7 @@ fn parse_tagged_tuning_target(value: &Value, prefix: &str) -> Option<TuningTarge
             TuningTarget::HashRate(HashRate {
                 value,
                 unit: HashRateUnit::TeraHash,
-                algo: HashAlgorithm::SHA256,
+                algo,
             })
         });
 

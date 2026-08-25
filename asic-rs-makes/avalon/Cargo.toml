@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 asic-rs-core.workspace = true
+asic-rs-macros.workspace = true
 
 serde.workspace = true
 ts-rs.workspace = true

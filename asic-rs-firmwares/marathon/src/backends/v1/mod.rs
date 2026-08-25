@@ -651,7 +651,7 @@ impl GetControlBoardVersion for MaraV1 {
 }
 
 impl MaraV1 {
-    fn parse_chip_data(asic_infos: &Value) -> Vec<ChipData> {
+    fn parse_chip_data(&self, asic_infos: &Value) -> Vec<ChipData> {
         asic_infos
             .as_array()
             .map(|chips| {
@@ -667,7 +667,7 @@ impl MaraV1 {
                                     HashRate {
                                         value,
                                         unit: HashRateUnit::GigaHash,
-                                        algo: HashAlgorithm::SHA256,
+                                        algo: self.device_info.algo,
                                     }
                                     .as_unit(HashRateUnit::default())
                                 });
@@ -741,7 +741,7 @@ impl GetHashboards for MaraV1 {
                 HashRate {
                     value: f,
                     unit: HashRateUnit::GigaHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -749,7 +749,7 @@ impl GetHashboards for MaraV1 {
                 HashRate {
                     value: f,
                     unit: HashRateUnit::GigaHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -789,7 +789,7 @@ impl GetHashboards for MaraV1 {
             }) {
                 board.chips = chip_hb
                     .get("asic_infos")
-                    .map(Self::parse_chip_data)
+                    .map(|asic_infos| self.parse_chip_data(asic_infos))
                     .unwrap_or_default();
             }
             board.voltage = hb
@@ -813,7 +813,7 @@ impl GetHashrate for MaraV1 {
             HashRate {
                 value: rate,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -826,7 +826,7 @@ impl GetExpectedHashrate for MaraV1 {
             HashRate {
                 value: rate,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })

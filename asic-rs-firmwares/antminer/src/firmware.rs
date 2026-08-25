@@ -1,7 +1,7 @@
 use std::{fmt, fmt::Display, net::IpAddr};
 
 use asic_rs_core::data::device::{HashAlgorithm, MinerHardware};
-use asic_rs_core::traits::model::UnknownMinerModel;
+use asic_rs_core::traits::model::{MinerModelAlgorithm, UnknownMinerModel};
 use asic_rs_core::{
     data::command::MinerCommand,
     discovery::{HTTP_WEB_ROOT, RPC_VERSION},
@@ -62,7 +62,9 @@ impl MinerModel for AntMinerCompatibleModel {
             Self::Unknown(m) => m.is_known(),
         }
     }
+}
 
+impl MinerModelAlgorithm for AntMinerCompatibleModel {
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::AntMiner(m) => m.hash_algorithm(),
@@ -246,7 +248,7 @@ mod tests {
                 name: "ANTMINER S99".to_string(),
             })
             .hash_algorithm(),
-            HashAlgorithm::SHA256
+            HashAlgorithm::Unknown
         );
     }
 }

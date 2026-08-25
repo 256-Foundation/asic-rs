@@ -268,7 +268,7 @@ impl GetHashboards for Bitaxe290 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         });
@@ -279,7 +279,7 @@ impl GetHashboards for Bitaxe290 {
                 HashRate {
                     value: f,
                     unit: HashRateUnit::GigaHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -335,7 +335,7 @@ impl GetHashrate for Bitaxe290 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -348,7 +348,7 @@ impl GetExpectedHashrate for Bitaxe290 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })

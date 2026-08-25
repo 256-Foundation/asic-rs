@@ -512,7 +512,7 @@ impl GetHashboards for ElphapexV1 {
                 .map(|rate| HashRate {
                     value: rate,
                     unit,
-                    algo: HashAlgorithm::Scrypt,
+                    algo: self.device_info.algo,
                 });
             board.expected_hashrate =
                 chain
@@ -521,7 +521,7 @@ impl GetHashboards for ElphapexV1 {
                     .map(|rate| HashRate {
                         value: rate,
                         unit,
-                        algo: HashAlgorithm::Scrypt,
+                        algo: self.device_info.algo,
                     });
             board.working_chips = chain
                 .get("asic_num")
@@ -579,7 +579,7 @@ impl GetHashrate for ElphapexV1 {
         Some(HashRate {
             value: rate,
             unit,
-            algo: HashAlgorithm::Scrypt,
+            algo: self.device_info.algo,
         })
     }
 }
@@ -604,7 +604,7 @@ impl GetExpectedHashrate for ElphapexV1 {
         Some(HashRate {
             value: rate,
             unit,
-            algo: HashAlgorithm::Scrypt,
+            algo: self.device_info.algo,
         })
     }
 }

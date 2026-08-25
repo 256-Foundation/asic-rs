@@ -3,154 +3,198 @@ use std::str::FromStr;
 use asic_rs_core::data::device::HashAlgorithm;
 use asic_rs_core::errors::ModelSelectionError;
 use asic_rs_core::traits::model::MinerModel;
+use asic_rs_macros::ModelAlgorithm;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumProperty};
+use strum::Display;
 use ts_rs::TS;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, EnumProperty, TS)]
+#[derive(
+    Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Display, ModelAlgorithm, TS,
+)]
 pub enum AntMinerModel {
     #[serde(alias = "ANTMINER D3")]
-    #[strum(props(algo = "X11"))]
+    #[algorithm(HashAlgorithm::X11)]
     D3,
     #[serde(alias = "ANTMINER HS3")]
-    #[strum(props(algo = "Handshake"))]
+    #[algorithm(HashAlgorithm::Handshake)]
     HS3,
     #[serde(alias = "ANTMINER L3+")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Scrypt)]
     L3Plus,
     #[serde(alias = "ANTMINER L3++")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Scrypt)]
     L3PlusPlus,
     #[serde(alias = "ANTMINER KA3")]
-    #[strum(props(algo = "Kadena"))]
+    #[algorithm(HashAlgorithm::Kadena)]
     KA3,
     #[serde(alias = "ANTMINER KS3")]
-    #[strum(props(algo = "KHeavyHash"))]
+    #[algorithm(HashAlgorithm::KHeavyHash)]
     KS3,
     #[serde(alias = "ANTMINER DR5")]
-    #[strum(props(algo = "Blake256R14"))]
+    #[algorithm(HashAlgorithm::Blake256R14)]
     DR5,
     #[serde(alias = "ANTMINER KS5")]
-    #[strum(props(algo = "KHeavyHash"))]
+    #[algorithm(HashAlgorithm::KHeavyHash)]
     KS5,
     #[serde(alias = "ANTMINER KS5 PRO")]
-    #[strum(props(algo = "KHeavyHash"))]
+    #[algorithm(HashAlgorithm::KHeavyHash)]
     KS5Pro,
     #[serde(alias = "ANTMINER L7")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Scrypt)]
     L7,
     #[serde(alias = "ANTMINER K7")]
-    #[strum(props(algo = "Eaglesong"))]
+    #[algorithm(HashAlgorithm::Eaglesong)]
     K7,
     #[serde(alias = "ANTMINER D7")]
-    #[strum(props(algo = "X11"))]
+    #[algorithm(HashAlgorithm::X11)]
     D7,
     #[serde(alias = "ANTMINER E9 PRO")]
-    #[strum(props(algo = "EtHash"))]
+    #[algorithm(HashAlgorithm::EtHash)]
     E9Pro,
     #[serde(alias = "ANTMINER D9")]
-    #[strum(props(algo = "X11"))]
+    #[algorithm(HashAlgorithm::X11)]
     D9,
     #[serde(alias = "ANTMINER S9")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S9,
     #[serde(alias = "ANTMINER S9I")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S9i,
     #[serde(alias = "ANTMINER S9J")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S9j,
     #[serde(alias = "ANTMINER T9")]
+    #[algorithm(HashAlgorithm::SHA256)]
     T9,
     #[serde(alias = "ANTMINER L9")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Scrypt)]
     L9,
     #[serde(alias = "ANTMINER L11")]
-    #[strum(props(algo = "Scrypt"))]
+    #[algorithm(HashAlgorithm::Scrypt)]
     L11,
     #[serde(alias = "ANTMINER Z15")]
-    #[strum(props(algo = "Equihash"))]
+    #[algorithm(HashAlgorithm::Equihash)]
     Z15,
     #[serde(alias = "ANTMINER Z15 PRO")]
-    #[strum(props(algo = "Equihash"))]
+    #[algorithm(HashAlgorithm::Equihash)]
     Z15Pro,
     #[serde(alias = "ANTMINER S17")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S17,
     #[serde(alias = "ANTMINER S17+")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S17Plus,
     #[serde(alias = "ANTMINER S17 PRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S17Pro,
     #[serde(alias = "ANTMINER S17E")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S17e,
     #[serde(alias = "ANTMINER T17")]
+    #[algorithm(HashAlgorithm::SHA256)]
     T17,
     #[serde(alias = "ANTMINER T17+")]
+    #[algorithm(HashAlgorithm::SHA256)]
     T17Plus,
     #[serde(alias = "ANTMINER T17E")]
+    #[algorithm(HashAlgorithm::SHA256)]
     T17e,
     #[serde(alias = "ANTMINER S19")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19,
     #[serde(alias = "ANTMINER S19L")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19L,
     #[serde(alias = "ANTMINER S19 PRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19Pro,
     #[serde(alias = "ANTMINER S19J")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19j,
     #[serde(alias = "ANTMINER S19I")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19i,
     #[serde(alias = "ANTMINER S19+")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19Plus,
     #[serde(alias = "ANTMINER S19J88NOPIC")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19jNoPIC,
     #[serde(alias = "ANTMINER S19PRO+")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19ProPlus,
     #[serde(alias = "ANTMINER S19J PRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19jPro,
     #[serde(alias = "ANTMINER S19J PRO+")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19jProPlus,
     #[serde(alias = "ANTMINER S19 XP")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19XP,
     #[serde(alias = "ANTMINER S19A")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19a,
     #[serde(alias = "ANTMINER S19A PRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19aPro,
     #[serde(alias = "ANTMINER S19 HYDRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19Hydro,
     #[serde(alias = "ANTMINER S19 PRO HYD.")]
     #[serde(alias = "ANTMINER S19 PRO HYDRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19ProHydro,
     #[serde(alias = "ANTMINER S19 PRO+ HYD.")]
     #[serde(alias = "ANTMINER S19 PRO+ HYDRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19ProPlusHydro,
     #[serde(alias = "ANTMINER S19K PRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19KPro,
     #[serde(alias = "ANTMINER S19J XP")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S19jXP,
     #[serde(alias = "ANTMINER T19")]
+    #[algorithm(HashAlgorithm::SHA256)]
     T19,
     #[serde(alias = "ANTMINER S21")]
     #[serde(alias = "ANTMINER BHB68601")]
     #[serde(alias = "ANTMINER BHB68606")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21,
     #[serde(alias = "ANTMINER S21 PRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21Pro,
     #[serde(alias = "ANTMINER S21 PRO+")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21ProPlus,
     #[serde(alias = "ANTMINER S21 XP")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21XP,
     #[serde(alias = "ANTMINER S21+")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21Plus,
     #[serde(alias = "ANTMINER S21++")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21PlusPlus,
     #[serde(alias = "ANTMINER S21 HYD.")]
     #[serde(alias = "ANTMINER S21 HYDRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21Hydro,
     #[serde(alias = "ANTMINER S21+ HYD.")]
     #[serde(alias = "ANTMINER S21+ HYDRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21PlusHydro,
     #[serde(alias = "ANTMINER S21E XP HYD.")]
     #[serde(alias = "ANTMINER S21E XP HYDRO")]
+    #[algorithm(HashAlgorithm::SHA256)]
     S21eXPHydro,
     #[serde(alias = "ANTMINER T21")]
+    #[algorithm(HashAlgorithm::SHA256)]
     T21,
     #[strum(to_string = "{0}")]
+    #[algorithm(HashAlgorithm::Unknown)]
     Unknown(String),
 }
 
@@ -170,49 +214,25 @@ impl MinerModel for AntMinerModel {
     fn is_known(&self) -> bool {
         !matches!(self, Self::Unknown(_))
     }
-
-    /// AntMiner is a mixed-algorithm make: the L-series mines Scrypt and the
-    /// D-series X11, while the S/T-series mines SHA-256. Without this the make
-    /// inherits the trait's SHA-256 default and every L9/L11 reports itself as
-    /// a SHA-256 miner regardless of firmware.
-    ///
-    /// The algorithm is declared on the variant itself via `strum`'s `algo`
-    /// property rather than in a second `match`, so adding a model means
-    /// touching one place and the value sits next to its siblings where it is
-    /// hard to miss. An absent property means SHA-256, which covers the bulk
-    /// of the make.
-    ///
-    /// Every model that is not SHA-256 carries a property, so the fallback
-    /// now applies only to the S/T-series and to models this crate does not
-    /// recognise.
-    fn hash_algorithm(&self) -> HashAlgorithm {
-        self.get_str("algo")
-            .and_then(|algo| HashAlgorithm::from_str(algo).ok())
-            .unwrap_or(HashAlgorithm::SHA256)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
+    use asic_rs_core::traits::model::MinerModelAlgorithm;
+    use std::str::FromStr;
 
     #[test]
     fn known_model_parses() {
-        // Act
         let result = AntMinerModel::from_str("ANTMINER S21").unwrap();
 
-        // Assert
         assert_eq!(result, AntMinerModel::S21);
     }
 
     #[test]
     fn unknown_model_falls_back() {
-        // Act
         let result = AntMinerModel::from_str("ANTMINER S99").unwrap();
 
-        // Assert
         assert_eq!(result, AntMinerModel::Unknown("ANTMINER S99".to_string()));
     }
 
@@ -225,22 +245,14 @@ mod tests {
             AntMinerModel::L9,
             AntMinerModel::L11,
         ] {
-            assert_eq!(
-                model.hash_algorithm(),
-                HashAlgorithm::Scrypt,
-                "{model} should be Scrypt"
-            );
+            assert_eq!(model.hash_algorithm(), HashAlgorithm::Scrypt, "{model}");
         }
     }
 
     #[test]
     fn d_series_is_x11() {
         for model in [AntMinerModel::D3, AntMinerModel::D7, AntMinerModel::D9] {
-            assert_eq!(
-                model.hash_algorithm(),
-                HashAlgorithm::X11,
-                "{model} should be X11"
-            );
+            assert_eq!(model.hash_algorithm(), HashAlgorithm::X11, "{model}");
         }
     }
 
@@ -252,16 +264,12 @@ mod tests {
             AntMinerModel::S21,
             AntMinerModel::T21,
         ] {
-            assert_eq!(
-                model.hash_algorithm(),
-                HashAlgorithm::SHA256,
-                "{model} should be SHA256"
-            );
+            assert_eq!(model.hash_algorithm(), HashAlgorithm::SHA256, "{model}");
         }
     }
 
     #[test]
-    fn non_sha256_models_declare_their_algorithm() {
+    fn non_sha256_models_use_their_declared_algorithm() {
         for (model, expected) in [
             (AntMinerModel::HS3, HashAlgorithm::Handshake),
             (AntMinerModel::DR5, HashAlgorithm::Blake256R14),
@@ -278,48 +286,10 @@ mod tests {
         }
     }
 
-    /// A property naming something that is not a real [`HashAlgorithm`] would
-    /// silently fall back to SHA-256, so every declared property is checked to
-    /// parse and to resolve to something other than the fallback.
     #[test]
-    fn every_declared_property_resolves() {
-        for model in [
-            AntMinerModel::D3,
-            AntMinerModel::HS3,
-            AntMinerModel::L3Plus,
-            AntMinerModel::L3PlusPlus,
-            AntMinerModel::KA3,
-            AntMinerModel::KS3,
-            AntMinerModel::DR5,
-            AntMinerModel::KS5,
-            AntMinerModel::KS5Pro,
-            AntMinerModel::L7,
-            AntMinerModel::K7,
-            AntMinerModel::D7,
-            AntMinerModel::E9Pro,
-            AntMinerModel::D9,
-            AntMinerModel::L9,
-            AntMinerModel::L11,
-            AntMinerModel::Z15,
-            AntMinerModel::Z15Pro,
-        ] {
-            let declared = model.get_str("algo").expect("property declared");
-            assert!(
-                HashAlgorithm::from_str(declared).is_ok(),
-                "{model} declares {declared:?}, which is not a HashAlgorithm"
-            );
-            assert_ne!(
-                model.hash_algorithm(),
-                HashAlgorithm::SHA256,
-                "{model} declares {declared:?} but resolved to the fallback"
-            );
-        }
-    }
-
-    #[test]
-    fn unknown_model_defaults_to_sha256() {
+    fn unknown_model_uses_unknown_algorithm() {
         let model = AntMinerModel::from_str("ANTMINER S99").unwrap();
 
-        assert_eq!(model.hash_algorithm(), HashAlgorithm::SHA256);
+        assert_eq!(model.hash_algorithm(), HashAlgorithm::Unknown);
     }
 }

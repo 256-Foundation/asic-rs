@@ -520,7 +520,7 @@ impl GetHashboards for ProtoV1 {
                 HashRate {
                     value: ths,
                     unit: HashRateUnit::TeraHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -529,7 +529,7 @@ impl GetHashboards for ProtoV1 {
                 .map(|ghs| HashRate {
                     value: ghs / board_count,
                     unit: HashRateUnit::GigaHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 })
                 .map(|hr| hr.as_unit(HashRateUnit::default()));
 
@@ -568,7 +568,7 @@ impl GetHashrate for ProtoV1 {
             HashRate {
                 value: ths,
                 unit: HashRateUnit::TeraHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -581,7 +581,7 @@ impl GetExpectedHashrate for ProtoV1 {
             HashRate {
                 value: ghs,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })

@@ -1,0 +1,5 @@
+error: unknown HashAlgorithm variant `NotAnAlgorithm`
+ --> tests/ui/fail/invalid_algorithm.rs:7:32
+  |
+7 |     #[algorithm(HashAlgorithm::NotAnAlgorithm)]
+  |                                ^^^^^^^^^^^^^^

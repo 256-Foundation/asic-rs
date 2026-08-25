@@ -70,17 +70,6 @@ fn is_zero_mac(mac: &MacAddr) -> bool {
     }
 }
 
-fn hash_rate_from_ghs(value: Option<f64>) -> Option<HashRate> {
-    value.map(|f| {
-        HashRate {
-            value: f,
-            unit: HashRateUnit::GigaHash,
-            algo: HashAlgorithm::SHA256,
-        }
-        .as_unit(HashRateUnit::default())
-    })
-}
-
 #[async_trait]
 impl APIClient for ApolloV2 {
     async fn get_api_result(&self, command: &MinerCommand) -> anyhow::Result<Value> {
@@ -524,15 +513,30 @@ impl GetHashboards for ApolloV2 {
         let active = ghs
             .map(|value| value > 0.0)
             .or_else(|| as_u64(slot.get("pwrOn")).map(|u| u > 0));
-        let hashrate = hash_rate_from_ghs(
-            ghs.or_else(|| as_f64(stats.pointer("/master/intervals/int_30/bySol"))),
-        );
+        let hashrate = ghs
+            .or_else(|| as_f64(stats.pointer("/master/intervals/int_30/bySol")))
+            .map(|f| {
+                HashRate {
+                    value: f,
+                    unit: HashRateUnit::GigaHash,
+                    algo: self.device_info.algo,
+                }
+                .as_unit(HashRateUnit::default())
+            });
 
         let mut board = BoardData::with_state(0, chips, None, active);
         board.working_chips = chips;
         board.hashrate = hashrate;
         board.expected_hashrate =
-            hash_rate_from_ghs(as_f64(stats.pointer("/master/intervals/int_30/byDiff")));
+            as_f64(stats.pointer("/master/intervals/int_30/byDiff")).map(|f| {
+                HashRate {
+                    value: f,
+                    unit: HashRateUnit::GigaHash,
+                    algo: self.device_info.algo,
+                }
+                .as_unit(HashRateUnit::default())
+            });
+
         board.board_temperature = as_f64(slot.get("temperature")).map(Temperature::from_celsius);
         board.inlet_chip_temperature = board.board_temperature;
         board.outlet_chip_temperature =
@@ -548,13 +552,27 @@ impl GetHashboards for ApolloV2 {
 
 impl GetHashrate for ApolloV2 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        hash_rate_from_ghs(as_f64(data.get(&DataField::Hashrate)))
+        as_f64(data.get(&DataField::Hashrate)).map(|f| {
+            HashRate {
+                value: f,
+                unit: HashRateUnit::GigaHash,
+                algo: self.device_info.algo,
+            }
+            .as_unit(HashRateUnit::default())
+        })
     }
 }
 
 impl GetExpectedHashrate for ApolloV2 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        hash_rate_from_ghs(as_f64(data.get(&DataField::ExpectedHashrate)))
+        as_f64(data.get(&DataField::ExpectedHashrate)).map(|f| {
+            HashRate {
+                value: f,
+                unit: HashRateUnit::GigaHash,
+                algo: self.device_info.algo,
+            }
+            .as_unit(HashRateUnit::default())
+        })
     }
 }
 
