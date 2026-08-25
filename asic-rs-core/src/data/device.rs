@@ -1,7 +1,7 @@
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-use strum::{Display as StrumDisplay, EnumString};
+use strum::{Display as StrumDisplay, EnumIter, EnumString};
 use ts_rs::TS;
 
 use crate::traits::{firmware::MinerFirmware, model::MinerModel};
@@ -88,7 +88,18 @@ impl MinerHardware {
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticEnum))]
 #[derive(
-    Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, StrumDisplay, EnumString, TS,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Hash,
+    Serialize,
+    Deserialize,
+    StrumDisplay,
+    EnumString,
+    EnumIter,
+    TS,
 )]
 /// Mining hash algorithm.
 pub enum HashAlgorithm {
@@ -112,6 +123,40 @@ pub enum HashAlgorithm {
     #[cfg_attr(feature = "python", pydantic(value = "Kadena"))]
     #[serde(rename = "Kadena")]
     Kadena,
+    /// kHeavyHash mining, as used by Kaspa.
+    #[cfg_attr(feature = "python", pydantic(value = "KHeavyHash"))]
+    #[serde(rename = "KHeavyHash")]
+    KHeavyHash,
+    /// Eaglesong mining, as used by Nervos CKB.
+    #[cfg_attr(feature = "python", pydantic(value = "Eaglesong"))]
+    #[serde(rename = "Eaglesong")]
+    Eaglesong,
+    /// EtHash mining.
+    #[cfg_attr(feature = "python", pydantic(value = "EtHash"))]
+    #[serde(rename = "EtHash")]
+    EtHash,
+    /// Equihash mining, as used by Zcash.
+    #[cfg_attr(feature = "python", pydantic(value = "Equihash"))]
+    #[serde(rename = "Equihash")]
+    Equihash,
+    /// Handshake mining (Blake2b followed by SHA3).
+    #[cfg_attr(feature = "python", pydantic(value = "Handshake"))]
+    #[serde(rename = "Handshake")]
+    Handshake,
+    /// Blake256R14 mining, as used by Decred.
+    #[cfg_attr(feature = "python", pydantic(value = "Blake256R14"))]
+    #[serde(rename = "Blake256R14")]
+    Blake256R14,
+    /// An algorithm this crate cannot name.
+    ///
+    /// Reported when a miner names an algorithm that is not one of the above,
+    /// so that an unrecognised value is not silently presented as SHA-256.
+    /// Note this does not carry the original text: [`HashAlgorithm`] is a
+    /// fieldless enum so that it stays `Copy`, serialises as a plain string,
+    /// and works with the pydantic and TypeScript derives.
+    #[cfg_attr(feature = "python", pydantic(value = "Unknown"))]
+    #[serde(rename = "Unknown")]
+    Unknown,
 }
 
 #[cfg_attr(feature = "python", pymethods)]
@@ -122,5 +167,41 @@ impl HashAlgorithm {
 
     pub fn __str__(&self) -> String {
         self.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use strum::IntoEnumIterator;
+
+    use super::*;
+
+    /// `Display` and `EnumString` are derived independently, so a variant whose
+    /// rendered name does not parse back would be a silent one-way trip.
+    /// Callers resolving an algorithm from a string rely on this holding.
+    #[test]
+    fn every_algorithm_round_trips_through_its_name() {
+        for algo in HashAlgorithm::iter() {
+            let rendered = algo.to_string();
+            assert_eq!(
+                HashAlgorithm::from_str(&rendered).ok(),
+                Some(algo),
+                "{rendered} did not round-trip"
+            );
+        }
+    }
+
+    /// `Unknown` is an explicit value a caller opts into, not a catch-all that
+    /// `from_str` falls back to -- otherwise a typo would parse successfully
+    /// and the round-trip test above would not catch it.
+    #[test]
+    fn unrecognised_names_do_not_parse_as_unknown() {
+        assert!(HashAlgorithm::from_str("NotAnAlgorithm").is_err());
+        assert_eq!(
+            HashAlgorithm::from_str("Unknown").ok(),
+            Some(HashAlgorithm::Unknown)
+        );
     }
 }

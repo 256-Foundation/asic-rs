@@ -216,10 +216,17 @@ class FanMode:
 
 @final
 class HashAlgorithm:
+    Blake256R14: Final[HashAlgorithm]
     Blake2S256: Final[HashAlgorithm]
+    Eaglesong: Final[HashAlgorithm]
+    Equihash: Final[HashAlgorithm]
+    EtHash: Final[HashAlgorithm]
+    Handshake: Final[HashAlgorithm]
+    KHeavyHash: Final[HashAlgorithm]
     Kadena: Final[HashAlgorithm]
     SHA256: Final[HashAlgorithm]
     Scrypt: Final[HashAlgorithm]
+    Unknown: Final[HashAlgorithm]
     X11: Final[HashAlgorithm]
     @classmethod
     def __get_pydantic_core_schema__(cls, /, _source_type: "object", _handler: "object") -> "object": ...
