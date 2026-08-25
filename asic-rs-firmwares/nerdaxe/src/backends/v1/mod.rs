@@ -260,7 +260,7 @@ impl GetHashboards for NerdAxeV1 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         });
@@ -303,7 +303,7 @@ impl GetHashboards for NerdAxeV1 {
                 HashRate {
                     value: core_count as f64 * chips as f64 * freq.as_gigahertz(),
                     unit: HashRateUnit::GigaHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -329,7 +329,7 @@ impl GetHashrate for NerdAxeV1 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -359,7 +359,7 @@ impl GetExpectedHashrate for NerdAxeV1 {
                         .unwrap_or(Frequency::from_megahertz(0f64))
                         .as_gigahertz(),
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default()),
         )

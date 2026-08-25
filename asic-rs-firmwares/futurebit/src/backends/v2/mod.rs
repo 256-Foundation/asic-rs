@@ -70,12 +70,12 @@ fn is_zero_mac(mac: &MacAddr) -> bool {
     }
 }
 
-fn hash_rate_from_ghs(value: Option<f64>) -> Option<HashRate> {
+fn hash_rate_from_ghs(value: Option<f64>, algo: HashAlgorithm) -> Option<HashRate> {
     value.map(|f| {
         HashRate {
             value: f,
             unit: HashRateUnit::GigaHash,
-            algo: HashAlgorithm::SHA256,
+            algo,
         }
         .as_unit(HashRateUnit::default())
     })
@@ -526,13 +526,16 @@ impl GetHashboards for ApolloV2 {
             .or_else(|| as_u64(slot.get("pwrOn")).map(|u| u > 0));
         let hashrate = hash_rate_from_ghs(
             ghs.or_else(|| as_f64(stats.pointer("/master/intervals/int_30/bySol"))),
+            self.device_info.algo,
         );
 
         let mut board = BoardData::with_state(0, chips, None, active);
         board.working_chips = chips;
         board.hashrate = hashrate;
-        board.expected_hashrate =
-            hash_rate_from_ghs(as_f64(stats.pointer("/master/intervals/int_30/byDiff")));
+        board.expected_hashrate = hash_rate_from_ghs(
+            as_f64(stats.pointer("/master/intervals/int_30/byDiff")),
+            self.device_info.algo,
+        );
         board.board_temperature = as_f64(slot.get("temperature")).map(Temperature::from_celsius);
         board.inlet_chip_temperature = board.board_temperature;
         board.outlet_chip_temperature =
@@ -548,13 +551,19 @@ impl GetHashboards for ApolloV2 {
 
 impl GetHashrate for ApolloV2 {
     fn parse_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        hash_rate_from_ghs(as_f64(data.get(&DataField::Hashrate)))
+        hash_rate_from_ghs(
+            as_f64(data.get(&DataField::Hashrate)),
+            self.device_info.algo,
+        )
     }
 }
 
 impl GetExpectedHashrate for ApolloV2 {
     fn parse_expected_hashrate(&self, data: &HashMap<DataField, Value>) -> Option<HashRate> {
-        hash_rate_from_ghs(as_f64(data.get(&DataField::ExpectedHashrate)))
+        hash_rate_from_ghs(
+            as_f64(data.get(&DataField::ExpectedHashrate)),
+            self.device_info.algo,
+        )
     }
 }
 

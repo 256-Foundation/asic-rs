@@ -452,7 +452,7 @@ impl GetHashboards for BraiinsV2503 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::MegaHash,
-                        algo: HashAlgorithm::SHA256,
+                        algo: self.device_info.algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -460,7 +460,7 @@ impl GetHashboards for BraiinsV2503 {
                 HashRate {
                     value: f,
                     unit: HashRateUnit::MegaHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default())
             });
@@ -509,7 +509,7 @@ impl GetHashrate for BraiinsV2503 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -522,7 +522,7 @@ impl GetExpectedHashrate for BraiinsV2503 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::MegaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -565,14 +565,14 @@ impl GetWattage for BraiinsV2503 {
 impl GetTuningTarget for BraiinsV2503 {
     fn parse_tuning_target(&self, data: &HashMap<DataField, Value>) -> Option<TuningTarget> {
         data.get(&DataField::TuningTarget)
-            .and_then(parse_configured_tuning_target)
+            .and_then(|value| parse_configured_tuning_target(value, self.device_info.algo))
     }
 }
 
 impl GetScaledTuningTarget for BraiinsV2503 {
     fn parse_scaled_tuning_target(&self, data: &HashMap<DataField, Value>) -> Option<TuningTarget> {
         data.get(&DataField::TuningTarget)
-            .and_then(parse_scaled_tuning_target)
+            .and_then(|value| parse_scaled_tuning_target(value, self.device_info.algo))
     }
 }
 

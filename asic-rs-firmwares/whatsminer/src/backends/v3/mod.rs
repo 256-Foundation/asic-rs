@@ -393,7 +393,7 @@ impl GetHashboards for WhatsMinerV3 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::TeraHash,
-                        algo: HashAlgorithm::SHA256,
+                        algo: self.device_info.algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -404,7 +404,7 @@ impl GetHashboards for WhatsMinerV3 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::TeraHash,
-                        algo: HashAlgorithm::SHA256,
+                        algo: self.device_info.algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -448,7 +448,7 @@ impl GetHashrate for WhatsMinerV3 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::TeraHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -460,7 +460,7 @@ impl GetExpectedHashrate for WhatsMinerV3 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::TeraHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })

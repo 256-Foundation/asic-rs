@@ -697,7 +697,7 @@ impl GetHashboards for AuradineV1 {
                     HashRate {
                         value,
                         unit: HashRateUnit::MegaHash,
-                        algo: HashAlgorithm::SHA256,
+                        algo: self.device_info.algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -987,7 +987,7 @@ impl GetHashrate for AuradineV1 {
             HashRate {
                 value,
                 unit: HashRateUnit::MegaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -1000,7 +1000,7 @@ impl GetExpectedHashrate for AuradineV1 {
             HashRate {
                 value,
                 unit: HashRateUnit::TeraHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -1079,7 +1079,7 @@ impl GetTuningTarget for AuradineV1 {
                 HashRate {
                     value: ths,
                     unit: HashRateUnit::TeraHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default()),
             ));
@@ -1096,7 +1096,7 @@ impl GetTuningTarget for AuradineV1 {
                 HashRate {
                     value: ths,
                     unit: HashRateUnit::TeraHash,
-                    algo: HashAlgorithm::SHA256,
+                    algo: self.device_info.algo,
                 }
                 .as_unit(HashRateUnit::default()),
             ));

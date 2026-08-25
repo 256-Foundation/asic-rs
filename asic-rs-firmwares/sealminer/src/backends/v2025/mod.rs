@@ -437,7 +437,7 @@ impl GetHashboards for SealMinerV2025 {
                         HashRate {
                             value: mhs,
                             unit: HashRateUnit::MegaHash,
-                            algo: HashAlgorithm::SHA256,
+                            algo: self.device_info.algo,
                         }
                         .as_unit(HashRateUnit::default())
                     });
@@ -448,7 +448,7 @@ impl GetHashboards for SealMinerV2025 {
                         HashRate {
                             value: mhs,
                             unit: HashRateUnit::MegaHash,
-                            algo: HashAlgorithm::SHA256,
+                            algo: self.device_info.algo,
                         }
                         .as_unit(HashRateUnit::default())
                     });
@@ -485,7 +485,7 @@ impl GetHashrate for SealMinerV2025 {
             HashRate {
                 value: mhs,
                 unit: HashRateUnit::MegaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -498,7 +498,7 @@ impl GetExpectedHashrate for SealMinerV2025 {
             HashRate {
                 value: mhs,
                 unit: HashRateUnit::MegaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })

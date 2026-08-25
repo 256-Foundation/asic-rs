@@ -417,7 +417,7 @@ impl GetHashboards for BraiinsV2604 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::GigaHash,
-                        algo: HashAlgorithm::SHA256,
+                        algo: self.device_info.algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -428,7 +428,7 @@ impl GetHashboards for BraiinsV2604 {
                     HashRate {
                         value: f,
                         unit: HashRateUnit::GigaHash,
-                        algo: HashAlgorithm::SHA256,
+                        algo: self.device_info.algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -467,7 +467,7 @@ impl GetHashrate for BraiinsV2604 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -480,7 +480,7 @@ impl GetExpectedHashrate for BraiinsV2604 {
             HashRate {
                 value: f,
                 unit: HashRateUnit::GigaHash,
-                algo: HashAlgorithm::SHA256,
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default())
         })
@@ -611,14 +611,14 @@ impl GetWattage for BraiinsV2604 {
 impl GetTuningTarget for BraiinsV2604 {
     fn parse_tuning_target(&self, data: &HashMap<DataField, Value>) -> Option<TuningTarget> {
         data.get(&DataField::TuningTarget)
-            .and_then(parse_configured_tuning_target)
+            .and_then(|value| parse_configured_tuning_target(value, self.device_info.algo))
     }
 }
 
 impl GetScaledTuningTarget for BraiinsV2604 {
     fn parse_scaled_tuning_target(&self, data: &HashMap<DataField, Value>) -> Option<TuningTarget> {
         data.get(&DataField::TuningTarget)
-            .and_then(parse_scaled_tuning_target)
+            .and_then(|value| parse_scaled_tuning_target(value, self.device_info.algo))
     }
 }
 
@@ -631,7 +631,7 @@ impl GetTuningCapabilities for BraiinsV2604 {
         // BOS+ REST `/configuration/constraints` → `tuner_constraints`, with
         // power_target (watts) and hashrate_target (TH/s) envelopes.
         let tuner = data.get(&DataField::TuningCapabilities)?;
-        Some(tuner_constraints_capabilities(tuner))
+        Some(tuner_constraints_capabilities(tuner, self.device_info.algo))
     }
 }
 
