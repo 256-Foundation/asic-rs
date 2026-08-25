@@ -13,6 +13,7 @@ pub enum AntMinerModel {
     #[strum(props(algo = "X11"))]
     D3,
     #[serde(alias = "ANTMINER HS3")]
+    #[strum(props(algo = "Handshake"))]
     HS3,
     #[serde(alias = "ANTMINER L3+")]
     #[strum(props(algo = "Scrypt"))]
@@ -24,22 +25,28 @@ pub enum AntMinerModel {
     #[strum(props(algo = "Kadena"))]
     KA3,
     #[serde(alias = "ANTMINER KS3")]
+    #[strum(props(algo = "KHeavyHash"))]
     KS3,
     #[serde(alias = "ANTMINER DR5")]
+    #[strum(props(algo = "Blake256R14"))]
     DR5,
     #[serde(alias = "ANTMINER KS5")]
+    #[strum(props(algo = "KHeavyHash"))]
     KS5,
     #[serde(alias = "ANTMINER KS5 PRO")]
+    #[strum(props(algo = "KHeavyHash"))]
     KS5Pro,
     #[serde(alias = "ANTMINER L7")]
     #[strum(props(algo = "Scrypt"))]
     L7,
     #[serde(alias = "ANTMINER K7")]
+    #[strum(props(algo = "Eaglesong"))]
     K7,
     #[serde(alias = "ANTMINER D7")]
     #[strum(props(algo = "X11"))]
     D7,
     #[serde(alias = "ANTMINER E9 PRO")]
+    #[strum(props(algo = "EtHash"))]
     E9Pro,
     #[serde(alias = "ANTMINER D9")]
     #[strum(props(algo = "X11"))]
@@ -59,8 +66,10 @@ pub enum AntMinerModel {
     #[strum(props(algo = "Scrypt"))]
     L11,
     #[serde(alias = "ANTMINER Z15")]
+    #[strum(props(algo = "Equihash"))]
     Z15,
     #[serde(alias = "ANTMINER Z15 PRO")]
+    #[strum(props(algo = "Equihash"))]
     Z15Pro,
     #[serde(alias = "ANTMINER S17")]
     S17,
@@ -171,12 +180,9 @@ impl MinerModel for AntMinerModel {
     /// hard to miss. An absent property means SHA-256, which covers the bulk
     /// of the make.
     ///
-    /// Models whose algorithm [`HashAlgorithm`] cannot yet name — KS3/KS5
-    /// (kHeavyHash), K7 (Eaglesong), E9 Pro (Ethash), Z15 (Equihash), HS3
-    /// (Handshake), DR5 (Blake256R14) — carry no property and so keep
-    /// reporting SHA-256. That is still wrong for them, but it is unchanged
-    /// from today; naming those algorithms needs new `HashAlgorithm` variants,
-    /// which is a public API change and is left to a follow-up.
+    /// Every model that is not SHA-256 carries a property, so the fallback
+    /// now applies only to the S/T-series and to models this crate does not
+    /// recognise.
     fn hash_algorithm(&self) -> HashAlgorithm {
         self.get_str("algo")
             .and_then(|algo| HashAlgorithm::from_str(algo).ok())
@@ -248,6 +254,62 @@ mod tests {
                 model.hash_algorithm(),
                 HashAlgorithm::SHA256,
                 "{model} should be SHA256"
+            );
+        }
+    }
+
+    #[test]
+    fn non_sha256_models_declare_their_algorithm() {
+        for (model, expected) in [
+            (AntMinerModel::HS3, HashAlgorithm::Handshake),
+            (AntMinerModel::DR5, HashAlgorithm::Blake256R14),
+            (AntMinerModel::KA3, HashAlgorithm::Kadena),
+            (AntMinerModel::KS3, HashAlgorithm::KHeavyHash),
+            (AntMinerModel::KS5, HashAlgorithm::KHeavyHash),
+            (AntMinerModel::KS5Pro, HashAlgorithm::KHeavyHash),
+            (AntMinerModel::K7, HashAlgorithm::Eaglesong),
+            (AntMinerModel::E9Pro, HashAlgorithm::EtHash),
+            (AntMinerModel::Z15, HashAlgorithm::Equihash),
+            (AntMinerModel::Z15Pro, HashAlgorithm::Equihash),
+        ] {
+            assert_eq!(model.hash_algorithm(), expected, "{model}");
+        }
+    }
+
+    /// A property naming something that is not a real [`HashAlgorithm`] would
+    /// silently fall back to SHA-256, so every declared property is checked to
+    /// parse and to resolve to something other than the fallback.
+    #[test]
+    fn every_declared_property_resolves() {
+        for model in [
+            AntMinerModel::D3,
+            AntMinerModel::HS3,
+            AntMinerModel::L3Plus,
+            AntMinerModel::L3PlusPlus,
+            AntMinerModel::KA3,
+            AntMinerModel::KS3,
+            AntMinerModel::DR5,
+            AntMinerModel::KS5,
+            AntMinerModel::KS5Pro,
+            AntMinerModel::L7,
+            AntMinerModel::K7,
+            AntMinerModel::D7,
+            AntMinerModel::E9Pro,
+            AntMinerModel::D9,
+            AntMinerModel::L9,
+            AntMinerModel::L11,
+            AntMinerModel::Z15,
+            AntMinerModel::Z15Pro,
+        ] {
+            let declared = model.get_str("algo").expect("property declared");
+            assert!(
+                HashAlgorithm::from_str(declared).is_ok(),
+                "{model} declares {declared:?}, which is not a HashAlgorithm"
+            );
+            assert_ne!(
+                model.hash_algorithm(),
+                HashAlgorithm::SHA256,
+                "{model} declares {declared:?} but resolved to the fallback"
             );
         }
     }
