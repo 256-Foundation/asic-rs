@@ -1,5 +1,5 @@
-error[E0599]: no variant or associated item named `NotAnAlgorithm` found for enum `HashAlgorithm` in the current scope
- --> tests/ui/fail/invalid_algorithm.rs:6:32
+error: unknown HashAlgorithm variant `NotAnAlgorithm`
+ --> tests/ui/fail/invalid_algorithm.rs:7:32
   |
-6 |     #[algorithm(HashAlgorithm::NotAnAlgorithm)]
-  |                                ^^^^^^^^^^^^^^ variant or associated item not found in `HashAlgorithm`
+7 |     #[algorithm(HashAlgorithm::NotAnAlgorithm)]
+  |                                ^^^^^^^^^^^^^^

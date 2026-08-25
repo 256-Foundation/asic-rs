@@ -2,6 +2,21 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Error, Fields, Path, parse_macro_input, spanned::Spanned};
 
+const HASH_ALGORITHM_VARIANTS: &[&str] = &[
+    "SHA256",
+    "Scrypt",
+    "X11",
+    "Blake2S256",
+    "Kadena",
+    "KHeavyHash",
+    "Eaglesong",
+    "EtHash",
+    "Equihash",
+    "Handshake",
+    "Blake256R14",
+    "Unknown",
+];
+
 /// Implements `MinerModelAlgorithm` from typed per-variant algorithm attributes.
 ///
 /// Every variant must declare exactly one algorithm:
@@ -57,6 +72,21 @@ fn expand_model_algorithm(input: &DeriveInput) -> syn::Result<proc_macro2::Token
             }
         };
         let algorithm = attribute.parse_args::<Path>()?;
+        let Some(algorithm_variant) = algorithm.segments.last() else {
+            return Err(Error::new(
+                algorithm.span(),
+                "algorithm path cannot be empty",
+            ));
+        };
+        if !HASH_ALGORITHM_VARIANTS.contains(&algorithm_variant.ident.to_string().as_str()) {
+            return Err(Error::new(
+                algorithm_variant.ident.span(),
+                format!(
+                    "unknown HashAlgorithm variant `{}`",
+                    algorithm_variant.ident
+                ),
+            ));
+        }
 
         let variant_name = &variant.ident;
         let pattern = match &variant.fields {
@@ -133,5 +163,21 @@ mod tests {
         };
 
         assert!(expand_model_algorithm(&input).is_err());
+    }
+
+    #[test]
+    fn rejects_unknown_algorithm_variants() {
+        let input: DeriveInput = parse_quote! {
+            enum Model {
+                #[algorithm(HashAlgorithm::NotAnAlgorithm)]
+                Invalid,
+            }
+        };
+
+        let error = expand_model_algorithm(&input).expect_err("unknown algorithm must fail");
+        assert_eq!(
+            error.to_string(),
+            "unknown HashAlgorithm variant `NotAnAlgorithm`"
+        );
     }
 }

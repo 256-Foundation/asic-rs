@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use asic_rs_core::data::device::HashAlgorithm;
 use asic_rs_macros::ModelAlgorithm;
 
