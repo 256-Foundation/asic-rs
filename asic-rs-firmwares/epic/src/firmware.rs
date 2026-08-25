@@ -1,5 +1,6 @@
 use std::{fmt, fmt::Display, net::IpAddr};
 
+use asic_rs_core::traits::model::MinerModelAlgorithm;
 use asic_rs_core::{
     data::{
         command::MinerCommand,
@@ -78,8 +79,8 @@ impl MinerModel for EPicCompatibleModel {
     }
 }
 
-impl asic_rs_core::traits::model::MinerModelAlgorithm for EPicCompatibleModel {
-    fn declared_hash_algorithm(&self) -> HashAlgorithm {
+impl MinerModelAlgorithm for EPicCompatibleModel {
+    fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::AntMiner(m) => m.hash_algorithm(),
             Self::VolcMiner(m) => m.hash_algorithm(),

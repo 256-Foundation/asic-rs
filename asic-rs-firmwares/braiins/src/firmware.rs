@@ -1,5 +1,6 @@
 use std::{fmt, fmt::Display, net::IpAddr};
 
+use asic_rs_core::traits::model::MinerModelAlgorithm;
 use asic_rs_core::{
     data::{
         command::MinerCommand,
@@ -66,8 +67,8 @@ impl MinerModel for BraiinsCompatibleModel {
     }
 }
 
-impl asic_rs_core::traits::model::MinerModelAlgorithm for BraiinsCompatibleModel {
-    fn declared_hash_algorithm(&self) -> HashAlgorithm {
+impl MinerModelAlgorithm for BraiinsCompatibleModel {
+    fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::AntMiner(m) => m.hash_algorithm(),
             Self::Braiins(m) => m.hash_algorithm(),

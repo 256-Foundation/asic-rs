@@ -10,15 +10,12 @@ use crate::{
 };
 
 pub trait MinerModelAlgorithm {
-    fn declared_hash_algorithm(&self) -> HashAlgorithm;
+    fn hash_algorithm(&self) -> HashAlgorithm;
 }
 
 pub trait MinerModel: Display + Into<MinerHardware> + Clone + Any + MinerModelAlgorithm {
     fn make_name(&self) -> String;
     fn is_known(&self) -> bool;
-    fn hash_algorithm(&self) -> HashAlgorithm {
-        self.declared_hash_algorithm()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -39,7 +36,7 @@ impl From<UnknownMinerModel> for MinerHardware {
 }
 
 impl MinerModelAlgorithm for UnknownMinerModel {
-    fn declared_hash_algorithm(&self) -> HashAlgorithm {
+    fn hash_algorithm(&self) -> HashAlgorithm {
         HashAlgorithm::Unknown
     }
 }

@@ -101,21 +101,13 @@ fn expand_model_algorithm(input: &DeriveInput) -> syn::Result<proc_macro2::Token
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
 
     Ok(quote! {
-        impl #impl_generics #name #type_generics #where_clause {
-            pub const fn hash_algorithm(
-                &self,
-            ) -> ::asic_rs_core::data::device::HashAlgorithm {
-                match self {
-                    #(#arms,)*
-                }
-            }
-        }
-
         impl #impl_generics ::asic_rs_core::traits::model::MinerModelAlgorithm
             for #name #type_generics #where_clause
         {
-            fn declared_hash_algorithm(&self) -> ::asic_rs_core::data::device::HashAlgorithm {
-                Self::hash_algorithm(self)
+            fn hash_algorithm(&self) -> ::asic_rs_core::data::device::HashAlgorithm {
+                match self {
+                    #(#arms,)*
+                }
             }
         }
     })

@@ -218,9 +218,9 @@ impl MinerModel for AntMinerModel {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
+    use asic_rs_core::traits::model::MinerModelAlgorithm;
+    use std::str::FromStr;
 
     #[test]
     fn known_model_parses() {
