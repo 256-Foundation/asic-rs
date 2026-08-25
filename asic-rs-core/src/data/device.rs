@@ -168,6 +168,74 @@ impl HashAlgorithm {
     pub fn __str__(&self) -> String {
         self.to_string()
     }
+
+    /// Compare against another [`HashAlgorithm`] or against its name.
+    ///
+    /// Without this, `hashrate.algo == "SHA256"` would evaluate to `False`
+    /// rather than raising -- a silently wrong branch with no traceback. The
+    /// string form is accepted so that callers who treated this as a plain
+    /// string keep working.
+    #[cfg(feature = "python")]
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        if let Ok(other) = other.extract::<HashAlgorithm>() {
+            return *self == other;
+        }
+        other
+            .extract::<String>()
+            .is_ok_and(|name| name == self.to_string())
+    }
+
+    #[cfg(feature = "python")]
+    fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {
+        !self.__eq__(other)
+    }
+
+    /// Defining `__eq__` drops the inherited hash, so restore it explicitly --
+    /// these are used as dict keys and in sets.
+    #[cfg(feature = "python")]
+    fn __hash__(&self) -> u64 {
+        use std::hash::{DefaultHasher, Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use strum::IntoEnumIterator;
+
+    use super::*;
+
+    /// `Display` and `EnumString` are derived independently, so a variant whose
+    /// rendered name does not parse back would be a silent one-way trip.
+    /// Callers resolving an algorithm from a string rely on this holding.
+    #[test]
+    fn every_algorithm_round_trips_through_its_name() {
+        for algo in HashAlgorithm::iter() {
+            let rendered = algo.to_string();
+            assert_eq!(
+                HashAlgorithm::from_str(&rendered).ok(),
+                Some(algo),
+                "{rendered} did not round-trip"
+            );
+        }
+    }
+
+    /// `Unknown` is an explicit value a caller opts into, not a catch-all that
+    /// `from_str` falls back to -- otherwise a typo would parse successfully
+    /// and the round-trip test above would not catch it.
+    #[test]
+    fn unrecognised_names_do_not_parse_as_unknown() {
+        assert!(HashAlgorithm::from_str("NotAnAlgorithm").is_err());
+        assert_eq!(
+            HashAlgorithm::from_str("Unknown").ok(),
+            Some(HashAlgorithm::Unknown)
+        );
+    }
 }
 
 #[cfg(test)]

@@ -447,6 +447,13 @@ def test_hashrate_json_schema_exposes_unit_enum() -> None:
         (HashAlgorithm.X11, "X11"),
         (HashAlgorithm.Blake2S256, "Blake2S256"),
         (HashAlgorithm.Kadena, "Kadena"),
+        (HashAlgorithm.KHeavyHash, "KHeavyHash"),
+        (HashAlgorithm.Eaglesong, "Eaglesong"),
+        (HashAlgorithm.EtHash, "EtHash"),
+        (HashAlgorithm.Equihash, "Equihash"),
+        (HashAlgorithm.Handshake, "Handshake"),
+        (HashAlgorithm.Blake256R14, "Blake256R14"),
+        (HashAlgorithm.Unknown, "Unknown"),
     ],
 )
 def test_hash_algorithm_enum_display_values(
@@ -455,6 +462,32 @@ def test_hash_algorithm_enum_display_values(
     assert str(algorithm) == name
     assert repr(algorithm) == name
     assert isinstance(int(algorithm), int)
+
+
+def test_hash_algorithm_compares_against_its_name() -> None:
+    """Without ``__eq__`` this comparison is silently ``False`` rather than an
+    error, so callers holding the value as a string get a wrong branch and no
+    traceback."""
+    assert HashAlgorithm.Scrypt == "Scrypt"
+    assert HashAlgorithm.Scrypt == HashAlgorithm.Scrypt
+    assert HashAlgorithm.Scrypt != "SHA256"
+    assert HashAlgorithm.Scrypt != HashAlgorithm.SHA256
+    assert HashAlgorithm.Scrypt != 17
+
+
+def test_hash_rate_unit_compares_against_its_name() -> None:
+    assert HashRateUnit.TH == "TH/s"
+    assert HashRateUnit.TH == HashRateUnit.TH
+    assert HashRateUnit.TH != "GH/s"
+    assert HashRateUnit.TH != HashRateUnit.GH
+
+
+def test_algorithms_and_units_stay_hashable() -> None:
+    """Defining ``__eq__`` drops the inherited hash unless it is restored, and
+    these are used as dict keys."""
+    assert {HashAlgorithm.Scrypt: "LTC"}[HashAlgorithm.Scrypt] == "LTC"
+    assert len({HashAlgorithm.Scrypt, HashAlgorithm.Scrypt}) == 1
+    assert {HashRateUnit.TH: "tera"}[HashRateUnit.TH] == "tera"
 
 
 def test_hashrate_accepts_hash_algorithm_enum() -> None:

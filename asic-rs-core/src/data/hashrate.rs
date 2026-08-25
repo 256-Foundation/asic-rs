@@ -18,7 +18,7 @@ use ts_rs::TS;
 
 #[cfg_attr(feature = "python", pyclass(from_py_object, module = "asic_rs"))]
 #[cfg_attr(feature = "python", derive(asic_rs_pydantic::PyPydanticEnum))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, TS)]
 /// Unit used to represent a [`HashRate`] value.
 pub enum HashRateUnit {
     /// Hashes per second.
@@ -122,6 +122,31 @@ impl Display for HashRateUnit {
 #[cfg(feature = "python")]
 #[pymethods]
 impl HashRateUnit {
+    /// Compare against another [`HashRateUnit`] or against its rendered name
+    /// (`"TH/s"`). See `HashAlgorithm::__eq__` for why the string form is
+    /// accepted.
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        if let Ok(other) = other.extract::<HashRateUnit>() {
+            return *self == other;
+        }
+        other
+            .extract::<String>()
+            .is_ok_and(|name| name == self.to_string())
+    }
+
+    fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {
+        !self.__eq__(other)
+    }
+
+    /// Defining `__eq__` drops the inherited hash, so restore it explicitly.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{DefaultHasher, Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
     #[classattr]
     const H: Self = Self::Hash;
 
