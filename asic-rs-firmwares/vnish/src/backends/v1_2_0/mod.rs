@@ -402,7 +402,7 @@ impl GetHashboards for VnishV120 {
             .and_then(|v| v.as_str())
             .and_then(|s| HashRateUnit::from_str(s).ok())
             .unwrap_or(HashRateUnit::GigaHash);
-        let algo = self.device_info.algo.to_string();
+        let algo = self.device_info.algo;
         let chip_chains = data.get(&DataField::Chips).and_then(|v| v.as_array());
 
         let mut hashboards: Vec<BoardData> =
@@ -440,7 +440,7 @@ impl GetHashboards for VnishV120 {
                     HashRate {
                         value: f,
                         unit,
-                        algo: algo.clone(),
+                        algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -451,7 +451,7 @@ impl GetHashboards for VnishV120 {
                     HashRate {
                         value: f,
                         unit,
-                        algo: algo.clone(),
+                        algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -499,7 +499,7 @@ impl GetHashboards for VnishV120 {
                                             HashRate {
                                                 value: f,
                                                 unit,
-                                                algo: algo.clone(),
+                                                algo,
                                             }
                                         }
                                         .as_unit(HashRateUnit::default())
@@ -573,7 +573,7 @@ impl GetHashrate for VnishV120 {
                     .and_then(|v| v.as_str())
                     .and_then(|s| HashRateUnit::from_str(s).ok())
                     .unwrap_or(HashRateUnit::GigaHash),
-                algo: self.device_info.algo.to_string(),
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default()),
         )
@@ -594,7 +594,7 @@ impl GetExpectedHashrate for VnishV120 {
                     .and_then(|v| v.as_str())
                     .and_then(|s| HashRateUnit::from_str(s).ok())
                     .unwrap_or(HashRateUnit::GigaHash),
-                algo: self.device_info.algo.to_string(),
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default()),
         )
@@ -1097,6 +1097,7 @@ impl SupportsFanConfig for VnishV120 {
 
 #[cfg(test)]
 mod tests {
+    use asic_rs_core::data::device::HashAlgorithm;
     use asic_rs_core::test::api::MockAPIClient;
     use asic_rs_makes_antminer::models::AntMinerModel;
 
@@ -1130,7 +1131,7 @@ mod tests {
         let miner_data = miner.parse_data(collector.collect_all().await);
 
         let hashrate = miner_data.hashrate.expect("hashrate");
-        assert_eq!(hashrate.algo, "Scrypt");
+        assert_eq!(hashrate.algo, HashAlgorithm::Scrypt);
         let value = hashrate.as_unit(HashRateUnit::MegaHash).value;
         assert!((value - 16200.0).abs() < 1e-6, "got {value} MH/s");
     }

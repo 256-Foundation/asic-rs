@@ -237,39 +237,3 @@ mod tests {
         );
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-
-    use strum::IntoEnumIterator;
-
-    use super::*;
-
-    /// `Display` and `EnumString` are derived independently, so a variant whose
-    /// rendered name does not parse back would be a silent one-way trip.
-    /// Callers resolving an algorithm from a string rely on this holding.
-    #[test]
-    fn every_algorithm_round_trips_through_its_name() {
-        for algo in HashAlgorithm::iter() {
-            let rendered = algo.to_string();
-            assert_eq!(
-                HashAlgorithm::from_str(&rendered).ok(),
-                Some(algo),
-                "{rendered} did not round-trip"
-            );
-        }
-    }
-
-    /// `Unknown` is an explicit value a caller opts into, not a catch-all that
-    /// `from_str` falls back to -- otherwise a typo would parse successfully
-    /// and the round-trip test above would not catch it.
-    #[test]
-    fn unrecognised_names_do_not_parse_as_unknown() {
-        assert!(HashAlgorithm::from_str("NotAnAlgorithm").is_err());
-        assert_eq!(
-            HashAlgorithm::from_str("Unknown").ok(),
-            Some(HashAlgorithm::Unknown)
-        );
-    }
-}

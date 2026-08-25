@@ -647,7 +647,7 @@ impl GetHashboards for AntMinerV2020 {
             .and_then(|v| v.as_str())
             .and_then(|s| HashRateUnit::from_str(s).ok())
             .unwrap_or(HashRateUnit::GigaHash);
-        let algo = self.device_info.algo.to_string();
+        let algo = self.device_info.algo;
 
         for board in hashboards.iter_mut() {
             let idx = board.position + 1;
@@ -659,7 +659,7 @@ impl GetHashboards for AntMinerV2020 {
                     HashRate {
                         value: r,
                         unit,
-                        algo: algo.clone(),
+                        algo,
                     }
                     .as_unit(HashRateUnit::default())
                 });
@@ -726,7 +726,7 @@ impl GetHashrate for AntMinerV2020 {
             HashRate {
                 value,
                 unit,
-                algo: self.device_info.algo.to_string(),
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default()),
         )
@@ -749,7 +749,7 @@ impl GetExpectedHashrate for AntMinerV2020 {
                     .and_then(|v| v.as_str())
                     .and_then(|s| HashRateUnit::from_str(s).ok())
                     .unwrap_or(HashRateUnit::GigaHash),
-                algo: self.device_info.algo.to_string(),
+                algo: self.device_info.algo,
             }
             .as_unit(HashRateUnit::default()),
         )
@@ -1332,6 +1332,7 @@ impl SetTuningPercent for AntMinerV2020 {}
 
 #[cfg(test)]
 mod tests {
+    use asic_rs_core::data::device::HashAlgorithm;
     use std::sync::Arc;
 
     use anyhow::{self, Context};
@@ -1419,15 +1420,15 @@ mod tests {
         let miner_data = miner.parse_data(collector.collect_all().await);
 
         let hashrate = miner_data.hashrate.expect("hashrate");
-        assert_eq!(hashrate.algo, "Scrypt");
+        assert_eq!(hashrate.algo, HashAlgorithm::Scrypt);
         assert_mega_hash(hashrate, 16200.0);
 
         let expected = miner_data.expected_hashrate.expect("expected hashrate");
-        assert_eq!(expected.algo, "Scrypt");
+        assert_eq!(expected.algo, HashAlgorithm::Scrypt);
         assert_mega_hash(expected, 16000.0);
 
         let board = miner_data.hashboards[0].hashrate.clone().expect("board 0");
-        assert_eq!(board.algo, "Scrypt");
+        assert_eq!(board.algo, HashAlgorithm::Scrypt);
         assert_mega_hash(board, 5400.0);
     }
 
@@ -1503,7 +1504,7 @@ mod tests {
             HashRate {
                 value: 110.0,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
         );
         assert_eq!(
@@ -1511,7 +1512,7 @@ mod tests {
             HashRate {
                 value: 110.56689,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }
         );
     }

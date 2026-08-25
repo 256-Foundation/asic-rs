@@ -398,7 +398,7 @@ impl GetHashboards for VolcMinerV1 {
                     .map(|rate| HashRate {
                         value: rate,
                         unit: HashRateUnit::MegaHash,
-                        algo: "Scrypt".to_string(),
+                        algo: HashAlgorithm::Scrypt,
                     });
 
                 let temperature = stats_data
@@ -465,7 +465,7 @@ impl GetHashboards for VolcMinerV1 {
                 .map(|rate| HashRate {
                     value: rate,
                     unit: HashRateUnit::MegaHash,
-                    algo: "Scrypt".to_string(),
+                    algo: HashAlgorithm::Scrypt,
                 });
             let active = board
                 .working_chips
@@ -490,7 +490,7 @@ impl GetHashrate for VolcMinerV1 {
         Some(HashRate {
             value: hashrate,
             unit: HashRateUnit::MegaHash,
-            algo: "Scrypt".to_string(),
+            algo: HashAlgorithm::Scrypt,
         })
     }
 }

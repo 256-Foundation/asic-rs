@@ -181,8 +181,8 @@ async fn test_volcminer_v1_parse_data() -> anyhow::Result<()> {
         Some(HashRateUnit::MegaHash)
     );
     assert_eq!(
-        miner_data.hashrate.as_ref().map(|h| h.algo.as_str()),
-        Some("Scrypt")
+        miner_data.hashrate.as_ref().map(|h| h.algo),
+        Some(HashAlgorithm::Scrypt)
     );
     assert_eq!(
         miner_data.control_board_version,

@@ -75,7 +75,7 @@ fn hash_rate_from_ghs(value: Option<f64>) -> Option<HashRate> {
         HashRate {
             value: f,
             unit: HashRateUnit::GigaHash,
-            algo: "SHA256".to_string(),
+            algo: HashAlgorithm::SHA256,
         }
         .as_unit(HashRateUnit::default())
     })
