@@ -7,6 +7,9 @@ differences.
 ## Discovery
 
 `MinerFactory` owns the scan range and discovery tuning.
+The identification timeout is an end-to-end deadline covering discovery
+commands and firmware-specific miner construction. Discovery HTTP clients also
+apply explicit connection and total-request deadlines.
 
 === "Rust"
 
