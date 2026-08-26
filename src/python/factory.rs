@@ -352,7 +352,10 @@ impl MinerFactory {
         }))
     }
 
-    /// Set how many connectivity attempts are made before identification.
+    /// Set connectivity retries after the initial attempt.
+    ///
+    /// Each address is probed at least once. Retries use bounded exponential
+    /// backoff and remain inside the initial scan's concurrency bound.
     pub fn with_connectivity_retries<'py>(
         slf: PyRefMut<'py, Self>,
         retries: u32,
