@@ -28,13 +28,14 @@ use futures::{
 };
 use ipnet::IpNet;
 use rand::seq::SliceRandom;
-use tokio::{net::TcpStream, time::timeout};
+use tokio::{net::TcpStream, sync::Semaphore, time::timeout};
 
 const IDENTIFICATION_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECTIVITY_TIMEOUT: Duration = Duration::from_secs(1);
 const CONNECTIVITY_RETRIES: u32 = 3;
 const CONNECTIVITY_RETRY_BACKOFF: Duration = Duration::from_millis(100);
 const MAX_CONNECTIVITY_RETRY_BACKOFF: Duration = Duration::from_secs(2);
+const MINER_PORTS: [u16; 4] = [80, 4028, 4029, 8889];
 const NOFILE_PER_CONCURRENCY: u64 = 8;
 const MIN_NOFILE_LIMIT: u64 = 2048;
 
@@ -63,13 +64,45 @@ async fn check_port_open(ip: IpAddr, port: u16, connectivity_timeout: Duration) 
     true
 }
 
-async fn check_miner_ports(ip: IpAddr, connectivity_timeout: Duration) -> bool {
-    for port in [80, 4028, 4029, 8889] {
-        if check_port_open(ip, port, connectivity_timeout).await {
+async fn with_connectivity_permit<Fut>(permits: Arc<Semaphore>, probe: Fut) -> bool
+where
+    Fut: Future<Output = bool>,
+{
+    let Ok(_permit) = permits.acquire_owned().await else {
+        return false;
+    };
+    probe.await
+}
+
+async fn race_miner_ports<F, Fut>(mut probe: F) -> bool
+where
+    F: FnMut(u16) -> Fut,
+    Fut: Future<Output = bool>,
+{
+    let mut probes = FuturesUnordered::new();
+    for port in MINER_PORTS {
+        probes.push(probe(port));
+    }
+    while let Some(open) = probes.next().await {
+        if open {
             return true;
         }
     }
     false
+}
+
+async fn check_miner_ports(
+    ip: IpAddr,
+    connectivity_timeout: Duration,
+    permits: Arc<Semaphore>,
+) -> bool {
+    race_miner_ports(|port| {
+        with_connectivity_permit(
+            Arc::clone(&permits),
+            check_port_open(ip, port, connectivity_timeout),
+        )
+    })
+    .await
 }
 
 fn connectivity_retry_delay(retry_index: u32, initial_backoff: Duration) -> Duration {
@@ -313,13 +346,25 @@ impl Default for MinerFactory {
 impl MinerFactory {
     #[tracing::instrument(level = "debug", skip(self))]
     pub async fn scan_miner(&self, ip: IpAddr) -> Result<Option<Box<dyn Miner>>> {
+        let connection_limit = self
+            .concurrent
+            .unwrap_or(calculate_optimal_concurrency(self.ips.len().max(1)));
+        self.scan_miner_with_connection_limit(ip, Arc::new(Semaphore::new(connection_limit.max(1))))
+            .await
+    }
+
+    async fn scan_miner_with_connection_limit(
+        &self,
+        ip: IpAddr,
+        connection_limit: Arc<Semaphore>,
+    ) -> Result<Option<Box<dyn Miner>>> {
         if !self.check_port {
             return self.get_miner(ip).await;
         }
         if retry_connectivity(
             self.connectivity_retries,
             CONNECTIVITY_RETRY_BACKOFF,
-            || check_miner_ports(ip, self.connectivity_timeout),
+            || check_miner_ports(ip, self.connectivity_timeout, Arc::clone(&connection_limit)),
         )
         .await
         {
@@ -476,7 +521,8 @@ impl MinerFactory {
 
     /// Set the maximum number of addresses scanned at the same time.
     ///
-    /// If unset, scan concurrency is chosen from the number of queued hosts.
+    /// This also caps active TCP connectivity probes across the scan. If unset,
+    /// scan concurrency is chosen from the number of queued hosts.
     pub fn with_concurrent_limit(mut self, limit: usize) -> Self {
         self.concurrent = Some(limit);
         self
@@ -742,8 +788,17 @@ impl MinerFactory {
             maybe_adjust_nofile_limit(desired_nofile);
         }
 
+        let connection_limit = Arc::new(Semaphore::new(concurrency.max(1)));
         let miners: Vec<Box<dyn Miner>> = stream::iter(self.ips.iter().copied())
-            .map(|ip| async move { self.scan_miner(ip).await.ok().flatten() })
+            .map(|ip| {
+                let connection_limit = Arc::clone(&connection_limit);
+                async move {
+                    self.scan_miner_with_connection_limit(ip, connection_limit)
+                        .await
+                        .ok()
+                        .flatten()
+                }
+            })
             .buffer_unordered(concurrency)
             .filter_map(|miner_opt| async move { miner_opt })
             .collect()
@@ -770,13 +825,21 @@ impl MinerFactory {
 
         let factory = Arc::new(self.clone());
         let ips: Arc<[IpAddr]> = Arc::from(self.ips.as_slice());
+        let connection_limit = Arc::new(Semaphore::new(concurrency.max(1)));
 
         let ip_count = ips.len();
         let stream = stream::iter(0..ip_count)
             .map(move |i| {
                 let factory = Arc::clone(&factory);
                 let ips = Arc::clone(&ips);
-                async move { factory.scan_miner(ips[i]).await.ok().flatten() }
+                let connection_limit = Arc::clone(&connection_limit);
+                async move {
+                    factory
+                        .scan_miner_with_connection_limit(ips[i], connection_limit)
+                        .await
+                        .ok()
+                        .flatten()
+                }
             })
             .buffer_unordered(concurrency)
             .filter_map(|miner_opt| async move { miner_opt });
@@ -805,13 +868,24 @@ impl MinerFactory {
 
         let factory = Arc::new(self.clone());
         let ips: Arc<[IpAddr]> = Arc::from(self.ips.as_slice());
+        let connection_limit = Arc::new(Semaphore::new(concurrency.max(1)));
 
         let ip_count = ips.len();
         let stream = stream::iter(0..ip_count)
             .map(move |i| {
                 let factory = Arc::clone(&factory);
                 let ips = Arc::clone(&ips);
-                async move { (ips[i], factory.scan_miner(ips[i]).await.ok().flatten()) }
+                let connection_limit = Arc::clone(&connection_limit);
+                async move {
+                    (
+                        ips[i],
+                        factory
+                            .scan_miner_with_connection_limit(ips[i], connection_limit)
+                            .await
+                            .ok()
+                            .flatten(),
+                    )
+                }
             })
             .buffer_unordered(concurrency);
 
@@ -908,6 +982,114 @@ fn generate_ips_from_ranges(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn port_race_checks_every_port_when_none_succeed() {
+        let checked = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+        let connected = race_miner_ports(|port| {
+            checked.lock().unwrap().push(port);
+            std::future::ready(false)
+        })
+        .await;
+
+        assert!(!connected);
+        let mut checked = checked.lock().unwrap().clone();
+        checked.sort_unstable();
+        let mut expected = MINER_PORTS.to_vec();
+        expected.sort_unstable();
+        assert_eq!(checked, expected);
+    }
+
+    #[tokio::test]
+    async fn port_race_cancels_remaining_probes_after_success() {
+        struct CancellationGuard {
+            cancelled: Arc<AtomicUsize>,
+            completed: bool,
+        }
+
+        impl Drop for CancellationGuard {
+            fn drop(&mut self) {
+                if !self.completed {
+                    self.cancelled.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        }
+
+        let permits = Arc::new(Semaphore::new(MINER_PORTS.len()));
+        let barrier = Arc::new(tokio::sync::Barrier::new(MINER_PORTS.len()));
+        let cancelled = Arc::new(AtomicUsize::new(0));
+
+        let connected = race_miner_ports(|port| {
+            let permits = Arc::clone(&permits);
+            let barrier = Arc::clone(&barrier);
+            let cancelled = Arc::clone(&cancelled);
+            async move {
+                with_connectivity_permit(permits, async move {
+                    let mut guard = CancellationGuard {
+                        cancelled,
+                        completed: false,
+                    };
+                    barrier.wait().await;
+                    if port == MINER_PORTS[0] {
+                        guard.completed = true;
+                        true
+                    } else {
+                        std::future::pending().await
+                    }
+                })
+                .await
+            }
+        })
+        .await;
+
+        assert!(connected);
+        assert_eq!(cancelled.load(Ordering::SeqCst), MINER_PORTS.len() - 1);
+        assert_eq!(permits.available_permits(), MINER_PORTS.len());
+    }
+
+    #[tokio::test]
+    async fn port_probes_and_retries_share_global_connection_limit() {
+        let permits = Arc::new(Semaphore::new(2));
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+
+        let outcomes: Vec<bool> = stream::iter(0..4)
+            .map(|_| {
+                let permits = Arc::clone(&permits);
+                let active = Arc::clone(&active);
+                let max_active = Arc::clone(&max_active);
+                async move {
+                    retry_connectivity(1, Duration::ZERO, || {
+                        let permits = Arc::clone(&permits);
+                        let active = Arc::clone(&active);
+                        let max_active = Arc::clone(&max_active);
+                        race_miner_ports(move |_| {
+                            let permits = Arc::clone(&permits);
+                            let active = Arc::clone(&active);
+                            let max_active = Arc::clone(&max_active);
+                            with_connectivity_permit(permits, async move {
+                                let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                                max_active.fetch_max(current, Ordering::SeqCst);
+                                tokio::time::sleep(Duration::from_millis(2)).await;
+                                active.fetch_sub(1, Ordering::SeqCst);
+                                false
+                            })
+                        })
+                    })
+                    .await
+                }
+            })
+            .buffer_unordered(4)
+            .collect()
+            .await;
+
+        assert_eq!(outcomes, vec![false; 4]);
+        assert_eq!(max_active.load(Ordering::SeqCst), 2);
+        assert_eq!(active.load(Ordering::SeqCst), 0);
+        assert_eq!(permits.available_permits(), 2);
+    }
 
     #[tokio::test]
     #[cfg(feature = "whatsminer")]
