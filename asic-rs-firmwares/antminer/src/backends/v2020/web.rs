@@ -6,8 +6,13 @@ use anyhow::{Context, Result, anyhow, bail};
 use asic_rs_core::data::firmware::FirmwareImage;
 use asic_rs_core::{data::command::MinerCommand, traits::miner::*};
 use async_trait::async_trait;
+use digest_auth::{AuthContext, HttpMethod};
 use diqwest::WithDigestAuth;
-use reqwest::{Client, Method, Response, multipart};
+use reqwest::{
+    Client, Method, Response, StatusCode,
+    header::{AUTHORIZATION, HeaderValue, WWW_AUTHENTICATE},
+    multipart,
+};
 use serde_json::{Value, json};
 
 use super::firmware::AntMinerFirmwareUpgradeResponseExt;
@@ -41,6 +46,54 @@ impl AntMinerWebAPI {
             .mime_str("application/octet-stream")
             .context("failed to set firmware part mime type")?;
         Ok(multipart::Form::new().part("firmware", part))
+    }
+
+    fn build_firmware_upload_authorization(&self, challenge: &str) -> Result<HeaderValue> {
+        let context = AuthContext::new_with_method(
+            self.auth.username(),
+            self.auth.password(),
+            "/cgi-bin/upgrade.cgi",
+            None::<&[u8]>,
+            HttpMethod::POST,
+        );
+        let authorization = digest_auth::parse(challenge)
+            .context("failed to parse firmware upload digest challenge")?
+            .respond(&context)
+            .context("failed to answer firmware upload digest challenge")?;
+
+        HeaderValue::from_str(&authorization.to_header_string())
+            .context("failed to encode firmware upload authorization header")
+    }
+
+    async fn firmware_upload_authorization(&self) -> Result<Option<HeaderValue>> {
+        let url = format!("http://{}:{}/cgi-bin/upgrade.cgi", self.ip, self.port);
+        let response = self
+            .client()?
+            .get(url)
+            .timeout(self.timeout)
+            .send()
+            .await
+            .context("failed to request firmware upload digest challenge")?;
+
+        if response.status().is_success() {
+            return Ok(None);
+        }
+        if response.status() != StatusCode::UNAUTHORIZED {
+            bail!(
+                "firmware upload digest challenge failed with status code {}",
+                response.status()
+            );
+        }
+
+        let challenge = response
+            .headers()
+            .get(WWW_AUTHENTICATE)
+            .context("firmware upload digest challenge response is missing WWW-Authenticate")?
+            .to_str()
+            .context("firmware upload digest challenge is not valid text")?;
+
+        self.build_firmware_upload_authorization(challenge)
+            .map(Some)
     }
 
     pub fn new(ip: IpAddr, auth: MinerAuth) -> Self {
@@ -242,13 +295,21 @@ impl AntMinerWebAPI {
     pub async fn upgrade_firmware(&self, image: FirmwareImage) -> Result<()> {
         let url = format!("http://{}:{}/cgi-bin/upgrade.cgi", self.ip, self.port);
         let form = Self::build_firmware_upload_form(image)?;
+        let authorization = self.firmware_upload_authorization().await?;
 
-        let response = self
+        let mut request = self
             .client()?
             .post(url)
             .multipart(form)
-            .timeout(self.timeout.max(Duration::from_secs(60)))
-            .send_digest_auth((self.auth.username(), self.auth.password()))
+            .timeout(self.timeout.max(Duration::from_secs(60)));
+        if let Some(authorization) = authorization {
+            request = request.header(AUTHORIZATION, authorization);
+        }
+
+        // Multipart bodies are streams and cannot be cloned by diqwest's challenge/response
+        // flow. Authenticate the single upload request with the challenge obtained above.
+        let response = request
+            .send()
             .await
             .with_context(|| "firmware upload HTTP request failed".to_string())?;
 
@@ -342,5 +403,29 @@ impl WebAPIClient for AntMinerWebAPI {
     ) -> Result<Value> {
         self.send_web_command(command, privileged, parameters, method)
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_digest_authorization_for_firmware_upload_endpoint() {
+        let web = AntMinerWebAPI::new(
+            "127.0.0.1".parse().unwrap(),
+            MinerAuth::new("root", "secret"),
+        );
+        let authorization = web
+            .build_firmware_upload_authorization(
+                r#"Digest realm="antMiner Configuration", nonce="0123456789", qop="auth""#,
+            )
+            .unwrap();
+        let authorization = authorization.to_str().unwrap();
+
+        assert!(authorization.starts_with("Digest "));
+        assert!(authorization.contains(r#"username="root""#));
+        assert!(authorization.contains(r#"uri="/cgi-bin/upgrade.cgi""#));
+        assert!(authorization.contains("qop=auth"));
     }
 }

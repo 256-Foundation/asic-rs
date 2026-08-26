@@ -100,6 +100,7 @@ asic-rs-firmwares-volcminer = { path = "asic-rs-firmwares/volcminer", version = 
 asic-rs-firmwares-whatsminer = { path = "asic-rs-firmwares/whatsminer", version = "0.8.0" }
 
 diqwest = "3.2"
+digest_auth = "0.3.1"
 futures = "0.3"
 macaddr = { version = "1.0", features = ["serde_std"] }
 measurements = { version = "0.11", features = ["serde"] }
