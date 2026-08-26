@@ -25,7 +25,7 @@ use crate::{
         command::MinerCommand,
         device::DeviceInfo,
         fan::FanData,
-        firmware::FirmwareImage,
+        firmware::{FirmwareImage, FirmwareUpgradeOptions},
         hashrate::{HashRate, HashRateUnit},
         message::MinerMessage,
         miner::{MinerData, TuningTarget},
@@ -928,6 +928,17 @@ pub trait UpgradeFirmware {
     #[allow(unused_variables)]
     async fn upgrade_firmware(&self, image: FirmwareImage) -> anyhow::Result<bool> {
         anyhow::bail!("Upgrading firmware is not supported on this platform");
+    }
+
+    /// Upgrade firmware with per-request settings when the implementation
+    /// supports them. The default preserves the legacy upgrade behavior.
+    #[allow(unused_variables)]
+    async fn upgrade_firmware_with_options(
+        &self,
+        image: FirmwareImage,
+        options: FirmwareUpgradeOptions,
+    ) -> anyhow::Result<bool> {
+        self.upgrade_firmware(image).await
     }
 
     fn supports_upgrade_firmware(&self) -> bool {

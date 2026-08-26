@@ -17,7 +17,7 @@ use asic_rs_core::{
         command::MinerCommand,
         device::{DeviceInfo, HashAlgorithm},
         fan::FanData,
-        firmware::FirmwareImage,
+        firmware::{FirmwareImage, FirmwareUpgradeOptions},
         hashrate::{HashRate, HashRateUnit},
         message::{MessageSeverity, MinerMessage},
         miner::TuningTarget,
@@ -1600,6 +1600,14 @@ impl FactoryReset for PowerPlayV1 {
 impl UpgradeFirmware for PowerPlayV1 {
     async fn upgrade_firmware(&self, image: FirmwareImage) -> anyhow::Result<bool> {
         self.web.upgrade_firmware(image).await
+    }
+
+    async fn upgrade_firmware_with_options(
+        &self,
+        image: FirmwareImage,
+        options: FirmwareUpgradeOptions,
+    ) -> anyhow::Result<bool> {
+        self.web.upgrade_firmware_with_options(image, options).await
     }
 
     fn supports_upgrade_firmware(&self) -> bool {

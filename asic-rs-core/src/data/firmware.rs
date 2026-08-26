@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use anyhow::Context;
 use tokio::io::AsyncReadExt;
@@ -7,6 +7,25 @@ use tokio::io::AsyncReadExt;
 pub struct FirmwareImage {
     pub filename: String,
     pub bytes: Vec<u8>,
+}
+
+/// Optional settings for a single firmware upgrade request.
+///
+/// Firmware implementations may use these settings when supported. Callers
+/// that use [`UpgradeFirmware::upgrade_firmware`](crate::traits::miner::UpgradeFirmware::upgrade_firmware)
+/// retain each implementation's existing defaults.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FirmwareUpgradeOptions {
+    /// End-to-end timeout for the firmware upload request.
+    pub timeout: Option<Duration>,
+}
+
+impl FirmwareUpgradeOptions {
+    pub fn with_timeout(timeout: Duration) -> Self {
+        Self {
+            timeout: Some(timeout),
+        }
+    }
 }
 
 impl FirmwareImage {

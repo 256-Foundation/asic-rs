@@ -4,7 +4,10 @@ use once_cell::sync::OnceCell;
 
 use anyhow::{self, Context, bail};
 use asic_rs_core::{
-    data::{command::MinerCommand, firmware::FirmwareImage},
+    data::{
+        command::MinerCommand,
+        firmware::{FirmwareImage, FirmwareUpgradeOptions},
+    },
     traits::miner::*,
 };
 use async_trait::async_trait;
@@ -69,6 +72,12 @@ impl WebAPIClient for PowerPlayWebAPI {
 }
 
 impl PowerPlayWebAPI {
+    fn firmware_upgrade_timeout(&self, options: FirmwareUpgradeOptions) -> Duration {
+        options
+            .timeout
+            .unwrap_or_else(|| self.timeout.max(Duration::from_secs(300)))
+    }
+
     async fn sha256_hex(bytes: &[u8]) -> String {
         let mut hasher = Sha256::new();
         for chunk in bytes.chunks(64 * 1024) {
@@ -109,6 +118,15 @@ impl PowerPlayWebAPI {
     }
 
     pub async fn upgrade_firmware(&self, image: FirmwareImage) -> anyhow::Result<bool> {
+        self.upgrade_firmware_with_options(image, FirmwareUpgradeOptions::default())
+            .await
+    }
+
+    pub async fn upgrade_firmware_with_options(
+        &self,
+        image: FirmwareImage,
+        options: FirmwareUpgradeOptions,
+    ) -> anyhow::Result<bool> {
         let url = format!("http://{}:{}{}", self.ip, self.port, "/systemupdate");
         let FirmwareImage { filename, bytes } = image;
         let checksum = Self::sha256_hex(&bytes).await;
@@ -125,15 +143,21 @@ impl PowerPlayWebAPI {
                     .context("failed to set firmware part mime type")?,
             );
 
+        let timeout = self.firmware_upgrade_timeout(options);
         let response = self
             .client()?
             .post(url)
             .header(header::ACCEPT, "application/json")
-            .timeout(self.timeout.max(Duration::from_secs(300)))
+            .timeout(timeout)
             .multipart(form)
             .send()
             .await
-            .context("firmware upload HTTP request failed")?;
+            .with_context(|| {
+                format!(
+                    "firmware upload HTTP request failed (request timeout: {} seconds)",
+                    timeout.as_secs_f64()
+                )
+            })?;
 
         let status = response.status();
         let body = response
@@ -287,3 +311,60 @@ impl std::fmt::Display for PowerPlayError {
 }
 
 impl std::error::Error for PowerPlayError {}
+
+#[cfg(test)]
+mod tests {
+    use std::{net::Ipv4Addr, time::Instant};
+
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    #[test]
+    fn firmware_upgrade_timeout_preserves_default_and_accepts_override() {
+        let api = PowerPlayWebAPI::new(
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            80,
+            MinerAuth::new("root", "password"),
+        );
+
+        assert_eq!(
+            api.firmware_upgrade_timeout(FirmwareUpgradeOptions::default()),
+            Duration::from_secs(300)
+        );
+        assert_eq!(
+            api.firmware_upgrade_timeout(FirmwareUpgradeOptions::with_timeout(
+                Duration::from_millis(25)
+            )),
+            Duration::from_millis(25)
+        );
+    }
+
+    #[tokio::test]
+    async fn firmware_upgrade_honors_request_timeout() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        });
+        let api = PowerPlayWebAPI::new(
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            port,
+            MinerAuth::new("root", "password"),
+        );
+        let start = Instant::now();
+
+        let error = api
+            .upgrade_firmware_with_options(
+                FirmwareImage::new("firmware.zip".to_string(), vec![1, 2, 3]),
+                FirmwareUpgradeOptions::with_timeout(Duration::from_millis(50)),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(start.elapsed() < Duration::from_secs(1));
+        assert!(format!("{error:#}").contains("request timeout: 0.05 seconds"));
+        server.abort();
+    }
+}
