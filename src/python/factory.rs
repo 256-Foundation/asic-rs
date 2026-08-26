@@ -332,7 +332,7 @@ impl MinerFactory {
         }))
     }
 
-    /// Set the maximum seconds spent identifying a miner after it responds.
+    /// Set the maximum seconds spent identifying and constructing a miner.
     pub fn with_identification_timeout_secs<'py>(
         slf: PyRefMut<'py, Self>,
         timeout_secs: u64,

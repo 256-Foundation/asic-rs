@@ -305,17 +305,22 @@ impl MinerFactory {
     /// overridden via [`Self::with_firmware_discovery_auth`].
     #[tracing::instrument(level = "debug", skip(self))]
     pub async fn get_miner(&self, ip: IpAddr) -> Result<Option<Box<dyn Miner>>> {
-        match AssertUnwindSafe(self.get_miner_inner(ip))
-            .catch_unwind()
-            .await
-        {
-            Ok(result) => result,
-            Err(panic_info) => {
+        let discovery = AssertUnwindSafe(self.get_miner_inner(ip)).catch_unwind();
+        match timeout(self.identification_timeout, discovery).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(panic_info)) => {
                 let msg = panic_message(&*panic_info);
                 tracing::error!("panic during miner discovery for {ip}: {msg}");
                 Err(anyhow::anyhow!(
                     "internal panic during miner discovery: {msg}"
                 ))
+            }
+            Err(_) => {
+                tracing::debug!(
+                    timeout_ms = self.identification_timeout.as_millis(),
+                    "miner discovery timed out for {ip}"
+                );
+                Ok(None)
             }
         }
     }
@@ -342,23 +347,15 @@ impl MinerFactory {
                 discovery_tasks.push(get_miner_type_from_command_catch_unwind(ip, command, reg));
             }
 
-            let id_timeout = tokio::time::sleep(self.identification_timeout).fuse();
-            pin_mut!(id_timeout);
-
             let mut found: Option<Arc<dyn FirmwareEntry>> = None;
 
             loop {
                 if discovery_tasks.is_empty() {
                     break;
                 }
-                tokio::select! {
-                    _ = &mut id_timeout => break,
-                    r = discovery_tasks.next() => {
-                        if let Some(Some(fw)) = r {
-                            found = Some(fw);
-                            break;
-                        }
-                    }
+                if let Some(Some(fw)) = discovery_tasks.next().await {
+                    found = Some(fw);
+                    break;
                 }
             }
 
@@ -372,7 +369,6 @@ impl MinerFactory {
                         break;
                     }
                     tokio::select! {
-                        _ = &mut id_timeout => break,
                         _ = &mut upgrade_window => break,
                         r = discovery_tasks.next() => {
                             if let Some(Some(fw)) = r
@@ -490,13 +486,16 @@ impl MinerFactory {
         }
     }
 
-    /// Set the maximum time spent identifying a miner once connectivity exists.
+    /// Set the maximum time spent identifying and constructing a miner.
+    ///
+    /// The deadline covers all discovery commands and firmware-specific miner
+    /// construction after connectivity has been established.
     pub fn with_identification_timeout(mut self, timeout: Duration) -> Self {
         self.identification_timeout = timeout;
         self
     }
 
-    /// Set the identification timeout in seconds.
+    /// Set the end-to-end identification and construction timeout in seconds.
     pub fn with_identification_timeout_secs(mut self, timeout_secs: u64) -> Self {
         self.identification_timeout = Duration::from_secs(timeout_secs);
         self
@@ -876,6 +875,47 @@ fn generate_ips_from_ranges(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    #[cfg(feature = "whatsminer")]
+    async fn identification_timeout_bounds_miner_construction() -> anyhow::Result<()> {
+        use asic_rs_firmwares_whatsminer::firmware::WhatsMinerFirmware;
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+            sync::oneshot,
+        };
+
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 4028)).await?;
+        let (construction_started, mut construction_started_rx) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut identification_socket, _) = listener.accept().await?;
+            let mut request = [0_u8; 256];
+            let _bytes_read = identification_socket.read(&mut request).await?;
+            identification_socket
+                .write_all(
+                    b"{\"STATUS\":[{\"STATUS\":\"S\"}],\"DEVDETAILS\":[{\"Driver\":\"bitmicro\"}]}\0",
+                )
+                .await?;
+
+            let (_construction_socket, _) = listener.accept().await?;
+            let _ = construction_started.send(());
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            std::io::Result::Ok(())
+        });
+        let factory = MinerFactory::new()
+            .with_firmwares(vec![Arc::new(WhatsMinerFirmware::default())])
+            .with_identification_timeout(Duration::from_millis(250));
+        let started = tokio::time::Instant::now();
+
+        let miner = factory.get_miner(IpAddr::V4(Ipv4Addr::LOCALHOST)).await?;
+
+        assert!(miner.is_none());
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(construction_started_rx.try_recv().is_ok());
+        server.abort();
+        Ok(())
+    }
 
     #[test]
     #[cfg(feature = "whatsminer")]
