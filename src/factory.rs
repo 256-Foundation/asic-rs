@@ -1,6 +1,7 @@
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
+    future::Future,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     panic::AssertUnwindSafe,
     pin::Pin,
@@ -32,6 +33,8 @@ use tokio::{net::TcpStream, time::timeout};
 const IDENTIFICATION_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECTIVITY_TIMEOUT: Duration = Duration::from_secs(1);
 const CONNECTIVITY_RETRIES: u32 = 3;
+const CONNECTIVITY_RETRY_BACKOFF: Duration = Duration::from_millis(100);
+const MAX_CONNECTIVITY_RETRY_BACKOFF: Duration = Duration::from_secs(2);
 const NOFILE_PER_CONCURRENCY: u64 = 8;
 const MIN_NOFILE_LIMIT: u64 = 2048;
 
@@ -58,6 +61,38 @@ async fn check_port_open(ip: IpAddr, port: u16, connectivity_timeout: Duration) 
     };
     let _ = stream.set_nodelay(true);
     true
+}
+
+async fn check_miner_ports(ip: IpAddr, connectivity_timeout: Duration) -> bool {
+    for port in [80, 4028, 4029, 8889] {
+        if check_port_open(ip, port, connectivity_timeout).await {
+            return true;
+        }
+    }
+    false
+}
+
+fn connectivity_retry_delay(retry_index: u32, initial_backoff: Duration) -> Duration {
+    let multiplier = 1_u32 << retry_index.min(31);
+    initial_backoff
+        .saturating_mul(multiplier)
+        .min(MAX_CONNECTIVITY_RETRY_BACKOFF)
+}
+
+async fn retry_connectivity<F, Fut>(retries: u32, initial_backoff: Duration, mut probe: F) -> bool
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = bool>,
+{
+    for attempt in 0..=retries {
+        if attempt > 0 {
+            tokio::time::sleep(connectivity_retry_delay(attempt - 1, initial_backoff)).await;
+        }
+        if probe().await {
+            return true;
+        }
+    }
+    false
 }
 
 async fn get_miner_type_from_command(
@@ -278,22 +313,17 @@ impl Default for MinerFactory {
 impl MinerFactory {
     #[tracing::instrument(level = "debug", skip(self))]
     pub async fn scan_miner(&self, ip: IpAddr) -> Result<Option<Box<dyn Miner>>> {
-        if (1..self.connectivity_retries).next().is_some() {
-            if !self.check_port {
-                return self.get_miner(ip).await;
-            }
-            if check_port_open(ip, 80, self.connectivity_timeout).await {
-                return self.get_miner(ip).await;
-            }
-            if check_port_open(ip, 4028, self.connectivity_timeout).await {
-                return self.get_miner(ip).await;
-            }
-            if check_port_open(ip, 4029, self.connectivity_timeout).await {
-                return self.get_miner(ip).await;
-            }
-            if check_port_open(ip, 8889, self.connectivity_timeout).await {
-                return self.get_miner(ip).await;
-            }
+        if !self.check_port {
+            return self.get_miner(ip).await;
+        }
+        if retry_connectivity(
+            self.connectivity_retries,
+            CONNECTIVITY_RETRY_BACKOFF,
+            || check_miner_ports(ip, self.connectivity_timeout),
+        )
+        .await
+        {
+            return self.get_miner(ip).await;
         }
         tracing::trace!("no response from any miner-specific ports");
         Ok(None)
@@ -513,7 +543,10 @@ impl MinerFactory {
         self
     }
 
-    /// Set how many connectivity attempts are made before identification.
+    /// Set the number of connectivity retries after the initial attempt.
+    ///
+    /// Each address is probed at least once. Retries use bounded exponential
+    /// backoff and remain inside the initial scan's concurrency bound.
     pub fn with_connectivity_retries(mut self, retries: u32) -> Self {
         self.connectivity_retries = retries;
         self
@@ -915,6 +948,78 @@ mod tests {
         assert!(construction_started_rx.try_recv().is_ok());
         server.abort();
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn zero_connectivity_retries_still_probes_once() {
+        let mut attempts = 0;
+
+        let connected = retry_connectivity(0, Duration::ZERO, || {
+            attempts += 1;
+            std::future::ready(false)
+        })
+        .await;
+
+        assert!(!connected);
+        assert_eq!(attempts, 1);
+    }
+
+    #[tokio::test]
+    async fn connectivity_retry_recovers_within_configured_attempts() {
+        let mut outcomes = [false, false, true].into_iter();
+        let mut attempts = 0;
+
+        let connected = retry_connectivity(3, Duration::ZERO, || {
+            attempts += 1;
+            std::future::ready(outcomes.next().unwrap_or(false))
+        })
+        .await;
+
+        assert!(connected);
+        assert_eq!(attempts, 3);
+    }
+
+    #[tokio::test]
+    async fn connectivity_retry_exhaustion_uses_initial_attempt_plus_retries() {
+        let mut attempts = 0;
+
+        let connected = retry_connectivity(2, Duration::ZERO, || {
+            attempts += 1;
+            std::future::ready(false)
+        })
+        .await;
+
+        assert!(!connected);
+        assert_eq!(attempts, 3);
+    }
+
+    #[test]
+    fn connectivity_retry_backoff_is_exponential_and_bounded() {
+        assert_eq!(
+            connectivity_retry_delay(0, CONNECTIVITY_RETRY_BACKOFF),
+            Duration::from_millis(100)
+        );
+        assert_eq!(
+            connectivity_retry_delay(1, CONNECTIVITY_RETRY_BACKOFF),
+            Duration::from_millis(200)
+        );
+        assert_eq!(
+            connectivity_retry_delay(4, CONNECTIVITY_RETRY_BACKOFF),
+            Duration::from_millis(1600)
+        );
+        assert_eq!(
+            connectivity_retry_delay(5, CONNECTIVITY_RETRY_BACKOFF),
+            MAX_CONNECTIVITY_RETRY_BACKOFF
+        );
+        assert_eq!(
+            connectivity_retry_delay(u32::MAX, CONNECTIVITY_RETRY_BACKOFF),
+            MAX_CONNECTIVITY_RETRY_BACKOFF
+        );
+    }
+
+    #[test]
+    fn connectivity_retry_default_preserves_upstream_value() {
+        assert_eq!(MinerFactory::new().connectivity_retries, 3);
     }
 
     #[test]
