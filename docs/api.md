@@ -12,6 +12,10 @@ performs one probe; later attempts use bounded exponential backoff and remain
 under the same scan concurrency limit. The default remains three retries;
 callers that want one pass can explicitly set zero.
 
+Common miner ports are probed concurrently, returning after the first success.
+The scan concurrency limit also bounds the total number of active TCP probes,
+including probes made by connectivity retries.
+
 The identification timeout is an end-to-end deadline covering discovery
 commands and firmware-specific miner construction. Discovery HTTP clients also
 apply explicit connection and total-request deadlines.

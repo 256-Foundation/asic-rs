@@ -323,6 +323,8 @@ impl MinerFactory {
     }
 
     /// Set the maximum number of addresses scanned concurrently.
+    ///
+    /// This also caps active TCP connectivity probes across the scan.
     pub fn with_concurrent_limit<'py>(
         slf: PyRefMut<'py, Self>,
         limit: usize,
