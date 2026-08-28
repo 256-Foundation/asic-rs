@@ -98,6 +98,163 @@ impl PowerPlayV1 {
         pools
     }
 
+    fn parse_pool_url(value: &Value) -> Option<PoolURL> {
+        value.as_str().and_then(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(PoolURL::from(s.to_string()))
+            }
+        })
+    }
+
+    fn parse_pool_user(value: &Value) -> Option<String> {
+        value.as_str().map(String::from)
+    }
+
+    fn pool_data_from_config(position: Option<u16>, config: &Value) -> PoolData {
+        PoolData {
+            position,
+            url: config.get("pool").and_then(Self::parse_pool_url),
+            accepted_shares: None,
+            rejected_shares: None,
+            active: Some(false),
+            alive: None,
+            user: config.get("login").and_then(Self::parse_pool_user),
+        }
+    }
+
+    fn apply_pool_status(
+        pool: &mut PoolData,
+        status: &Value,
+        pool_key: &str,
+        user_key: &str,
+        accepted_key: &str,
+        rejected_key: &str,
+        alive_key: &str,
+    ) {
+        pool.active = Some(true);
+        pool.alive = status.get(alive_key).and_then(Value::as_bool);
+        pool.user = status.get(user_key).and_then(Self::parse_pool_user);
+        pool.url = status.get(pool_key).and_then(Self::parse_pool_url);
+        pool.accepted_shares = status.get(accepted_key).and_then(Value::as_u64);
+        pool.rejected_shares = status.get(rejected_key).and_then(Value::as_u64);
+    }
+
+    fn parse_hashrate_split_pools(
+        pools_object: &serde_json::Map<String, Value>,
+    ) -> Vec<PoolGroupData> {
+        let statuses = pools_object
+            .get("Hashratesplit Status")
+            .and_then(Value::as_array);
+
+        let mut groups: Vec<PoolGroupData> = pools_object
+            .get("Hashratesplit Config")
+            .and_then(|v| v.get("hashrate_splits"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .map(|(group_idx, split)| {
+                let active_index = split
+                    .get("sc_index")
+                    .and_then(Value::as_u64)
+                    .and_then(|idx| u16::try_from(idx).ok());
+                let status = statuses.and_then(|statuses| statuses.get(group_idx));
+                let name = format!("group{}", group_idx + 1);
+                let quota = split
+                    .get("ratio")
+                    .and_then(Value::as_u64)
+                    .and_then(|ratio| u32::try_from(ratio).ok())
+                    .unwrap_or(1);
+                let pools = split
+                    .get("stratum_configs")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .enumerate()
+                    .map(|(pool_idx, config)| {
+                        let position = u16::try_from(pool_idx).ok();
+                        let active = position == active_index;
+
+                        let mut pool = Self::pool_data_from_config(position, config);
+                        pool.active = Some(active);
+
+                        if active && let Some(status) = status {
+                            Self::apply_pool_status(
+                                &mut pool,
+                                status,
+                                "pool",
+                                "login",
+                                "shares_accepted",
+                                "shares_rejected",
+                                "is_stratum_connected",
+                            );
+
+                            pool.url = pool
+                                .url
+                                .or_else(|| config.get("pool").and_then(Self::parse_pool_url));
+                            pool.user = pool
+                                .user
+                                .or_else(|| config.get("login").and_then(Self::parse_pool_user));
+                        }
+
+                        pool
+                    })
+                    .collect();
+
+                PoolGroupData { name, quota, pools }
+            })
+            .collect();
+
+        groups.truncate(3);
+        groups
+    }
+
+    fn parse_standard_pools(pools_object: &serde_json::Map<String, Value>) -> Vec<PoolGroupData> {
+        let mut pools_vec: Vec<PoolData> = Vec::new();
+
+        if let Some(configs) = pools_object
+            .get("StratumConfigs")
+            .and_then(|v| v.as_array())
+        {
+            for (idx, config) in configs.iter().enumerate() {
+                pools_vec.push(Self::pool_data_from_config(Some(idx as u16), config));
+            }
+        }
+
+        if let Some(stratum) = pools_object.get("Stratum") {
+            for pool in pools_vec.iter_mut() {
+                if pool.position
+                    == stratum
+                        .get("Config Id")
+                        .and_then(|v| v.as_u64().map(|v| v as u16))
+                {
+                    Self::apply_pool_status(
+                        pool,
+                        stratum,
+                        "Current Pool",
+                        "Current User",
+                        "Accepted",
+                        "Rejected",
+                        "IsPoolConnected",
+                    );
+
+                    if let Some(session) = pools_object.get("Session").and_then(|v| v.as_object()) {
+                        pool.accepted_shares = session.get("Accepted").and_then(|v| v.as_u64());
+                        pool.rejected_shares = session.get("Rejected").and_then(|v| v.as_u64());
+                    }
+                }
+            }
+        }
+
+        vec![PoolGroupData {
+            name: String::new(),
+            quota: 1,
+            pools: pools_vec,
+        }]
+    }
+
     fn to_stratum_configs(group: &PoolGroupConfig) -> Vec<Value> {
         group
             .pools
@@ -158,7 +315,7 @@ impl GetConfigsLocations for PowerPlayV1 {
                     ConfigExtractor {
                         func: get_by_pointer,
                         key: Some(""),
-                        tag: Some("hashratesplit"),
+                        tag: Some("Hashratesplit Config"),
                     },
                 ),
             ],
@@ -221,6 +378,14 @@ impl GetDataLocations for PowerPlayV1 {
         };
         const WEB_TEMPS: MinerCommand = MinerCommand::WebAPI {
             command: "temps",
+            parameters: None,
+        };
+        const WEB_HASHRATESPLIT_CONFIG: MinerCommand = MinerCommand::WebAPI {
+            command: "hashratesplit/config",
+            parameters: None,
+        };
+        const WEB_HASHRATESPLIT_STATUS: MinerCommand = MinerCommand::WebAPI {
+            command: "hashratesplit/status",
             parameters: None,
         };
 
@@ -333,14 +498,32 @@ impl GetDataLocations for PowerPlayV1 {
                     },
                 ),
             ],
-            DataField::Pools => vec![(
-                WEB_SUMMARY,
-                DataExtractor {
-                    func: get_by_pointer,
-                    key: Some(""),
-                    tag: None,
-                },
-            )],
+            DataField::Pools => vec![
+                (
+                    WEB_SUMMARY,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: None,
+                    },
+                ),
+                (
+                    WEB_HASHRATESPLIT_CONFIG,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: Some("Hashratesplit Config"),
+                    },
+                ),
+                (
+                    WEB_HASHRATESPLIT_STATUS,
+                    DataExtractor {
+                        func: get_by_pointer,
+                        key: Some(""),
+                        tag: Some("Hashratesplit Status"),
+                    },
+                ),
+            ],
             DataField::IsMining => vec![(
                 WEB_SUMMARY,
                 DataExtractor {
@@ -1055,82 +1238,25 @@ impl GetIsMining for PowerPlayV1 {
 
 impl GetPools for PowerPlayV1 {
     fn parse_pools(&self, data: &HashMap<DataField, Value>) -> Vec<PoolGroupData> {
-        let mut pools_vec: Vec<PoolData> = Vec::new();
+        let Some(pools_data) = data.get(&DataField::Pools) else {
+            return vec![];
+        };
 
-        if let Some(configs) = data
-            .get(&DataField::Pools)
-            .and_then(|v| v.pointer("/StratumConfigs"))
-            .and_then(|v| v.as_array())
-        {
-            for (idx, config) in configs.iter().enumerate() {
-                let url = config.get("pool").and_then(|v| v.as_str()).and_then(|s| {
-                    if s.is_empty() {
-                        None
-                    } else {
-                        Some(PoolURL::from(s.to_string()))
-                    }
-                });
-                let user = config
-                    .get("login")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-                pools_vec.push(PoolData {
-                    position: Some(idx as u16),
-                    url,
-                    accepted_shares: None,
-                    rejected_shares: None,
-                    active: Some(false),
-                    alive: None,
-                    user,
-                });
-            }
+        let Some(pools_object) = pools_data.as_object() else {
+            return vec![];
+        };
+
+        let split_enabled = pools_object
+            .get("Hashratesplit Config")
+            .and_then(|v| v.get("enabled"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+
+        if split_enabled {
+            Self::parse_hashrate_split_pools(pools_object)
+        } else {
+            Self::parse_standard_pools(pools_object)
         }
-
-        if let Some(stratum) = data
-            .get(&DataField::Pools)
-            .and_then(|v| v.pointer("/Stratum"))
-            .and_then(|v| v.as_object())
-        {
-            for pool in pools_vec.iter_mut() {
-                if pool.position
-                    == stratum
-                        .get("Config Id")
-                        .and_then(|v| v.as_u64().map(|v| v as u16))
-                {
-                    pool.active = Some(true);
-                    pool.alive = stratum.get("IsPoolConnected").and_then(|v| v.as_bool());
-                    pool.user = stratum
-                        .get("Current User")
-                        .and_then(|v| v.as_str())
-                        .map(String::from);
-                    pool.url = stratum
-                        .get("Current Pool")
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| {
-                            if s.is_empty() {
-                                None
-                            } else {
-                                Some(PoolURL::from(s.to_string()))
-                            }
-                        });
-
-                    // Get Stats
-                    if let Some(session) = data
-                        .get(&DataField::Pools)
-                        .and_then(|v| v.pointer("/Session"))
-                        .and_then(|v| v.as_object())
-                    {
-                        pool.accepted_shares = session.get("Accepted").and_then(|v| v.as_u64());
-                        pool.rejected_shares = session.get("Rejected").and_then(|v| v.as_u64());
-                    }
-                }
-            }
-        }
-        vec![PoolGroupData {
-            name: String::new(),
-            quota: 1,
-            pools: pools_vec,
-        }]
     }
 }
 
@@ -1179,7 +1305,7 @@ impl SupportsPoolsConfig for PowerPlayV1 {
         };
 
         let split_enabled = pools_object
-            .get("hashratesplit")
+            .get("Hashratesplit Config")
             .and_then(|v| v.get("enabled"))
             .and_then(Value::as_bool)
             .unwrap_or(false);
@@ -1188,7 +1314,7 @@ impl SupportsPoolsConfig for PowerPlayV1 {
             let mut groups: Vec<PoolGroupConfig> = Vec::new();
 
             if let Some(splits) = pools_object
-                .get("hashratesplit")
+                .get("Hashratesplit Config")
                 .and_then(|v| v.get("hashrate_splits"))
                 .and_then(Value::as_array)
             {
