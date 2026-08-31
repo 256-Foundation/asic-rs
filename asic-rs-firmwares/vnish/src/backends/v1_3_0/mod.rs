@@ -6,7 +6,9 @@ use asic_rs_core::{
         collector::{ConfigCollector, ConfigExtractor, ConfigField, ConfigLocation},
         pools::PoolGroupConfig,
         preset::PresetInfo,
+        scaling::ScalingConfig,
         temperature::TemperatureConfig,
+        tuning::TuningConfig,
     },
     data::{
         board::{BoardData, ChipData, MinerControlBoard},
@@ -1162,7 +1164,49 @@ impl Validate for VnishV130 {
 #[async_trait]
 impl SupportsTuningConfig for VnishV130 {
     fn supports_tuning_config(&self) -> bool {
-        false
+        true
+    }
+
+    /// VNish tunes by selecting a named autotune preset. A `Preset` target sets
+    /// `miner.overclock.preset` directly; a `Power` target reuses the
+    /// preset-picking logic in `set_power_limit`.
+    async fn set_tuning_config(
+        &self,
+        config: TuningConfig,
+        _scaling_config: Option<ScalingConfig>,
+    ) -> anyhow::Result<bool> {
+        match config.target {
+            TuningTarget::Preset(name) => {
+                let mut settings = self.web.settings().await?;
+                {
+                    let overclock = settings
+                        .pointer_mut("/miner/overclock")
+                        .ok_or_else(|| anyhow::anyhow!("settings missing miner.overclock"))?;
+                    overclock["preset"] = json!(name);
+                }
+                let overclock = settings
+                    .pointer("/miner/overclock")
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("settings missing miner.overclock"))?;
+                self.web
+                    .set_settings(json!({ "miner": { "overclock": overclock } }))
+                    .await?;
+                let updated = self.web.settings().await?;
+                let applied = updated.pointer("/miner/overclock/preset").and_then(|p| {
+                    p.as_str()
+                        .map(String::from)
+                        .or_else(|| p.as_i64().map(|n| n.to_string()))
+                });
+                Ok(applied.as_deref() == Some(name.as_str()))
+            }
+            TuningTarget::Power(limit) => self.set_power_limit(limit).await,
+            TuningTarget::HashRate(_) => {
+                anyhow::bail!("HashRate tuning target is not supported on VNish")
+            }
+            TuningTarget::MiningMode(_) => {
+                anyhow::bail!("MiningMode tuning target is not supported on VNish")
+            }
+        }
     }
 }
 
