@@ -840,3 +840,4 @@ mod integration_tests {
 impl SupportsTemperatureConfig for WhatsMinerV1 {}
 impl GetTuningPercent for WhatsMinerV1 {}
 impl SetTuningPercent for WhatsMinerV1 {}
+impl SupportsPresets for WhatsMinerV1 {}
