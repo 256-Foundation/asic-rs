@@ -48,6 +48,7 @@ mod asic_rs {
         },
         device::{DeviceInfo, MinerHardware},
         fan::FanData,
+        firmware::{FirmwareStats, PyFirmwareUpdate as FirmwareUpdate},
         message::{MessageSeverity, MinerComponent, MinerMessage},
         miner::{MinerData, PyTuningTarget as TuningTarget},
         pool::{PoolData, PoolGroupData, PoolScheme, PoolURL},
