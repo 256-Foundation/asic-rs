@@ -26,8 +26,18 @@ pub fn unix_timestamp_secs() -> u64 {
     )
 }
 
+/// Build an HTTP client with bounded connection and total-request deadlines
+/// for firmware discovery.
 pub fn build_discovery_client() -> Result<reqwest::Client, ModelSelectionError> {
+    build_discovery_client_with_timeout(DEFAULT_RPC_TIMEOUT)
+}
+
+fn build_discovery_client_with_timeout(
+    timeout: Duration,
+) -> Result<reqwest::Client, ModelSelectionError> {
     reqwest::Client::builder()
+        .connect_timeout(timeout)
+        .timeout(timeout)
         .pool_max_idle_per_host(0)
         .build()
         .map_err(|_| ModelSelectionError::NoModelResponse)
@@ -47,6 +57,7 @@ static HTTP_CLIENT: LazyLock<Result<reqwest::Client, reqwest::Error>> = LazyLock
         .redirect(reqwest::redirect::Policy::none())
         .danger_accept_invalid_certs(true)
         .gzip(true)
+        .connect_timeout(DEFAULT_RPC_TIMEOUT)
         .timeout(DEFAULT_RPC_TIMEOUT)
         .pool_max_idle_per_host(0)
         .build()
@@ -242,7 +253,27 @@ fn parse_rpc_result(response: &str) -> Option<serde_json::Value> {
 mod tests {
     use super::*;
     use crate::errors::RPCError;
-    use tokio::io::AsyncWriteExt;
+    use tokio::{io::AsyncWriteExt, net::TcpListener};
+
+    #[tokio::test]
+    async fn discovery_http_client_times_out_on_stalled_response() -> anyhow::Result<()> {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+        let address = listener.local_addr()?;
+        let server = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await?;
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            std::io::Result::Ok(())
+        });
+        let client = build_discovery_client_with_timeout(Duration::from_millis(50))?;
+        let started = tokio::time::Instant::now();
+
+        let response = client.get(format!("http://{address}")).send().await;
+
+        assert!(response.is_err_and(|error| error.is_timeout()));
+        assert!(started.elapsed() < Duration::from_secs(1));
+        server.abort();
+        Ok(())
+    }
 
     #[tokio::test]
     async fn null_terminated_response() {

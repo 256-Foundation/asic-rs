@@ -1168,6 +1168,8 @@ impl SupportsTemperatureConfig for MaraV1 {}
 impl GetTuningPercent for MaraV1 {}
 impl SetTuningPercent for MaraV1 {}
 
+impl SupportsPresets for MaraV1 {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

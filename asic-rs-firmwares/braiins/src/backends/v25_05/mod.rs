@@ -1013,6 +1013,8 @@ impl SupportsTemperatureConfig for BraiinsV2505 {}
 impl GetTuningPercent for BraiinsV2505 {}
 impl SetTuningPercent for BraiinsV2505 {}
 
+impl SupportsPresets for BraiinsV2505 {}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

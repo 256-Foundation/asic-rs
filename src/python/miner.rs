@@ -4,14 +4,15 @@ use super::typing::{PyAwaitable, future_into_py};
 use asic_rs_core::data::collector::DataField;
 use asic_rs_core::{
     config::{
-        fan::FanConfig, pools::PoolGroupConfig as PoolGroup, scaling::ScalingConfig,
-        temperature::TemperatureConfig, timezone::TimezoneConfig, tuning::TuningConfig,
+        fan::FanConfig, pools::PoolGroupConfig as PoolGroup, preset::PresetInfo,
+        scaling::ScalingConfig, temperature::TemperatureConfig, timezone::TimezoneConfig,
+        tuning::TuningConfig,
     },
     data::{
         board::BoardData,
         device::{HashAlgorithm, MinerHardware},
         fan::FanData,
-        firmware::FirmwareImage,
+        firmware::{FirmwareImage, FirmwareStats},
         hashrate::HashRate,
         message::MinerMessage,
         miner::{MinerData, TuningTarget},
@@ -183,6 +184,11 @@ impl Miner {
     fn supports_set_tuning_percent(&self, py: Python<'_>) -> bool {
         self.with_miner(py, |miner| miner.supports_set_tuning_percent())
     }
+    /// Whether this miner exposes named autotune/overclock presets.
+    #[getter]
+    fn supports_presets(&self, py: Python<'_>) -> bool {
+        self.with_miner(py, |miner| miner.supports_presets())
+    }
     /// Whether this miner supports restart commands.
     #[getter]
     fn supports_restart(&self, py: Python<'_>) -> bool {
@@ -222,6 +228,11 @@ impl Miner {
     #[getter]
     fn supports_upgrade_firmware(&self, py: Python<'_>) -> bool {
         self.with_miner(py, |miner| miner.supports_upgrade_firmware())
+    }
+    /// Whether this miner supports checking for an available firmware update.
+    #[getter]
+    fn supports_check_firmware_update(&self, py: Python<'_>) -> bool {
+        self.with_miner(py, |miner| miner.supports_check_firmware_update())
     }
     /// Whether this miner supports reading and writing timezone configuration.
     #[getter]
@@ -285,6 +296,18 @@ impl Miner {
                 None => Ok(inner.get_data().await),
                 Some(excl) => Ok(inner.get_data_filtered(excl).await),
             }
+        })
+    }
+    /// Check for an available firmware update (on-demand; queries the vendor's
+    /// release server). Returns `None` if unsupported or the check fails.
+    pub fn check_firmware_update<'a>(
+        &self,
+        py: Python<'a>,
+    ) -> PyResult<PyAwaitable<Option<FirmwareStats>>> {
+        let inner = Arc::clone(&self.inner);
+        future_into_py(py, async move {
+            let inner = inner.read().await;
+            Ok(inner.check_firmware_update().await.ok())
         })
     }
     /// Await the miner MAC address, if exposed by the firmware.
@@ -690,6 +713,17 @@ impl Miner {
                 .set_tuning_percent(percent)
                 .await
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+    /// Await the firmware's available autotune/overclock presets.
+    ///
+    /// Select one with `set_tuning_config(TuningConfig.preset(name))`; the active
+    /// preset is reported by `get_tuning_target()` as a `TuningTarget.preset`.
+    pub fn get_presets<'a>(&self, py: Python<'a>) -> PyResult<PyAwaitable<Vec<PresetInfo>>> {
+        let inner = Arc::clone(&self.inner);
+        future_into_py(py, async move {
+            let inner = inner.read().await;
+            Ok(inner.get_presets().await)
         })
     }
     /// Await timezone configuration, or `None` when unsupported/unavailable.

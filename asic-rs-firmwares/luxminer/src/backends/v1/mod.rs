@@ -1205,6 +1205,8 @@ impl SupportsFanConfig for LuxMinerV1 {
 impl SupportsTemperatureConfig for LuxMinerV1 {}
 impl GetTuningPercent for LuxMinerV1 {}
 impl SetTuningPercent for LuxMinerV1 {}
+
+impl SupportsPresets for LuxMinerV1 {}
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};

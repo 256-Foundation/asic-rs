@@ -323,6 +323,8 @@ impl MinerFactory {
     }
 
     /// Set the maximum number of addresses scanned concurrently.
+    ///
+    /// This also caps active TCP connectivity probes across the scan.
     pub fn with_concurrent_limit<'py>(
         slf: PyRefMut<'py, Self>,
         limit: usize,
@@ -332,7 +334,7 @@ impl MinerFactory {
         }))
     }
 
-    /// Set the maximum seconds spent identifying a miner after it responds.
+    /// Set the maximum seconds spent identifying and constructing a miner.
     pub fn with_identification_timeout_secs<'py>(
         slf: PyRefMut<'py, Self>,
         timeout_secs: u64,
@@ -352,7 +354,10 @@ impl MinerFactory {
         }))
     }
 
-    /// Set how many connectivity attempts are made before identification.
+    /// Set connectivity retries after the initial attempt.
+    ///
+    /// Each address is probed at least once. Retries use bounded exponential
+    /// backoff and remain inside the initial scan's concurrency bound.
     pub fn with_connectivity_retries<'py>(
         slf: PyRefMut<'py, Self>,
         retries: u32,

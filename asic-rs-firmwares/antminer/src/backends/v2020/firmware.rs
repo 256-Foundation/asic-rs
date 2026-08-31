@@ -218,26 +218,31 @@ fn candidate_score(entry: &BmuEntry, miner: &MinerTypeInfo) -> Option<u8> {
     let miner_model = normalized(&miner.model);
     let miner_subtype = normalized(&miner.subtype);
 
+    let subtype_matches = !miner_subtype.is_empty()
+        && (hardware == miner_subtype
+            || chip == miner_subtype
+            || wildcard_compatible(&entry.hardware, &miner.subtype)
+            || wildcard_compatible(&entry.chip, &miner.subtype));
+
     if model != miner_model {
-        return None;
+        // Some stock releases report a generic control-board model (for example,
+        // "Antminer BHB42XXX") instead of the product name stored in the BMU. Only fall back
+        // to a different product label when the control-board subtype is a strong match.
+        return subtype_matches.then_some(4);
     }
 
     if miner_subtype.is_empty() {
-        Some(1)
-    } else if hardware == miner_subtype
-        || chip == miner_subtype
-        || wildcard_compatible(&entry.hardware, &miner.subtype)
-        || wildcard_compatible(&entry.chip, &miner.subtype)
-    {
-        Some(4)
+        Some(5)
+    } else if subtype_matches {
+        Some(8)
     } else if hardware.contains(&miner_subtype) || chip.contains(&miner_subtype) {
-        Some(3)
+        Some(7)
     } else if filename.contains(&miner_subtype) {
-        Some(2)
+        Some(6)
     } else if !hardware.is_empty() || !chip.is_empty() || filename.contains("ctrl") {
         None
     } else {
-        Some(1)
+        Some(5)
     }
 }
 
@@ -404,6 +409,38 @@ mod tests {
                 .unwrap();
 
         assert_eq!(resolved.filename, "s21-hyd.bin");
+        assert_eq!(resolved.bytes, b"right");
+    }
+
+    #[tokio::test]
+    async fn bmu_uses_exact_subtype_when_miner_reports_generic_model() {
+        let bmu = build_bmu(&[
+            (
+                "s19j-pro-zynq.bmu",
+                "Zynq7007",
+                "Ctrl_BHB42XXX",
+                "Antminer S19j Pro",
+                b"wrong".as_slice(),
+            ),
+            (
+                "s19j-pro-amlogic.bmu",
+                "AMLogic",
+                "AMLCtrl_BHB42XXX",
+                "Antminer S19j Pro",
+                b"right".as_slice(),
+            ),
+        ]);
+        let miner = MinerTypeInfo {
+            model: "Antminer BHB42XXX".to_string(),
+            subtype: "AMLCtrl_BHB42XXX".to_string(),
+        };
+
+        let resolved =
+            resolve_firmware_image(FirmwareImage::new("bundle.bmu".to_string(), bmu), &miner)
+                .await
+                .unwrap();
+
+        assert_eq!(resolved.filename, "s19j-pro-amlogic.bmu");
         assert_eq!(resolved.bytes, b"right");
     }
 

@@ -34,6 +34,7 @@ mod asic_rs {
     use asic_rs_core::config::{
         fan::{FanConfig, FanMode},
         pools::{PoolConfig as Pool, PoolGroupConfig as PoolGroup},
+        preset::PresetInfo,
         scaling::ScalingConfig,
         temperature::TemperatureConfig,
         timezone::TimezoneConfig,
@@ -48,6 +49,7 @@ mod asic_rs {
         },
         device::{DeviceInfo, MinerHardware},
         fan::FanData,
+        firmware::{FirmwareStats, PyFirmwareUpdate as FirmwareUpdate},
         message::{MessageSeverity, MinerComponent, MinerMessage},
         miner::{MinerData, PyTuningTarget as TuningTarget},
         pool::{PoolData, PoolGroupData, PoolScheme, PoolURL},

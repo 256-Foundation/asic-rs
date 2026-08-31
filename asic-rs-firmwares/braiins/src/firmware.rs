@@ -130,27 +130,7 @@ impl MinerFirmware for BraiinsFirmware {
 
         let full = response["data"]["bos"]["info"]["version"]["full"].as_str()?;
 
-        let version_str = full.split('-').rev().find(|s| s.contains('.'))?;
-
-        let normalized = version_str
-            .split('.')
-            .map(|part| part.trim_start_matches('0').to_string())
-            .map(|part| {
-                if part.is_empty() {
-                    "0".to_string()
-                } else {
-                    part
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(".");
-
-        // pad if needed, semver requires major.minor.patch
-        let padded = match version_str.split('.').count() {
-            2 => format!("{}.0", normalized),
-            _ => normalized.to_string(),
-        };
-        semver::Version::parse(&padded).ok()
+        crate::backends::util::parse_bos_version(full)
     }
 }
 

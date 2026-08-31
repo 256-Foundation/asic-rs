@@ -14,6 +14,7 @@ use crate::{
         collector::{ConfigCollector, ConfigField, ConfigLocation},
         fan::FanConfig,
         pools::PoolGroupConfig,
+        preset::PresetInfo,
         scaling::ScalingConfig,
         temperature::TemperatureConfig,
         timezone::TimezoneConfig,
@@ -26,7 +27,7 @@ use crate::{
         command::MinerCommand,
         device::DeviceInfo,
         fan::FanData,
-        firmware::FirmwareImage,
+        firmware::{FirmwareImage, FirmwareStats},
         hashrate::{HashRate, HashRateUnit},
         message::MinerMessage,
         miner::{MinerData, TuningTarget},
@@ -46,7 +47,13 @@ pub trait MinerConstructor {
 
 #[async_trait]
 pub trait Miner:
-    GetMinerData + HasMinerControl + SupportsConfigs + UpgradeFirmware + HasAuth + HasDefaultAuth
+    GetMinerData
+    + HasMinerControl
+    + SupportsConfigs
+    + SupportsPresets
+    + UpgradeFirmware
+    + HasAuth
+    + HasDefaultAuth
 {
     async fn revalidate(&self) -> anyhow::Result<bool>;
 }
@@ -56,6 +63,7 @@ impl<
     T: GetMinerData
         + HasMinerControl
         + SupportsConfigs
+        + SupportsPresets
         + UpgradeFirmware
         + Validate
         + HasAuth
@@ -874,6 +882,22 @@ pub trait SetTuningPercent {
 }
 
 #[async_trait]
+pub trait SupportsPresets {
+    /// List the firmware's available autotune/overclock presets.
+    ///
+    /// Selecting a preset is done through [`SupportsTuningConfig::set_tuning_config`]
+    /// with a [`TuningTarget::Preset`], and the active preset is surfaced via
+    /// [`GetTuningTarget::get_tuning_target`].
+    async fn get_presets(&self) -> Vec<PresetInfo> {
+        Vec::new()
+    }
+    /// Defaults to `false`; backends with named presets override this.
+    fn supports_presets(&self) -> bool {
+        false
+    }
+}
+
+#[async_trait]
 pub trait Restart {
     async fn restart(&self) -> anyhow::Result<bool> {
         anyhow::bail!("Restarting is not supported on this platform");
@@ -934,6 +958,19 @@ pub trait UpgradeFirmware {
     }
 
     fn supports_upgrade_firmware(&self) -> bool {
+        false
+    }
+
+    /// Check whether a newer firmware is available for this miner.
+    ///
+    /// This is an on-demand call (it typically queries the vendor's release
+    /// server), not part of the regular telemetry poll. Defaults to
+    /// unsupported.
+    async fn check_firmware_update(&self) -> anyhow::Result<FirmwareStats> {
+        anyhow::bail!("Checking for firmware updates is not supported on this platform");
+    }
+
+    fn supports_check_firmware_update(&self) -> bool {
         false
     }
 }
