@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg_attr(
     feature = "python",
-    pyclass(skip_from_py_object, get_all, module = "asic_rs")
+    pyclass(from_py_object, get_all, module = "asic_rs")
 )]
 #[cfg_attr(feature = "python", asic_rs_pydantic::py_pydantic_model)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -25,31 +25,6 @@ impl TimezoneConfig {
         Self {
             timezone,
             available: available.unwrap_or_default(),
-        }
-    }
-}
-
-#[cfg(feature = "python")]
-mod python_impls {
-    use asic_rs_pydantic::get_optional_field;
-    use pyo3::{Borrowed, PyAny, PyErr, PyResult, conversion::FromPyObject, types::PyAnyMethods};
-
-    use super::TimezoneConfig;
-
-    impl FromPyObject<'_, '_> for TimezoneConfig {
-        type Error = PyErr;
-
-        fn extract(obj: Borrowed<'_, '_, PyAny>) -> PyResult<Self> {
-            Ok(TimezoneConfig {
-                timezone: get_optional_field(&obj, "timezone")?
-                    .map(|value| value.extract())
-                    .transpose()?
-                    .flatten(),
-                available: get_optional_field(&obj, "available")?
-                    .map(|value| value.extract())
-                    .transpose()?
-                    .unwrap_or_default(),
-            })
         }
     }
 }
