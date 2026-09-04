@@ -13,6 +13,7 @@ use asic_rs_core::{
         fan::FanData,
         hashrate::{HashRate, HashRateUnit},
         pool::{PoolData, PoolGroupData, PoolURL},
+        share::parse_share_difficulty,
     },
     traits::{miner::*, model::MinerModel},
 };
@@ -627,6 +628,20 @@ impl GetMessages for ApolloV2 {}
 impl GetUptime for ApolloV2 {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         as_u64(data.get(&DataField::Uptime)).map(Duration::from_secs)
+    }
+}
+
+impl GetBestShare for ApolloV2 {
+    fn parse_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::BestShare)
+            .and_then(parse_share_difficulty)
+    }
+}
+
+impl GetSessionBestShare for ApolloV2 {
+    fn parse_session_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::SessionBestShare)
+            .and_then(parse_share_difficulty)
     }
 }
 

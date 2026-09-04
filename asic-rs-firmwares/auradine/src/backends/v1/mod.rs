@@ -26,6 +26,7 @@ use asic_rs_core::{
         message::{MessageSeverity, MinerMessage},
         miner::{MiningMode, TuningTarget},
         pool::{PoolData, PoolGroupData, PoolURL},
+        share::parse_share_difficulty,
     },
     traits::{miner::*, model::MinerModel},
 };
@@ -1148,6 +1149,20 @@ impl GetMessages for AuradineV1 {
 impl GetUptime for AuradineV1 {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract_map::<u64, _>(DataField::Uptime, Duration::from_secs)
+    }
+}
+
+impl GetBestShare for AuradineV1 {
+    fn parse_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::BestShare)
+            .and_then(parse_share_difficulty)
+    }
+}
+
+impl GetSessionBestShare for AuradineV1 {
+    fn parse_session_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::SessionBestShare)
+            .and_then(parse_share_difficulty)
     }
 }
 

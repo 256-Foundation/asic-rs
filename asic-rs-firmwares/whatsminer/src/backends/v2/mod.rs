@@ -20,6 +20,7 @@ use asic_rs_core::{
         message::{MessageSeverity, MinerMessage},
         miner::{MiningMode, TuningTarget},
         pool::{PoolData, PoolGroupData, PoolURL},
+        share::parse_share_difficulty,
     },
     traits::{miner::*, model::MinerModel},
     util::is_expected_write_error,
@@ -242,6 +243,14 @@ impl GetDataLocations for WhatsMinerV2 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/SUMMARY/0/HS RT"),
+                    tag: None,
+                },
+            )],
+            DataField::BestShare => vec![(
+                RPC_SUMMARY,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/SUMMARY/0/Best Share"),
                     tag: None,
                 },
             )],
@@ -548,6 +557,20 @@ impl GetMessages for WhatsMinerV2 {
 impl GetUptime for WhatsMinerV2 {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract_map::<u64, _>(DataField::Uptime, Duration::from_secs)
+    }
+}
+
+impl GetBestShare for WhatsMinerV2 {
+    fn parse_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::BestShare)
+            .and_then(parse_share_difficulty)
+    }
+}
+
+impl GetSessionBestShare for WhatsMinerV2 {
+    fn parse_session_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::SessionBestShare)
+            .and_then(parse_share_difficulty)
     }
 }
 impl GetIsMining for WhatsMinerV2 {

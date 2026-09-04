@@ -16,6 +16,7 @@ use asic_rs_core::{
         fan::FanData,
         hashrate::{HashRate, HashRateUnit},
         pool::{PoolData, PoolGroupData, PoolURL},
+        share::parse_share_difficulty,
     },
     traits::{miner::*, model::MinerModel},
 };
@@ -526,6 +527,20 @@ impl GetUptime for VolcMinerV1 {
         data.get(&DataField::Uptime)
             .and_then(Self::parse_u64)
             .map(Duration::from_secs)
+    }
+}
+
+impl GetBestShare for VolcMinerV1 {
+    fn parse_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::BestShare)
+            .and_then(parse_share_difficulty)
+    }
+}
+
+impl GetSessionBestShare for VolcMinerV1 {
+    fn parse_session_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::SessionBestShare)
+            .and_then(parse_share_difficulty)
     }
 }
 

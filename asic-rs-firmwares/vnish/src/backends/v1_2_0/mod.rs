@@ -23,6 +23,7 @@ use asic_rs_core::{
         message::{MessageSeverity, MinerMessage},
         miner::TuningTarget,
         pool::{PoolData, PoolGroupData, PoolURL},
+        share::parse_share_difficulty,
     },
     traits::{miner::*, model::MinerModel},
 };
@@ -353,6 +354,14 @@ impl GetDataLocations for VnishV120 {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/miner/overclock/preset"),
+                    tag: None,
+                },
+            )],
+            DataField::BestShare => vec![(
+                WEB_SUMMARY,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/miner/best_share"),
                     tag: None,
                 },
             )],
@@ -851,6 +860,20 @@ impl GetUptime for VnishV120 {
 
                 None
             })
+    }
+}
+
+impl GetBestShare for VnishV120 {
+    fn parse_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::BestShare)
+            .and_then(parse_share_difficulty)
+    }
+}
+
+impl GetSessionBestShare for VnishV120 {
+    fn parse_session_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::SessionBestShare)
+            .and_then(parse_share_difficulty)
     }
 }
 
