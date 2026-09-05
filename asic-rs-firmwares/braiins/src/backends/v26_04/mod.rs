@@ -5,7 +5,7 @@ use asic_rs_core::{
     config::{
         collector::{ConfigCollector, ConfigExtractor, ConfigField, ConfigLocation},
         pools::PoolGroupConfig,
-        timezone::{TimezoneConfig, parse_iana},
+        timezone::{TimezoneConfig, Tz},
     },
     data::{
         board::{BoardData, MinerControlBoard},
@@ -666,7 +666,10 @@ impl SupportsTimezoneConfig for BraiinsV2604 {
         let timezone = obj
             .pointer("/timezone/id")
             .and_then(|v| v.as_str())
-            .map(parse_iana)
+            .map(|id| {
+                id.parse::<Tz>()
+                    .map_err(|_| anyhow::anyhow!("Unknown IANA timezone {id:?}"))
+            })
             .transpose()?;
         // BOS ids are IANA names already; drop any the bundled database lacks
         // rather than failing the whole read over one unknown entry.
@@ -676,16 +679,21 @@ impl SupportsTimezoneConfig for BraiinsV2604 {
             .map(|arr| {
                 arr.iter()
                     .filter_map(|t| t.get("id").and_then(|v| v.as_str()))
-                    .filter_map(|id| parse_iana(id).ok())
+                    .filter_map(|id| id.parse::<Tz>().ok())
                     .collect()
             })
             .unwrap_or_default();
-        Ok(TimezoneConfig::from_tz(timezone, available))
+        Ok(TimezoneConfig {
+            timezone,
+            available,
+        })
     }
 
-    /// BOS speaks IANA natively, so the canonical zone name goes over the wire as is.
+    /// BOS speaks IANA natively, so the zone name goes over the wire as is.
     async fn set_timezone_config(&self, config: TimezoneConfig) -> anyhow::Result<bool> {
-        let timezone = config.required_tz()?;
+        let timezone = config
+            .timezone
+            .ok_or_else(|| anyhow::anyhow!("Timezone config has no timezone to set"))?;
         let mutation = r#"mutation ($tz: String!) {
             bos { setTimezone(timezone: $tz) { __typename } }
         }"#;

@@ -739,10 +739,11 @@ impl Miner {
     }
     /// Set timezone configuration.
     ///
-    /// `config.timezone` is an IANA zone name (`"Europe/Vienna"`, `"Etc/GMT-2"`)
-    /// on every firmware; the backend converts to its own dialect. Raises when
-    /// the name is unknown or the firmware cannot represent the zone (VNish
-    /// only takes fixed-offset `Etc/GMT*` zones; the error names the equivalent).
+    /// `config.timezone` is an IANA zone (a `zoneinfo.ZoneInfo`, or its name
+    /// when constructing the config: `"Europe/Vienna"`, `"Etc/GMT-2"`) on every
+    /// firmware; the backend converts to its own dialect. Raises when the
+    /// firmware cannot represent the zone (VNish only takes fixed-offset
+    /// `Etc/GMT*` zones; the error names the equivalent).
     #[pyo3(signature = (config: "TimezoneConfig"))]
     pub fn set_timezone_config<'a>(
         &self,

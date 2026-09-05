@@ -636,6 +636,7 @@ name = "asic-rs-pydantic"
 version = "0.8.0"
 dependencies = [
  "asic-rs-pydantic-macros",
+ "chrono-tz",
  "macaddr",
  "measurements",
  "pyo3",
@@ -848,6 +849,7 @@ checksum = "a6139a8597ed92cf816dfb33f5dd6cf0bb93a6adc938f11039f371bc5bcd26c3"
 dependencies = [
  "chrono",
  "phf",
+ "serde",
 ]
 
 [[package]]
@@ -1902,6 +1904,7 @@ version = "0.28.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91fd8e38a3b50ed1167fb981cd6fd60147e091784c427b8f7183a7ee32c31c12"
 dependencies = [
+ "chrono-tz",
  "inventory",
  "libc",
  "once_cell",

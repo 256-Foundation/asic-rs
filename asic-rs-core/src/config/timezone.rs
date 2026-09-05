@@ -15,73 +15,41 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 /// Timezone configuration.
 ///
-/// The canonical representation is an IANA zone ([`Tz`]), e.g. `Europe/Vienna`
-/// or `Etc/GMT-2`, regardless of the firmware. Backends translate to and from
-/// whatever they store: BraiinsOS already speaks IANA; VNish keeps a fixed
-/// `GMT±N` offset, which maps onto the `Etc/GMT*` zones (see
-/// [`vnish_offset_to_tz`]) and therefore only accepts those.
+/// The zone is a [`Tz`] on every firmware — `Europe/Vienna`, `Etc/GMT-2` — and
+/// each backend translates to and from whatever it stores: BraiinsOS speaks IANA
+/// natively; VNish keeps a fixed `GMT±N` offset, which maps onto the `Etc/GMT*`
+/// zones (see [`vnish_offset_to_tz`]) and therefore only accepts those.
 ///
-/// The fields carry the zone *names* so the struct stays a plain string model
-/// at the Python boundary. Use [`TimezoneConfig::from_tz`] to build one from
-/// parsed zones and [`TimezoneConfig::tz`] to get the validated [`Tz`] back.
+/// Over the wire (serde, `model_dump`) the zones are their IANA names. From
+/// Python the fields are `zoneinfo.ZoneInfo` objects; the constructor and the
+/// pydantic validator take either a `ZoneInfo` or an IANA name.
 pub struct TimezoneConfig {
-    /// The configured timezone as an IANA name (e.g. `Europe/Vienna`, `Etc/GMT-2`).
-    pub timezone: Option<String>,
-    /// The IANA names of the timezones the miner accepts.
-    pub available: Vec<String>,
-}
-
-impl TimezoneConfig {
-    /// Build a config that names the zone to set and lists no alternatives.
-    pub fn new(timezone: Tz) -> Self {
-        Self::from_tz(Some(timezone), Vec::new())
-    }
-
-    /// Build a config from parsed zones; the fields hold their canonical IANA names.
-    pub fn from_tz(timezone: Option<Tz>, available: Vec<Tz>) -> Self {
-        Self {
-            timezone: timezone.map(|tz| tz.name().to_string()),
-            available: available
-                .into_iter()
-                .map(|tz| tz.name().to_string())
-                .collect(),
-        }
-    }
-
-    /// The configured timezone, parsed and validated as an IANA zone.
-    ///
-    /// `Ok(None)` when no timezone is set; an error when the name is not a
-    /// known IANA zone.
-    pub fn tz(&self) -> anyhow::Result<Option<Tz>> {
-        self.timezone.as_deref().map(parse_iana).transpose()
-    }
-
-    /// The timezone a `set_timezone_config` call is expected to apply.
-    ///
-    /// Errors when no timezone is set or the name is not a known IANA zone.
-    pub fn required_tz(&self) -> anyhow::Result<Tz> {
-        self.tz()?
-            .ok_or_else(|| anyhow::anyhow!("Timezone config has no timezone to set"))
-    }
+    /// The configured timezone.
+    pub timezone: Option<Tz>,
+    /// The timezones the miner accepts.
+    pub available: Vec<Tz>,
 }
 
 #[cfg(feature = "python")]
 #[pymethods]
 impl TimezoneConfig {
     #[new]
-    #[pyo3(signature = (timezone = None, available = None))]
-    fn py_new(timezone: Option<String>, available: Option<Vec<String>>) -> Self {
-        Self {
-            timezone,
-            available: available.unwrap_or_default(),
-        }
+    #[pyo3(signature = (timezone: "tzinfo | str | None" = None, available: "list[tzinfo | str] | None" = None))]
+    fn py_new(
+        timezone: Option<&Bound<'_, PyAny>>,
+        available: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        use asic_rs_pydantic::PyPydanticType;
+        Ok(Self {
+            timezone: timezone
+                .map(<Tz as PyPydanticType>::from_pydantic)
+                .transpose()?,
+            available: available
+                .map(<Vec<Tz> as PyPydanticType>::from_pydantic)
+                .transpose()?
+                .unwrap_or_default(),
+        })
     }
-}
-
-/// Parse an IANA zone name (`Europe/Vienna`, `Etc/GMT-2`, `UTC`) into a [`Tz`].
-pub fn parse_iana(name: &str) -> anyhow::Result<Tz> {
-    name.parse::<Tz>()
-        .map_err(|_| anyhow::anyhow!("Unknown IANA timezone {name:?}"))
 }
 
 /// Whole hours *east* of UTC encoded by a fixed-offset zone, or `None` for any
@@ -291,7 +259,7 @@ mod tests {
     }
 
     /// The sign inversion checked against the actual offsets chrono-tz applies,
-    /// so a consistent-but-wrong mapping cannot pass the string tests above.
+    /// so a consistent-but-wrong mapping cannot pass the name-based tests above.
     #[test]
     fn mapped_zone_has_the_offset_vnish_means() -> anyhow::Result<()> {
         let now = at(2026, 7)?;
@@ -353,31 +321,33 @@ mod tests {
         Ok(())
     }
 
+    /// On the wire the zones are their IANA names, and an unknown name is
+    /// rejected on the way in rather than carried along as text.
     #[test]
-    fn config_round_trips_through_iana_names() -> anyhow::Result<()> {
-        let config = TimezoneConfig::from_tz(
-            Some(Tz::Europe__Vienna),
-            vec![Tz::Europe__Vienna, Tz::Etc__GMTMinus2],
-        );
-        assert_eq!(config.timezone.as_deref(), Some("Europe/Vienna"));
-        assert_eq!(config.available, vec!["Europe/Vienna", "Etc/GMT-2"]);
-        assert_eq!(config.tz()?, Some(Tz::Europe__Vienna));
-        assert_eq!(config.required_tz()?, Tz::Europe__Vienna);
-        Ok(())
-    }
-
-    #[test]
-    fn config_validates_the_name() -> anyhow::Result<()> {
-        let empty = TimezoneConfig::default();
-        assert_eq!(empty.tz()?, None);
-        assert!(empty.required_tz().is_err());
-
-        let bogus = TimezoneConfig {
-            timezone: Some("GMT+2".to_string()),
-            available: Vec::new(),
+    fn config_serializes_zones_as_iana_names() -> anyhow::Result<()> {
+        let config = TimezoneConfig {
+            timezone: Some(Tz::Europe__Vienna),
+            available: vec![Tz::Europe__Vienna, Tz::Etc__GMTMinus2],
         };
-        assert!(bogus.tz().is_err());
-        assert!(bogus.required_tz().is_err());
+        let json = serde_json::to_value(&config)?;
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "timezone": "Europe/Vienna",
+                "available": ["Europe/Vienna", "Etc/GMT-2"],
+            })
+        );
+
+        let back: TimezoneConfig = serde_json::from_value(json)?;
+        assert_eq!(back.timezone, Some(Tz::Europe__Vienna));
+        assert_eq!(back.available, config.available);
+
+        let empty: TimezoneConfig = serde_json::from_str(r#"{"timezone":null,"available":[]}"#)?;
+        assert_eq!(empty.timezone, None);
+
+        let bogus: Result<TimezoneConfig, _> =
+            serde_json::from_str(r#"{"timezone":"GMT+2","available":[]}"#);
+        assert!(bogus.is_err());
         Ok(())
     }
 }

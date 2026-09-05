@@ -1179,13 +1179,19 @@ impl SupportsTimezoneConfig for VnishV130 {
             .iter()
             .map(|offset| vnish_offset_to_tz(offset))
             .collect::<anyhow::Result<Vec<_>>>()?;
-        Ok(TimezoneConfig::from_tz(timezone, available))
+        Ok(TimezoneConfig {
+            timezone,
+            available,
+        })
     }
 
     async fn set_timezone_config(&self, config: TimezoneConfig) -> anyhow::Result<bool> {
+        let timezone = config
+            .timezone
+            .ok_or_else(|| anyhow::anyhow!("Timezone config has no timezone to set"))?;
         // Only the fixed-offset `Etc/GMT*` zones survive the trip; a DST zone is
         // rejected with a hint at its current equivalent (see `tz_to_vnish_offset`).
-        let timezone = tz_to_vnish_offset_now(config.required_tz()?)?;
+        let timezone = tz_to_vnish_offset_now(timezone)?;
         let mut settings = self.web.settings().await?;
         match settings.pointer_mut("/regional/timezone") {
             Some(tz) => {
@@ -1417,22 +1423,18 @@ mod tests {
     /// IANA names the config reports; the offered list flips the same way.
     #[test]
     fn timezone_is_reported_as_the_sign_inverted_etc_gmt_zone() {
+        use asic_rs_core::config::timezone::Tz;
+
         let miner = VnishV130::new(IpAddr::from([127, 0, 0, 1]), AntMinerModel::S19);
 
         let mut data = HashMap::new();
         data.insert(ConfigField::Timezone, json!({ "current": "GMT+2" }));
         let config = miner.parse_timezone_config(&data).expect("timezone config");
 
-        assert_eq!(config.timezone.as_deref(), Some("Etc/GMT-2"));
+        assert_eq!(config.timezone, Some(Tz::Etc__GMTMinus2));
         assert_eq!(config.available.len(), 27);
-        assert_eq!(
-            config.available.first().map(String::as_str),
-            Some("Etc/GMT+12")
-        );
-        assert!(config.available.iter().any(|tz| tz == "Etc/GMT"));
-        assert_eq!(
-            config.available.last().map(String::as_str),
-            Some("Etc/GMT-14")
-        );
+        assert_eq!(config.available.first(), Some(&Tz::Etc__GMTPlus12));
+        assert!(config.available.contains(&Tz::Etc__GMT));
+        assert_eq!(config.available.last(), Some(&Tz::Etc__GMTMinus14));
     }
 }
