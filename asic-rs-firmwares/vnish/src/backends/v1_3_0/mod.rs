@@ -8,7 +8,7 @@ use asic_rs_core::{
         preset::PresetInfo,
         scaling::ScalingConfig,
         temperature::TemperatureConfig,
-        timezone::TimezoneConfig,
+        timezone::{TimezoneConfig, tz_to_vnish_offset_now, vnish_offset_to_tz},
         tuning::TuningConfig,
     },
     data::{
@@ -1155,7 +1155,8 @@ impl SupportsTimezoneConfig for VnishV130 {
 
     /// VNish 1.3.x stores a fixed UTC offset (e.g. `"GMT+2"`) under
     /// `/regional/timezone` in `/settings` — same shape as 1.2.x. No DST, no list
-    /// endpoint, so fall back to the whole-hour offsets.
+    /// endpoint, so fall back to the whole-hour offsets. Both are reported as the
+    /// equivalent IANA `Etc/GMT*` zones.
     fn parse_timezone_config(
         &self,
         data: &HashMap<ConfigField, Value>,
@@ -1168,21 +1169,23 @@ impl SupportsTimezoneConfig for VnishV130 {
         let obj = data
             .get(&ConfigField::Timezone)
             .ok_or_else(|| anyhow::anyhow!("No timezone data returned"))?;
+        // `"GMT+2"` (UTC+2) becomes the canonical `Etc/GMT-2`: the sign flips.
         let timezone = obj
             .pointer("/current")
             .and_then(|v| v.as_str())
-            .map(String::from);
-        Ok(TimezoneConfig {
-            timezone,
-            available: DEFAULT_OFFSETS.iter().map(|s| s.to_string()).collect(),
-        })
+            .map(vnish_offset_to_tz)
+            .transpose()?;
+        let available = DEFAULT_OFFSETS
+            .iter()
+            .map(|offset| vnish_offset_to_tz(offset))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        Ok(TimezoneConfig::from_tz(timezone, available))
     }
 
     async fn set_timezone_config(&self, config: TimezoneConfig) -> anyhow::Result<bool> {
-        let timezone = match config.timezone {
-            Some(tz) => tz,
-            None => anyhow::bail!("Timezone config has no timezone to set"),
-        };
+        // Only the fixed-offset `Etc/GMT*` zones survive the trip; a DST zone is
+        // rejected with a hint at its current equivalent (see `tz_to_vnish_offset`).
+        let timezone = tz_to_vnish_offset_now(config.required_tz()?)?;
         let mut settings = self.web.settings().await?;
         match settings.pointer_mut("/regional/timezone") {
             Some(tz) => {
@@ -1407,6 +1410,29 @@ mod tests {
             miner_data.hashrate.expect("hashrate"),
             HashRateUnit::TeraHash,
             110.0,
+        );
+    }
+
+    /// VNish's `"GMT+2"` is UTC+2, which is `Etc/GMT-2` in the POSIX-signed
+    /// IANA names the config reports; the offered list flips the same way.
+    #[test]
+    fn timezone_is_reported_as_the_sign_inverted_etc_gmt_zone() {
+        let miner = VnishV130::new(IpAddr::from([127, 0, 0, 1]), AntMinerModel::S19);
+
+        let mut data = HashMap::new();
+        data.insert(ConfigField::Timezone, json!({ "current": "GMT+2" }));
+        let config = miner.parse_timezone_config(&data).expect("timezone config");
+
+        assert_eq!(config.timezone.as_deref(), Some("Etc/GMT-2"));
+        assert_eq!(config.available.len(), 27);
+        assert_eq!(
+            config.available.first().map(String::as_str),
+            Some("Etc/GMT+12")
+        );
+        assert!(config.available.iter().any(|tz| tz == "Etc/GMT"));
+        assert_eq!(
+            config.available.last().map(String::as_str),
+            Some("Etc/GMT-14")
         );
     }
 }

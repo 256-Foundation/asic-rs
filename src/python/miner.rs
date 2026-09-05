@@ -738,16 +738,24 @@ impl Miner {
         })
     }
     /// Set timezone configuration.
+    ///
+    /// `config.timezone` is an IANA zone name (`"Europe/Vienna"`, `"Etc/GMT-2"`)
+    /// on every firmware; the backend converts to its own dialect. Raises when
+    /// the name is unknown or the firmware cannot represent the zone (VNish
+    /// only takes fixed-offset `Etc/GMT*` zones; the error names the equivalent).
     #[pyo3(signature = (config: "TimezoneConfig"))]
     pub fn set_timezone_config<'a>(
         &self,
         py: Python<'a>,
         config: TimezoneConfig,
-    ) -> PyResult<PyAwaitable<Option<bool>>> {
+    ) -> PyResult<PyAwaitable<bool>> {
         let inner = Arc::clone(&self.inner);
         future_into_py(py, async move {
             let inner = inner.read().await;
-            Ok(inner.set_timezone_config(config).await.ok())
+            inner
+                .set_timezone_config(config)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))
         })
     }
     /// Replace the configured mining pool groups.

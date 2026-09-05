@@ -5,7 +5,7 @@ use asic_rs_core::{
     config::{
         collector::{ConfigCollector, ConfigExtractor, ConfigField, ConfigLocation},
         pools::PoolGroupConfig,
-        timezone::TimezoneConfig,
+        timezone::{TimezoneConfig, parse_iana},
     },
     data::{
         board::{BoardData, MinerControlBoard},
@@ -666,31 +666,30 @@ impl SupportsTimezoneConfig for BraiinsV2604 {
         let timezone = obj
             .pointer("/timezone/id")
             .and_then(|v| v.as_str())
-            .map(String::from);
+            .map(parse_iana)
+            .transpose()?;
+        // BOS ids are IANA names already; drop any the bundled database lacks
+        // rather than failing the whole read over one unknown entry.
         let available = obj
             .pointer("/timezoneList")
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|t| t.get("id").and_then(|v| v.as_str()).map(String::from))
+                    .filter_map(|t| t.get("id").and_then(|v| v.as_str()))
+                    .filter_map(|id| parse_iana(id).ok())
                     .collect()
             })
             .unwrap_or_default();
-        Ok(TimezoneConfig {
-            timezone,
-            available,
-        })
+        Ok(TimezoneConfig::from_tz(timezone, available))
     }
 
+    /// BOS speaks IANA natively, so the canonical zone name goes over the wire as is.
     async fn set_timezone_config(&self, config: TimezoneConfig) -> anyhow::Result<bool> {
-        let timezone = match config.timezone {
-            Some(tz) => tz,
-            None => anyhow::bail!("Timezone config has no timezone to set"),
-        };
+        let timezone = config.required_tz()?;
         let mutation = r#"mutation ($tz: String!) {
             bos { setTimezone(timezone: $tz) { __typename } }
         }"#;
-        let variables = json!({ "tz": timezone });
+        let variables = json!({ "tz": timezone.name() });
         let result = self
             .graphql
             .send_graphql_command(mutation, true, Some(variables))
