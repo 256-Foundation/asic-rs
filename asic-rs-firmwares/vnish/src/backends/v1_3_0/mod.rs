@@ -8,7 +8,7 @@ use asic_rs_core::{
         preset::PresetInfo,
         scaling::ScalingConfig,
         temperature::TemperatureConfig,
-        timezone::{TimezoneConfig, tz_to_vnish_offset_now, vnish_offset_to_tz},
+        timezone::TimezoneConfig,
         tuning::TuningConfig,
     },
     data::{
@@ -34,7 +34,10 @@ use semver::Version;
 use serde_json::{Value, json};
 use web::VnishWebAPI;
 
-use crate::firmware::VnishFirmware;
+use crate::{
+    firmware::VnishFirmware,
+    timezone::{tz_to_vnish_offset_now, vnish_offset_to_tz},
+};
 
 mod web;
 

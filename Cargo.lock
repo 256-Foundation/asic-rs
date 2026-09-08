@@ -384,6 +384,7 @@ dependencies = [
  "asic-rs-core",
  "asic-rs-makes-antminer",
  "async-trait",
+ "chrono",
  "macaddr",
  "measurements",
  "once_cell",
