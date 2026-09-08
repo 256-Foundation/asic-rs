@@ -26,6 +26,7 @@ use asic_rs_core::{
         message::{MessageSeverity, MinerComponent, MinerMessage},
         miner::{MiningMode, TuningTarget},
         pool::{PoolData, PoolGroupData, PoolURL},
+        share::parse_share_difficulty,
     },
     traits::{miner::*, model::MinerModel},
 };
@@ -732,6 +733,20 @@ impl GetUptime for ElphapexV1 {
             .get("elapsed")
             .and_then(Self::parse_u64)
             .map(Duration::from_secs)
+    }
+}
+
+impl GetBestShare for ElphapexV1 {
+    fn parse_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::BestShare)
+            .and_then(parse_share_difficulty)
+    }
+}
+
+impl GetSessionBestShare for ElphapexV1 {
+    fn parse_session_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::SessionBestShare)
+            .and_then(parse_share_difficulty)
     }
 }
 

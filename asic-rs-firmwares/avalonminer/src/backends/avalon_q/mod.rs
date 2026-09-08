@@ -22,6 +22,7 @@ use asic_rs_core::{
         hashrate::{HashRate, HashRateUnit},
         miner::TuningTarget,
         pool::{PoolData, PoolGroupData, PoolURL},
+        share::parse_share_difficulty,
     },
     traits::{miner::*, model::MinerModel},
 };
@@ -289,6 +290,10 @@ impl GetDataLocations for AvalonQMiner {
             command: "pools",
             parameters: None,
         };
+        const RPC_SUMMARY: MinerCommand = MinerCommand::RPC {
+            command: "summary",
+            parameters: None,
+        };
 
         match data_field {
             DataField::Mac => vec![(
@@ -522,6 +527,14 @@ impl GetDataLocations for AvalonQMiner {
                 DataExtractor {
                     func: get_by_pointer,
                     key: Some("/POOLS"),
+                    tag: None,
+                },
+            )],
+            DataField::BestShare => vec![(
+                RPC_SUMMARY,
+                DataExtractor {
+                    func: get_by_pointer,
+                    key: Some("/SUMMARY/0/Best Share"),
                     tag: None,
                 },
             )],
@@ -798,6 +811,20 @@ impl GetMessages for AvalonQMiner {}
 impl GetUptime for AvalonQMiner {
     fn parse_uptime(&self, data: &HashMap<DataField, Value>) -> Option<Duration> {
         data.extract_map::<u64, _>(DataField::Uptime, Duration::from_secs)
+    }
+}
+
+impl GetBestShare for AvalonQMiner {
+    fn parse_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::BestShare)
+            .and_then(parse_share_difficulty)
+    }
+}
+
+impl GetSessionBestShare for AvalonQMiner {
+    fn parse_session_best_share(&self, data: &HashMap<DataField, Value>) -> Option<f64> {
+        data.get(&DataField::SessionBestShare)
+            .and_then(parse_share_difficulty)
     }
 }
 
